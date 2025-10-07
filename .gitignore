@@ -26,6 +26,9 @@ Thumbs.db
 *.tmp
 *.log
 
+# Scripts (keep executable permissions)
+# Note: On Windows, executable permissions are not tracked by git
+
 # Helm charts (downloaded)
 charts/
 *.tgz

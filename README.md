@@ -16,33 +16,44 @@ This repository contains configuration files and documentation for deploying Roc
 ## Quick Start
 
 ```bash
-# 1. Install K3s
+# 1. Clone repository and setup credentials
+git clone https://github.com/Canepro/rocketchat-k8s.git
+cd rocketchat-k8s
+
+# 2. Setup Grafana Cloud credentials
+cp .gitignore.example grafana-cloud-secret.yaml
+nano grafana-cloud-secret.yaml  # Add your actual credentials
+
+# 3. Install K3s (if not already installed)
 curl -sfL https://get.k3s.io | sh -
 
-# 2. Install Helm
+# 4. Install Helm
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-# 3. Deploy infrastructure
+# 5. Deploy infrastructure
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.3/cert-manager.yaml
 kubectl apply -f clusterissuer.yaml
 
-# 4. Deploy monitoring
+# 6. Deploy monitoring
 kubectl create namespace monitoring
-kubectl apply -f grafana-cloud-credentials.yaml  # Update with your Grafana Cloud credentials first
+kubectl apply -f grafana-cloud-secret.yaml      # Created from template above
 kubectl apply -f podmonitor-crd.yaml             # CRDs for Rocket.Chat chart
 kubectl apply -f prometheus-agent.yaml
 
-# 5. Setup storage (if using dedicated disks)
+# 7. Setup storage (if using dedicated disks)
 kubectl apply -f persistent-volumes.yaml
 kubectl apply -f mongo-pvc.yaml
 
-# 6. Deploy Rocket.Chat
+# 8. Deploy Rocket.Chat
 helm repo add rocketchat https://rocketchat.github.io/helm-charts
 helm repo update
 helm install rocketchat -f values.yaml rocketchat/rocketchat
 
-# 6. Access Rocket.Chat
+# 9. Setup Grafana dashboards (optional)
+# Follow docs/observability.md for dashboard import instructions
+
+# 10. Access Rocket.Chat
 # https://k8.canepro.me
 ```
 
@@ -64,12 +75,15 @@ helm install rocketchat -f values.yaml rocketchat/rocketchat
 
 ### Scripts
 - **`deploy.sh`** - Interactive deployment script (bash)
+- **`deploy-rocketchat.sh`** - Automated Rocket.Chat deployment script
+- **`scripts/import-grafana-dashboards.sh`** - Grafana dashboard import utility
 
 ## Documentation
 
 - **[Deployment Guide](docs/deployment.md)** - Comprehensive step-by-step deployment instructions
 - **[Deployment Checklist](docs/deployment-checklist.md)** - Step-by-step verification checklist
 - **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions
+- **[Observability Guide](docs/observability.md)** - Monitoring setup with Grafana dashboards
 
 ## Server Requirements
 
@@ -135,5 +149,5 @@ kubectl cp rocketchat-mongodb-0:/tmp/backup ./mongodb-backup
 
 ## License
 
-This configuration is provided as-is for deploying Rocket.Chat on Kubernetes.
+This configuration is provided as-is for deploying Rocket.Chat on Kubernetes. Licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
