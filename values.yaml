@@ -1,0 +1,122 @@
+# Rocket.Chat Enterprise Deployment - values.yaml
+
+image:
+  repository: registry.rocket.chat/rocketchat/rocket.chat
+  tag: 7.10.0        # Match chart appVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+minAvailable: 1
+
+## SMTP configuration (official block)
+smtp:
+  enabled: true
+  host: smtp.mailgun.org
+  port: 587
+  username: postmaster@canepro.me
+  password: ""   # Inject via Kubernetes Secret (smtp-credentials)
+
+## Extra environment variables (non-sensitive overrides)
+extraEnv:
+  - name: OVERWRITE_SETTING_SMTP_Host
+    value: "smtp.mailgun.org"
+  - name: OVERWRITE_SETTING_SMTP_Username
+    value: "postmaster@canepro.me"
+  # Password injected via secret, not here
+
+## Ingress with TLS via cert-manager
+host: k8.canepro.me
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: production-cert-issuer
+  tls:
+    - secretName: rocketchat-tls
+      hosts:
+        - k8.canepro.me
+
+## Prometheus scraping
+prometheusScraping:
+  enabled: true
+  port: 9100
+  msPort: 9458
+
+podMonitor:
+  enabled: true
+  interval: 30s
+
+serviceMonitor:
+  enabled: false   # deprecated
+
+## MongoDB (Bitnami legacy chart bundled)
+mongodb:
+  enabled: true
+  architecture: replicaset
+  replicaCount: 1
+  arbiter:
+    enabled: false
+  auth:
+    rootPassword: rocketchatroot
+    usernames:
+      - rocketchat
+    passwords:
+      - rocketchat
+    databases:
+      - rocketchat
+  metrics:
+    enabled: true
+  persistence:
+    enabled: true
+    existingClaim: mongo-pvc   # Bind to your /mnt/mongo-data PV
+    accessMode: ReadWriteOnce
+    size: 2Gi                  # Match your mounted disk
+
+## Rocket.Chat persistence (uploads)
+persistence:
+  enabled: false   # For now; consider S3/MinIO later
+
+## Microservices (Enterprise Edition)
+microservices:
+  enabled: true
+  logLevel: warn
+  heartbeatInterval: 10
+  heartbeatTimeout: 30
+
+## NATS (auto-enabled with microservices)
+nats:
+  enabled: true
+  nats:
+    image: nats:2.4-alpine
+  cluster:
+    enabled: true
+    replicas: 2
+  exporter:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+  podMonitor:
+    enabled: true
+
+## Probes
+livenessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+podDisruptionBudget:
+  enabled: true
+

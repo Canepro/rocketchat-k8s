@@ -1,0 +1,36 @@
+# Sensitive files - DO NOT COMMIT
+grafana-cloud-secret.yaml
+grafana-cloud-credentials.yaml
+*.key
+*.pem
+
+# SMTP credentials (if stored locally)
+smtp-credentials.yaml
+
+# Backup files
+*.backup
+*.bak
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+
+# Helm charts (downloaded)
+charts/
+*.tgz
+
+# Kubernetes secrets (if exported)
+*-secret.yaml
+*-secrets.yaml
+
