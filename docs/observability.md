@@ -56,8 +56,43 @@ Notes:
 - **MongoDB**: confirm `mongodb_*` metrics from the exporter.
 - **Kubernetes**: ensure the Prometheus Agent remote_write is healthy (no WAL backlog, no remote write errors).
 
+## Current Architecture
+
+**What we have now:**
+```
+Rocket.Chat Pods → Prometheus Agent v3.0.0 → Grafana Cloud (Metrics)
+```
+
+**Capabilities:**
+- ✅ Metrics from Rocket.Chat, MongoDB, NATS, Kubernetes
+- ✅ Real-time dashboards and alerts
+- ✅ Low resource usage (256-512Mi RAM)
+
+---
+
+## Future: Full Observability Stack
+
+**Want metrics + logs + traces?** See **[Observability Roadmap](observability-roadmap.md)** for migration to Grafana Alloy.
+
+**What you'll gain:**
+- 📊 **Metrics** - Current functionality (already have)
+- 📝 **Logs** - Search and analyze application logs
+- 🔍 **Traces** - End-to-end request tracking through microservices
+- 🔗 **Correlation** - Jump from metric spike → logs → trace in one click
+
+**Timeline:** After Rocket.Chat is stable (2-4 weeks), migrate from Prometheus Agent to Grafana Alloy for unified observability.
+
+---
+
 ## Optional: Next Steps
 
-- Add alert rules and SLOs (availability, latency, error rate) for Rocket.Chat and MongoDB.
-- Commit curated JSON exports of the dashboards (pin versions) if you want to avoid fetching from grafana.com at deploy time.
-- If running a local Grafana instead of Grafana Cloud, you can use Grafana provisioning via ConfigMaps to load dashboards automatically.
+**Now:**
+- Add alert rules and SLOs (availability, latency, error rate) for Rocket.Chat and MongoDB
+- Commit curated JSON exports of the dashboards (pin versions) if you want to avoid fetching from grafana.com at deploy time
+- If running a local Grafana instead of Grafana Cloud, you can use Grafana provisioning via ConfigMaps to load dashboards automatically
+
+**Later (when ready for full observability):**
+- Review [Observability Roadmap](observability-roadmap.md)
+- Migrate to Grafana Alloy for logs + traces
+- Enable OpenTelemetry in Rocket.Chat
+- Create unified dashboards
