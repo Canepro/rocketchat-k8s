@@ -110,8 +110,20 @@ Set kubeconfig for non-root access:
 ```bash
 mkdir -p ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-sudo chown $(id -u):$(id -g) ~/.kube/config
+sudo chown -R $(id -u):$(id -g) ~/.kube
+sudo chmod 700 ~/.kube
+sudo chmod 600 ~/.kube/config
 export KUBECONFIG=~/.kube/config
+
+# Make it permanent
+echo 'export KUBECONFIG=~/.kube/config' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Test kubectl access:
+```bash
+kubectl get nodes
+# Should show your node in Ready state
 ```
 
 ---

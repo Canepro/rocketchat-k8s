@@ -1,5 +1,56 @@
 # Rocket.Chat Kubernetes Troubleshooting Guide
 
+## Prerequisites Issues
+
+### Issue 0: Kubectl Permission Denied
+
+**Symptoms:**
+```bash
+kubectl get nodes
+# Error: error loading config file "/etc/rancher/k3s/k3s.yaml": open /etc/rancher/k3s/k3s.yaml: permission denied
+```
+
+**Diagnosis:**
+```bash
+ls -la /etc/rancher/k3s/k3s.yaml
+ls -la ~/.kube/
+```
+
+**Solutions:**
+
+**For non-root users, setup kubectl access:**
+```bash
+# Create .kube directory
+mkdir -p ~/.kube
+
+# Copy k3s config to user directory
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+
+# Fix ownership
+sudo chown -R $(id -u):$(id -g) ~/.kube
+
+# Fix permissions
+sudo chmod 700 ~/.kube
+sudo chmod 600 ~/.kube/config
+
+# Export KUBECONFIG
+export KUBECONFIG=~/.kube/config
+
+# Make permanent
+echo 'export KUBECONFIG=~/.kube/config' >> ~/.bashrc
+source ~/.bashrc
+
+# Test
+kubectl get nodes
+```
+
+**Alternative: Use sudo (not recommended for regular use):**
+```bash
+sudo kubectl get nodes
+```
+
+---
+
 ## General Debugging Commands
 
 ### Check Pod Status
@@ -50,11 +101,17 @@ kubectl describe pvc <pvc-name>
 # Overall disk usage
 df -h
 
+# Check all mounted volumes
+df -h | grep /mnt
+
 # MongoDB data directory
 du -sh /mnt/mongo-data
 
 # Prometheus data directory
 du -sh /mnt/prometheus-data
+
+# Rocket.Chat uploads directory
+du -sh /mnt/rocketchat-uploads
 
 # Inside MongoDB pod
 kubectl exec -it rocketchat-mongodb-0 -- df -h
@@ -639,12 +696,14 @@ Verify mount points exist:
 ```bash
 ls -la /mnt/mongo-data
 ls -la /mnt/prometheus-data
+ls -la /mnt/rocketchat-uploads
 ```
 
 Check permissions:
 ```bash
 sudo chmod 755 /mnt/mongo-data
 sudo chmod 755 /mnt/prometheus-data
+sudo chmod 755 /mnt/rocketchat-uploads
 sudo chown -R 999:999 /mnt/mongo-data  # MongoDB UID
 ```
 
@@ -679,7 +738,74 @@ spec:
 
 ---
 
-### Issue 10: Mount Point Lost After Reboot
+### Issue 10: Missing Storage Mount Directory
+
+**Symptoms:**
+- PV remains in `Available` state, won't bind to PVC
+- Pods fail with `FailedMount` errors
+- Error: `hostPath path "/mnt/rocketchat-uploads" does not exist`
+
+**Diagnosis:**
+```bash
+# Check if directories exist
+ls -ld /mnt/mongo-data
+ls -ld /mnt/prometheus-data
+ls -ld /mnt/rocketchat-uploads
+
+# Check what's actually mounted
+df -h | grep /mnt
+lsblk
+```
+
+**Solutions:**
+
+**If directory doesn't exist:**
+```bash
+# Create missing directories
+sudo mkdir -p /mnt/mongo-data
+sudo mkdir -p /mnt/prometheus-data
+sudo mkdir -p /mnt/rocketchat-uploads
+
+# Set proper permissions
+sudo chmod 755 /mnt/mongo-data
+sudo chmod 755 /mnt/prometheus-data
+sudo chmod 755 /mnt/rocketchat-uploads
+```
+
+**If you have dedicated disks, mount them:**
+```bash
+# Check available disks
+lsblk
+
+# Example: Mount nvme3n1p1 for uploads
+sudo mount /dev/nvme3n1p1 /mnt/rocketchat-uploads
+
+# Verify mount
+df -h | grep /mnt
+```
+
+**If you DON'T have a dedicated disk for uploads:**
+
+That's fine! The directory on root filesystem works:
+```bash
+# Just create the directory
+sudo mkdir -p /mnt/rocketchat-uploads
+sudo chmod 755 /mnt/rocketchat-uploads
+
+# The PV will use hostPath on root disk
+# This is a valid configuration for smaller deployments
+```
+
+**After fixing, verify PV binding:**
+```bash
+kubectl get pv
+kubectl get pvc -n rocketchat
+# PVCs should now show "Bound" status
+```
+
+---
+
+### Issue 11: Mount Point Lost After Reboot
 
 **Symptoms:**
 - After server reboot, `/mnt/mongo-data` or `/mnt/prometheus-data` is empty
@@ -835,7 +961,7 @@ helm get manifest rocketchat
 
 ---
 
-### Issue 11: PodMonitor CRDs Not Found
+### Issue 12: PodMonitor CRDs Not Found
 
 **Symptoms:**
 - Helm install/upgrade fails with "PodMonitor CRD not found"

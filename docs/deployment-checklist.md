@@ -14,6 +14,23 @@
 
 ## Pre-Deployment Verification
 
+### ✅ Kubectl Access Setup
+
+**If you're a non-root user and get permission denied errors:**
+```bash
+# Setup kubectl access
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown -R $(id -u):$(id -g) ~/.kube
+sudo chmod 700 ~/.kube
+sudo chmod 600 ~/.kube/config
+export KUBECONFIG=~/.kube/config
+
+# Make it permanent
+echo 'export KUBECONFIG=~/.kube/config' >> ~/.bashrc
+source ~/.bashrc
+```
+
 ### ✅ Cluster Status
 ```bash
 kubectl get nodes
@@ -26,14 +43,19 @@ kubectl version --short
 ### ✅ Storage Mounts
 ```bash
 df -h | grep /mnt
-# Expected:
+# Expected (minimum):
 # /dev/nvme1n1p1  2.0G   /mnt/mongo-data
 # /dev/nvme2n1p1  2.0G   /mnt/prometheus-data
-# /dev/nvme3n1p1  5.0G   /mnt/rocketchat-uploads   # adjust to your setup
 
-ls -la /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
-# Verify directories exist and are writable
+# Check all directories exist
+ls -ld /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+# All three directories should exist, even if uploads is not on dedicated disk
+
+# Verify they're accessible
+sudo chmod 755 /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
 ```
+
+**Note**: `/mnt/rocketchat-uploads` can be on root filesystem (no dedicated disk needed). This is a valid configuration.
 
 ### ✅ Namespaces
 ```bash
@@ -67,9 +89,17 @@ kubectl describe pv mongo-pv
 kubectl describe pvc mongo-pvc -n rocketchat
 ```
 
+**Before applying PVs, ensure directories exist:**
+```bash
+# Create directories if they don't exist
+sudo mkdir -p /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+sudo chmod 755 /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+```
+
 **✅ Success Criteria:**
+- [ ] All mount directories exist (`/mnt/mongo-data`, `/mnt/prometheus-data`, `/mnt/rocketchat-uploads`)
 - [ ] PVs created with correct paths and node affinity
-- [ ] mongo-pvc bound to mongo-pv
+- [ ] mongo-pvc and rocketchat-uploads PVC bound to respective PVs
 - [ ] No events showing binding issues
 
 ---

@@ -41,9 +41,10 @@ kubectl apply -f grafana-cloud-secret.yaml      # Created from template above
 kubectl apply -f podmonitor-crd.yaml             # CRDs for Rocket.Chat chart
 kubectl apply -f prometheus-agent.yaml
 
-# 7. Setup storage (if using dedicated disks)
+# 7. Setup storage
 kubectl apply -f persistent-volumes.yaml
 kubectl apply -f mongo-pvc.yaml
+kubectl apply -f rocketchat-uploads-pvc.yaml
 
 # 8. Deploy Rocket.Chat
 helm repo add rocketchat https://rocketchat.github.io/helm-charts
@@ -70,8 +71,9 @@ helm install rocketchat -f values.yaml rocketchat/rocketchat
 - **`mongodb-exporter.yaml`** - Deprecated (MongoDB metrics now built into Helm chart)
 
 ### Storage
-- **`persistent-volumes.yaml`** - PersistentVolume definitions for dedicated disks
+- **`persistent-volumes.yaml`** - PersistentVolume definitions for MongoDB, Prometheus, and Rocket.Chat uploads
 - **`mongo-pvc.yaml`** - PersistentVolumeClaim for MongoDB data
+- **`rocketchat-uploads-pvc.yaml`** - PersistentVolumeClaim for Rocket.Chat file uploads
 
 ### Scripts
 - **`deploy.sh`** - Interactive deployment script (bash)
