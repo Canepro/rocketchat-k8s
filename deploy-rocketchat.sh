@@ -10,6 +10,7 @@ echo ""
 echo "📦 Step 1: Creating Persistent Volumes and Claims..."
 kubectl apply -f persistent-volumes.yaml
 kubectl apply -f mongo-pvc.yaml
+kubectl apply -f rocketchat-uploads-pvc.yaml
 echo "✅ PVs and PVC created"
 echo ""
 
@@ -140,4 +141,3 @@ echo ""
 echo "🌐 Once certificate is ready, access:"
 echo "   https://k8.canepro.me"
 echo ""
-

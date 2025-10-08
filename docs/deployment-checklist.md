@@ -8,6 +8,7 @@
 - **Storage**: 
   - `/mnt/mongo-data` (2 GiB)
   - `/mnt/prometheus-data` (2 GiB)
+  - `/mnt/rocketchat-uploads` (5 GiB)
 
 ---
 
@@ -28,8 +29,9 @@ df -h | grep /mnt
 # Expected:
 # /dev/nvme1n1p1  2.0G   /mnt/mongo-data
 # /dev/nvme2n1p1  2.0G   /mnt/prometheus-data
+# /dev/nvme3n1p1  5.0G   /mnt/rocketchat-uploads   # adjust to your setup
 
-ls -la /mnt/mongo-data /mnt/prometheus-data
+ls -la /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
 # Verify directories exist and are writable
 ```
 
@@ -247,7 +249,7 @@ helm show values rocketchat/rocketchat > default-values.yaml
 
 ```bash
 # Verify all prerequisites
-kubectl get pvc -n rocketchat        # mongo-pvc: Bound
+kubectl get pvc -n rocketchat        # mongo-pvc: Bound, rocketchat-uploads: Bound
 kubectl get clusterissuer            # production-cert-issuer: Ready
 kubectl get secret -n rocketchat     # smtp-credentials exists
 kubectl get pods -n monitoring       # prometheus-agent: Running
@@ -402,6 +404,7 @@ kubectl exec -n rocketchat rocketchat-mongodb-0 -- df -h /bitnami/mongodb
 # Host disk usage
 df -h /mnt/mongo-data
 df -h /mnt/prometheus-data
+df -h /mnt/rocketchat-uploads
 ```
 
 **✅ Success Criteria:**
@@ -517,8 +520,8 @@ kubectl cp rocketchat/rocketchat-mongodb-0:/tmp/backup ./mongodb-backup-$(date +
 - [ ] SMTP tested and working
 - [ ] Metrics visible in Grafana Cloud
 - [ ] MongoDB using dedicated storage (/mnt/mongo-data)
+- [ ] Rocket.Chat uploads stored on /mnt/rocketchat-uploads
 
 ---
 
 **📌 For detailed troubleshooting, see [troubleshooting.md](troubleshooting.md)**
-

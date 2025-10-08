@@ -99,7 +99,7 @@ helm install rocketchat -f values.yaml rocketchat/rocketchat
 - ✅ **Enterprise Edition**: Microservices mode with NATS clustering
 - ✅ **TLS/HTTPS**: Automatic Let's Encrypt certificates via cert-manager
 - ✅ **High Availability**: 2 replicas with pod disruption budget
-- ✅ **Persistent Storage**: MongoDB on dedicated disk with GridFS for uploads
+- ✅ **Persistent Storage**: MongoDB on dedicated disk with Rocket.Chat uploads persisted via PVC
 - ✅ **Built-in Metrics**: MongoDB, NATS, and Rocket.Chat exporters
 - ✅ **Optimized Monitoring**: Prometheus Agent v3.0.0 (256-512 MB) with Grafana Cloud
 - ✅ **Secret-based Auth**: Secure credential management for Grafana Cloud
@@ -107,6 +107,69 @@ helm install rocketchat -f values.yaml rocketchat/rocketchat
 - ✅ **Health Checks**: Configured liveness/readiness probes
 - ✅ **SMTP**: Production-ready configuration with secret management
 - ✅ **Resource Tuned**: Optimized for 7.7 GB RAM / 2 vCPU environments
+
+## 🧩 Upload Persistence Architecture
+
+Rocket.Chat file uploads require three components working together:
+
+### 1. PersistentVolume (PV)
+
+Defines the actual storage on the node. Points to `/mnt/rocketchat-uploads` via `hostPath`:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: rocketchat-uploads-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  hostPath:
+    path: /mnt/rocketchat-uploads
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - b0f08dc8212c.mylabserver.com
+```
+
+### 2. PersistentVolumeClaim (PVC)
+
+Claims the storage capacity. The `rocketchat-uploads` PVC binds to the PV above:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rocketchat-uploads
+  namespace: rocketchat
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage
+```
+
+### 3. Rocket.Chat Helm Configuration
+
+Tells Rocket.Chat pods to mount the PVC at `/app/uploads` (container path):
+
+```yaml
+persistence:
+  enabled: true
+  existingClaim: rocketchat-uploads
+```
+
+**Result**: Files uploaded to Rocket.Chat are stored at `/mnt/rocketchat-uploads` on the node and persist across pod restarts.
 
 ## Monitoring
 
@@ -150,4 +213,3 @@ kubectl cp rocketchat-mongodb-0:/tmp/backup ./mongodb-backup
 ## License
 
 This configuration is provided as-is for deploying Rocket.Chat on Kubernetes. Licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-

@@ -47,12 +47,15 @@ sudo mkfs.ext4 /dev/nvme2n1p1
 ```bash
 sudo mkdir -p /mnt/mongo-data
 sudo mkdir -p /mnt/prometheus-data
+sudo mkdir -p /mnt/rocketchat-uploads
 ```
 
 **Mount the partitions:**
 ```bash
 sudo mount /dev/nvme1n1p1 /mnt/mongo-data
 sudo mount /dev/nvme2n1p1 /mnt/prometheus-data
+# Optional: if using a dedicated volume for uploads
+# sudo mount /dev/nvme3n1p1 /mnt/rocketchat-uploads
 ```
 
 **Verify mounts:**
@@ -71,6 +74,7 @@ Edit `/etc/fstab` and add:
 ```
 UUID=<mongo-uuid>      /mnt/mongo-data      ext4 defaults,nofail 0 2
 UUID=<prometheus-uuid> /mnt/prometheus-data ext4 defaults,nofail 0 2
+UUID=<uploads-uuid>    /mnt/rocketchat-uploads ext4 defaults,nofail 0 2
 ```
 
 Replace `<mongo-uuid>` and `<prometheus-uuid>` with actual UUIDs from `blkid` output.
@@ -85,9 +89,10 @@ df -h | grep /mnt
 ```bash
 sudo chmod 755 /mnt/mongo-data
 sudo chmod 755 /mnt/prometheus-data
+sudo chmod 755 /mnt/rocketchat-uploads
 ```
 
-> **Note**: If you skip this step, MongoDB and Prometheus will use default K3s storage locations.
+> **Note**: If you skip this step, MongoDB, Rocket.Chat uploads, and Prometheus will fall back to default K3s storage locations.
 
 ---
 
@@ -135,7 +140,7 @@ metadata:
   name: mongo-pv
 spec:
   capacity:
-    storage: 8Gi
+    storage: 2Gi
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
@@ -158,13 +163,36 @@ metadata:
   name: prometheus-pv
 spec:
   capacity:
-    storage: 50Gi
+    storage: 2Gi
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-storage
   hostPath:
     path: /mnt/prometheus-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - <your-node-name>  # Get with: kubectl get nodes
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: rocketchat-uploads-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  hostPath:
+    path: /mnt/rocketchat-uploads
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -190,22 +218,23 @@ kubectl apply -f persistent-volumes.yaml
 kubectl get pv
 ```
 
-**Create PersistentVolumeClaim for MongoDB:**
+**Create PersistentVolumeClaims:**
 
-Create the PVC that will bind to your `mongo-pv`:
+Apply the PVCs for MongoDB and Rocket.Chat uploads:
 ```bash
 kubectl apply -f mongo-pvc.yaml
+kubectl apply -f rocketchat-uploads-pvc.yaml
 ```
 
-Verify the PVC is bound:
+Verify the PVCs are bound:
 ```bash
-kubectl get pvc
+kubectl get pvc -n rocketchat
 kubectl get pv
 ```
 
-You should see `mongo-pvc` with status `Bound` to `mongo-pv`.
+You should see `mongo-pvc` bound to `mongo-pv` and `rocketchat-uploads` bound to `rocketchat-uploads-pv`.
 
-> **Note**: The `values.yaml` is already configured to use `existingClaim: mongo-pvc` for MongoDB persistence.
+> **Note**: The `values.yaml` references `existingClaim: mongo-pvc` for the bundled MongoDB chart and `existingClaim: rocketchat-uploads` for Rocket.Chat file uploads.
 
 ---
 

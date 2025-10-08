@@ -55,6 +55,8 @@ kubectl apply -f persistent-volumes.yaml
 sleep 2
 kubectl apply -f mongo-pvc.yaml
 sleep 2
+kubectl apply -f rocketchat-uploads-pvc.yaml
+sleep 2
 
 info "Verifying PV/PVC binding..."
 kubectl get pv
@@ -154,6 +156,7 @@ info "Pre-deployment verification:"
 # Check prerequisites
 echo "Checking prerequisites..."
 kubectl get pvc -n rocketchat | grep mongo-pvc
+kubectl get pvc -n rocketchat | grep rocketchat-uploads
 kubectl get clusterissuer | grep production-cert-issuer
 kubectl get secret -n rocketchat | grep smtp-credentials
 
@@ -194,4 +197,3 @@ fi
 echo ""
 info "🎉 Deployment script completed!"
 info "See docs/deployment-checklist.md for verification steps"
-

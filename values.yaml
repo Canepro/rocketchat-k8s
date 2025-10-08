@@ -74,7 +74,11 @@ mongodb:
 
 ## Rocket.Chat persistence (uploads)
 persistence:
-  enabled: false   # For now; consider S3/MinIO later
+  enabled: true
+  existingClaim: rocketchat-uploads
+  # accessMode/size retained for documentation; existingClaim takes precedence
+  accessMode: ReadWriteOnce
+  size: 5Gi
 
 ## Microservices (Enterprise Edition)
 microservices:
