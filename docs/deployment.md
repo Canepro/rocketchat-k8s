@@ -12,10 +12,11 @@
 ## Prerequisites
 - **k3s cluster** installed and running
 - **kubectl** access configured
-- **Helm v3** installed  
+- **Helm v3** installed (`curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash`)
 - **DNS record** pointing to server IP
 - **Grafana Cloud account** (free tier available)
 - **Email address** for Let's Encrypt certificates
+- **Storage directories** created (or use k3s dynamic provisioning)
 
 ---
 

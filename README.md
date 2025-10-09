@@ -329,10 +329,24 @@ helm upgrade monitoring prometheus-community/kube-prometheus-stack -n monitoring
 ### Software Prerequisites
 
 - **K3s** or any Kubernetes distribution (v1.20+)
-- **Helm** v3.0+
+- **Helm** v3.0+ (install: `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash`)
 - **kubectl** configured with cluster access
 - **DNS** record pointing to your server IP
 - **Grafana Cloud** account (free tier available)
+
+**Quick Setup:**
+```bash
+# Install Helm if not present
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Create storage directories (optional for k3s with local-path)
+sudo mkdir -p /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+sudo chmod 755 /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+
+# Create namespaces
+kubectl create namespace rocketchat
+kubectl create namespace monitoring
+```
 
 ### Network Requirements
 
@@ -475,7 +489,7 @@ persistence:
 ### Current Stack (Phase 1)
 
 ```
-Rocket.Chat → Prometheus Agent → Grafana Cloud
+Rocket.Chat → Prometheus Agent v3.0.0 → Grafana Cloud
 ```
 
 **Metrics Collected:**
@@ -489,6 +503,79 @@ Rocket.Chat → Prometheus Agent → Grafana Cloud
 - [Microservice Metrics](https://grafana.com/grafana/dashboards/23427) - Dashboard ID: 23427
 - [MongoDB Global](https://grafana.com/grafana/dashboards/23712) - Dashboard ID: 23712
 
+---
+
+### Monitoring Deployment Options
+
+We provide **two ways** to deploy Prometheus monitoring with Grafana Cloud:
+
+#### **Option 1: Raw Manifests (Recommended for Lab)**
+
+Deploy Prometheus Agent v3.0.0 directly with kubectl:
+
+```bash
+# 1. Create Grafana Cloud secret
+kubectl create secret generic grafana-cloud-credentials \
+  --namespace monitoring \
+  --from-literal=username="YOUR_GRAFANA_CLOUD_INSTANCE_ID" \
+  --from-literal=password="YOUR_GRAFANA_CLOUD_API_KEY"
+
+# 2. Deploy Prometheus Agent
+kubectl apply -f manifests/
+
+# 3. Verify deployment
+kubectl get pods -n monitoring
+kubectl logs -n monitoring -l app=prometheus-agent
+```
+
+**Pros:**
+- ✅ Simple and lightweight (~256-512Mi RAM)
+- ✅ No Helm Operator overhead
+- ✅ Fast deployment (~1 minute)
+- ✅ Easy to customize scrape configs
+
+**Configuration Files:**
+- `manifests/prometheus-agent-configmap.yaml` - Scrape configs and remote write
+- `manifests/prometheus-agent-deployment.yaml` - Prometheus Agent deployment
+- `manifests/prometheus-agent-rbac.yaml` - ServiceAccount and permissions
+
+See [manifests/README.md](manifests/README.md) for detailed instructions.
+
+#### **Option 2: Helm Chart (Production)**
+
+Deploy kube-prometheus-stack via Helm:
+
+```bash
+# 1. Create Grafana Cloud secret (same as above)
+kubectl create secret generic grafana-cloud-credentials \
+  --namespace monitoring \
+  --from-literal=username="YOUR_GRAFANA_CLOUD_INSTANCE_ID" \
+  --from-literal=password="YOUR_GRAFANA_CLOUD_API_KEY"
+
+# 2. Add Helm repository
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# 3. Deploy monitoring stack
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  -f values-monitoring.yaml
+
+# 4. Verify deployment
+kubectl get pods -n monitoring
+```
+
+**Pros:**
+- ✅ Full Prometheus Operator stack
+- ✅ Includes kube-state-metrics and node-exporter
+- ✅ ServiceMonitor/PodMonitor support
+- ✅ Easy upgrades via Helm
+
+**Configuration File:**
+- `values-monitoring.yaml` - Helm chart values
+
+**Note**: This deploys additional components (kube-state-metrics, node-exporter), requiring more resources (~1-2Gi total RAM).
+
 ### Setting Up Grafana Cloud
 
 #### 1. Create Grafana Cloud Account
@@ -500,49 +587,66 @@ Rocket.Chat → Prometheus Agent → Grafana Cloud
 #### 2. Get Your Credentials
 
 1. In your Grafana Cloud dashboard, click "Details" next to **Prometheus**
-2. Copy the **Remote Write Endpoint** (should match the URL in `values-monitoring.yaml`)
+2. Copy the **Remote Write Endpoint**
 3. Copy your **Username/Instance ID** (usually a numeric ID)
 4. Generate or copy your **Password/API Key**
 
-#### 3. Configure the Secret
+#### 3. Create Kubernetes Secret
 
 ```bash
-# Copy the template
+# Create the secret directly
+kubectl create secret generic grafana-cloud-credentials \
+  --namespace monitoring \
+  --from-literal=username="YOUR_INSTANCE_ID" \
+  --from-literal=password="YOUR_API_KEY"
+
+# OR use the template file
 cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml
-
-# Edit with your credentials
-nano grafana-cloud-secret.yaml
-```
-
-Replace the placeholders:
-```yaml
-stringData:
-  username: "your-actual-username-id"     # e.g., "12345"
-  password: "your-actual-api-key"         # e.g., "glc_eyJ0eXAiOiJKV1Q..."
-```
-
-#### 4. Apply and Deploy
-
-```bash
-# Create monitoring namespace and apply secret
-kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+nano grafana-cloud-secret.yaml  # Edit with your credentials
 kubectl apply -f grafana-cloud-secret.yaml
-
-# Deploy monitoring stack
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
-  --namespace monitoring --create-namespace \
-  -f values-monitoring.yaml
 ```
 
-#### 5. Import Dashboards
+#### 4. Update Remote Write Endpoint
 
-Once metrics start flowing (5-10 minutes), import the Rocket.Chat dashboards:
+If your Grafana Cloud region differs, update the endpoint URL:
+
+**For Raw Manifests:**
+Edit `manifests/prometheus-agent-configmap.yaml`:
+```yaml
+remote_write:
+  - url: https://prometheus-prod-XX-prod-REGION.grafana.net/api/prom/push
+```
+
+**For Helm:**
+Edit `values-monitoring.yaml`:
+```yaml
+remoteWrite:
+  - url: https://prometheus-prod-XX-prod-REGION.grafana.net/api/prom/push
+```
+
+#### 5. Deploy Monitoring
+
+Choose your deployment method (see [Monitoring Deployment Options](#monitoring-deployment-options) above).
+
+#### 6. Import Dashboards
+
+Once metrics start flowing (2-5 minutes), import the Rocket.Chat dashboards:
 
 1. In Grafana Cloud, go to **Dashboards** → **New** → **Import**
 2. Enter dashboard ID: `23428` (Rocket.Chat Metrics)
 3. Select your Prometheus data source
-4. Repeat for IDs: `23427`, `23712`
+4. Click **Import**
+5. Repeat for dashboard IDs: `23427` (Microservices), `23712` (MongoDB)
+
+**Automated Import:**
+Use the provided script to import all dashboards at once:
+```bash
+export GRAFANA_URL="https://YOUR_STACK.grafana.net"
+export GRAFANA_API_KEY="YOUR_API_KEY"
+export GRAFANA_DATASOURCE="Prometheus"
+
+./scripts/import-grafana-dashboards.sh
+```
 
 ### Future: Full Observability (Phase 2+)
 
@@ -681,11 +785,12 @@ kubectl get pv,pvc -n rocketchat
 
 - 🚀 **[Deployment Guide](docs/deployment.md)** - Complete step-by-step deployment instructions
 - ✅ **[Deployment Checklist](docs/deployment-checklist.md)** - Verification steps for each phase
+- 📝 **[Deployment Summary](docs/deployment-summary.md)** - Real-world deployment timeline and lessons learned
 - 🎬 **Quick Start** (above) - Fast-track deployment in 10 minutes
 
 ### Operations
 
-- 📊 **[Observability Guide](docs/observability.md)** - Setting up monitoring and dashboards
+- 📊 **[Monitoring Guide](docs/monitoring.md)** - Complete monitoring setup with Grafana Cloud
 - 🔮 **[Observability Roadmap](docs/observability-roadmap.md)** - Future: Logs + Traces with Grafana Alloy
 - 🔧 **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions
 

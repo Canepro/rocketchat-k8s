@@ -1192,6 +1192,33 @@ sudo ufw allow 443/tcp
 
 ---
 
+---
+
+## Quick Issue Index
+
+| # | Issue | Quick Solution |
+|---|-------|---------------|
+| 0 | Kubectl Permission Denied | [Fix kubectl access](#issue-0-kubectl-permission-denied) |
+| 1 | Pods CrashLooping | [Check logs and resources](#issue-1-pods-in-crashloopbackoff) |
+| 2 | Certificate Not Issued | [Check DNS and port 80](#issue-2-tls-certificate-not-issued) |
+| 3 | Ingress Not Working | [Check ingress controller](#issue-3-ingress-not-working) |
+| 4 | MongoDB Connection Issues | [Test connectivity](#issue-4-mongodb-connection-issues) |
+| 5 | Prometheus Not Scraping | [Verify secret and endpoints](#issue-5-prometheus-agent-not-scraping-metrics) |
+| 6 | Out of Disk Space | [Clean up and resize](#issue-6-out-of-disk-space) |
+| 7 | High Memory / OOM | [Adjust resource limits](#issue-7-high-memory-usage--oom-kills) |
+| 8 | Microservices Issues | [Check NATS cluster](#issue-8-microservices-not-communicating) |
+| 9 | PV Not Binding | [Check mount paths](#issue-9-persistentvolume-not-binding) |
+| 10 | Mount Lost After Reboot | [Fix /etc/fstab](#issue-11-mount-point-lost-after-reboot) |
+| 11 | Mount Lost After Reboot | [Fix /etc/fstab](#issue-11-mount-point-lost-after-reboot) |
+| 12 | Multiple Pods Failing | [Gradual startup](#issue-12-deployment-issues---multiple-pods-failing-to-start) |
+| 13 | Certificate Stuck False | [Wait for pods first](#issue-13-certificate-not-being-issued-stuck-at-false) |
+| 14 | PodMonitor CRDs Missing | [Apply CRDs](#issue-14-podmonitor-crds-not-found) |
+| 15 | Helm Not Installed | [Install Helm](#issue-15-helm-not-installed) |
+| 16 | Secret Name Mismatch | [Use grafana-cloud-credentials](#issue-16-grafana-cloud-secret-name-mismatch) |
+| 17 | Storage Dirs Missing | [Create directories or use dynamic](#issue-17-storage-directories-dont-exist) |
+
+---
+
 ### Issue 14: PodMonitor CRDs Not Found
 
 **Symptoms:**
@@ -1238,6 +1265,192 @@ kubectl describe podmonitor -n rocketchat
 
 ---
 
+---
+
+### Issue 15: Helm Not Installed
+
+**Symptoms:**
+```bash
+helm repo add rocketchat https://rocketchat.github.io/helm-charts
+# Command 'helm' not found
+```
+
+**Diagnosis:**
+```bash
+which helm
+helm version
+```
+
+**Solutions:**
+
+**Install Helm v3:**
+```bash
+# Download and install Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Verify installation
+helm version
+
+# Should show: version.BuildInfo{Version:"v3.x.x", ...}
+```
+
+**Alternative installation methods:**
+```bash
+# Using snap
+sudo snap install helm --classic
+
+# Using package manager (Ubuntu/Debian)
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+```
+
+**After installation:**
+```bash
+# Add Rocket.Chat repository
+helm repo add rocketchat https://rocketchat.github.io/helm-charts
+helm repo update
+
+# Verify
+helm search repo rocketchat
+```
+
+---
+
+### Issue 16: Grafana Cloud Secret Name Mismatch
+
+**Symptoms:**
+- Deploy script says "Grafana Cloud secret not found" but you created the secret
+- Monitoring not deploying even though secret exists
+- Secret named differently than what script expects
+
+**Diagnosis:**
+```bash
+# Check what secret exists
+kubectl get secrets -n monitoring
+
+# The prometheus-agent.yaml expects: grafana-cloud-credentials
+# The deploy script checks for: grafana-cloud-secret (old name)
+```
+
+**Solutions:**
+
+**Option 1: Use correct secret name (recommended):**
+```bash
+# When creating the secret, use the correct name
+cat > grafana-cloud-secret.yaml << 'EOF'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-cloud-credentials    # This is the correct name
+  namespace: monitoring
+type: Opaque
+stringData:
+  username: "your-instance-id"
+  password: "your-api-key"
+EOF
+
+kubectl apply -f grafana-cloud-secret.yaml
+```
+
+**Option 2: If you already created with wrong name:**
+```bash
+# Delete the old secret
+kubectl delete secret grafana-cloud-secret -n monitoring
+
+# Create with correct name
+kubectl create secret generic grafana-cloud-credentials -n monitoring \
+  --from-literal=username="your-instance-id" \
+  --from-literal=password="your-api-key"
+
+# Verify
+kubectl get secret -n monitoring grafana-cloud-credentials
+```
+
+**Verify the fix:**
+```bash
+# Check secret exists with correct name
+kubectl get secret -n monitoring grafana-cloud-credentials
+
+# If deploying monitoring manually
+kubectl apply -f prometheus-agent.yaml
+
+# Check prometheus agent is using the secret
+kubectl logs -n monitoring deployment/prometheus-agent | grep -i "remote_write"
+```
+
+> **Note**: The deploy script has been updated to check for `grafana-cloud-credentials` (not `grafana-cloud-secret`).
+
+---
+
+### Issue 17: Storage Directories Don't Exist
+
+**Symptoms:**
+```bash
+ls -ld /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+# ls: cannot access '/mnt/mongo-data': No such file or directory
+```
+
+**Diagnosis:**
+```bash
+# Check if directories exist
+ls -la /mnt/
+
+# Check if you have dedicated disks
+lsblk
+df -h
+```
+
+**Solutions:**
+
+**Create directories (works for root filesystem or dedicated disks):**
+```bash
+# Create all required directories
+sudo mkdir -p /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+
+# Set proper permissions
+sudo chmod 755 /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+
+# Verify
+ls -ld /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+```
+
+**If you DON'T have dedicated disks:**
+
+That's perfectly fine! k3s includes local-path-provisioner which will automatically create PVCs on the root filesystem:
+
+```bash
+# Check storage class
+kubectl get storageclass
+# Should show: local-path (default)
+
+# Your PVCs will bind automatically without needing the dedicated PVs
+kubectl get pvc -n rocketchat
+# Will show: Bound to pvc-xxxxx (dynamic provisioning)
+```
+
+**If you DO have dedicated disks:**
+
+Mount them first, then create PVs:
+```bash
+# Mount dedicated disks
+sudo mount /dev/nvme1n1p1 /mnt/mongo-data
+sudo mount /dev/nvme2n1p1 /mnt/prometheus-data
+
+# Apply PersistentVolumes
+kubectl apply -f persistent-volumes.yaml
+
+# Then create PVCs
+kubectl apply -f mongo-pvc.yaml
+kubectl apply -f rocketchat-uploads-pvc.yaml
+```
+
+**Important**: If directories don't exist and you're using hostPath PVs, the PVs won't bind. But with k3s local-path storage (default), everything works automatically!
+
+---
+
 ## Additional Resources
 
 - [Rocket.Chat Documentation](https://docs.rocket.chat/)
@@ -1246,4 +1459,5 @@ kubectl describe podmonitor -n rocketchat
 - [Cert-Manager Documentation](https://cert-manager.io/docs/)
 - [Grafana Cloud Documentation](https://grafana.com/docs/)
 - [Prometheus Operator CRDs](https://github.com/prometheus-operator/prometheus-operator)
+- [Helm Documentation](https://helm.sh/docs/)
 

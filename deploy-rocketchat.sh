@@ -32,7 +32,7 @@ echo "✅ Prerequisites check passed"
 echo ""
 
 # Check if Grafana Cloud secret exists
-if ! kubectl get secret grafana-cloud-secret -n monitoring &> /dev/null; then
+if ! kubectl get secret grafana-cloud-credentials -n monitoring &> /dev/null; then
     echo "⚠️  WARNING: Grafana Cloud secret not found!"
     echo "   Please create it first:"
     echo "   1. cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml"

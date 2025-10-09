@@ -13,6 +13,32 @@
 
 ## Pre-Deployment Verification
 
+### ✅ Helm Installation
+
+**Check if Helm is installed:**
+```bash
+helm version
+```
+
+**If not installed:**
+```bash
+# Install Helm v3
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Verify
+helm version
+
+# Add Rocket.Chat repository
+helm repo add rocketchat https://rocketchat.github.io/helm-charts
+helm repo update
+```
+
+**✅ Success Criteria:**
+- [ ] Helm v3.x.x installed
+- [ ] Rocket.Chat repository added
+
+---
+
 ### ✅ Kubectl Access Setup
 
 **If you're a non-root user and get permission denied errors:**
@@ -50,22 +76,41 @@ kubectl get svc -n kube-system traefik
 ```
 
 ### ✅ Storage Configuration
+
+**k3s includes local-path provisioner by default**, which dynamically creates PVCs on the root filesystem. This is perfect for lab environments!
+
 ```bash
-# Check available disk space for dynamic provisioning
+# Check available disk space
 df -h /
-# Expected: At least 10GB free for 2x 2GiB volumes + OS
+# Expected: At least 10GB free for dynamic volumes
 
 # Verify local-path provisioner (k3s default)
 kubectl get storageclass
 # Expected: local-path (default)
-ls -ld /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
-# All three directories should exist, even if uploads is not on dedicated disk
 
-# Verify they're accessible
+# Create directories for hostPath PVs (optional, if using dedicated disks)
+sudo mkdir -p /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
 sudo chmod 755 /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
+
+# Check directories (optional)
+ls -ld /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
 ```
 
-**Note**: `/mnt/rocketchat-uploads` can be on root filesystem (no dedicated disk needed). This is a valid configuration.
+**Storage Options:**
+
+1. **Dynamic Provisioning (Default - Recommended for Lab)**
+   - k3s local-path automatically creates volumes
+   - No need to create PVs manually
+   - Storage on root filesystem
+   - Perfect for testing and small deployments
+
+2. **Static PVs with Dedicated Disks (Production)**
+   - Create mount directories as shown above
+   - Mount dedicated disks to these paths
+   - Apply `persistent-volumes.yaml`
+   - Better for production with separate storage
+
+**For this deployment:** We'll use dynamic provisioning (k3s default). The directories are created just in case you want to use dedicated storage later.
 
 ### ✅ Namespaces
 ```bash
@@ -185,17 +230,31 @@ kubectl describe clusterissuer production-cert-issuer
 **Create Grafana Cloud credentials secret:**
 
 ```bash
-# Edit grafana-cloud-credentials.yaml
-nano grafana-cloud-credentials.yaml
-# Replace <GRAFANA_INSTANCE_ID> and <GRAFANA_API_KEY>
+# Create from template (if not already done)
+cat > grafana-cloud-secret.yaml << 'EOF'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-cloud-credentials  # Must be this exact name!
+  namespace: monitoring
+type: Opaque
+stringData:
+  username: "your-instance-id"      # Replace with your Grafana Cloud instance ID
+  password: "your-api-key"          # Replace with your Grafana Cloud API key
+EOF
+
+# Edit with your actual credentials
+nano grafana-cloud-secret.yaml
 
 # Apply the secret
-kubectl apply -f grafana-cloud-credentials.yaml
+kubectl apply -f grafana-cloud-secret.yaml
 
-# Verify secret is created
+# Verify secret is created with correct name
 kubectl get secret -n monitoring grafana-cloud-credentials
 kubectl describe secret -n monitoring grafana-cloud-credentials
 ```
+
+**⚠️ Important:** The secret MUST be named `grafana-cloud-credentials` (not `grafana-cloud-secret`). This is what `prometheus-agent.yaml` expects.
 
 **Deploy PodMonitor CRDs:**
 
