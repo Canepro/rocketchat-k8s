@@ -1,14 +1,13 @@
-# Rocket.Chat Kubernetes Deployment Checklist
+# Rocket.Chat k3s Lab Deployment Checklist
 
 ## Environment Details
-- **Cluster**: k3s v1.33.5+k3s1
-- **Node**: `b0f08dc8212c.mylabserver.com`
-- **Helm**: v3.19.0
+- **Cluster**: k3s (Latest stable)
+- **Server**: Ubuntu 20.04, 4 vCPU, 8 GiB RAM, 19 GiB disk
+- **Helm**: v3.0+
 - **Domain**: `k8.canepro.me`
-- **Storage**: 
-  - `/mnt/mongo-data` (2 GiB)
-  - `/mnt/prometheus-data` (2 GiB)
-  - `/mnt/rocketchat-uploads` (5 GiB)
+- **Ingress**: Traefik (k3s native)
+- **Monitoring**: Grafana Cloud
+- **Storage**: Dynamic provisioning (2 GiB volumes)
 
 ---
 
@@ -40,14 +39,25 @@ kubectl cluster-info
 kubectl version --short
 ```
 
-### ✅ Storage Mounts
+### ✅ Traefik Ingress (k3s Native)
 ```bash
-df -h | grep /mnt
-# Expected (minimum):
-# /dev/nvme1n1p1  2.0G   /mnt/mongo-data
-# /dev/nvme2n1p1  2.0G   /mnt/prometheus-data
+# Verify Traefik is running (k3s default ingress)
+kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
+# Expected: traefik-* pod Running
 
-# Check all directories exist
+kubectl get svc -n kube-system traefik
+# Expected: LoadBalancer service available
+```
+
+### ✅ Storage Configuration
+```bash
+# Check available disk space for dynamic provisioning
+df -h /
+# Expected: At least 10GB free for 2x 2GiB volumes + OS
+
+# Verify local-path provisioner (k3s default)
+kubectl get storageclass
+# Expected: local-path (default)
 ls -ld /mnt/mongo-data /mnt/prometheus-data /mnt/rocketchat-uploads
 # All three directories should exist, even if uploads is not on dedicated disk
 

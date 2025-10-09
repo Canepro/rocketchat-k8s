@@ -1,53 +1,67 @@
-# Rocket.Chat Kubernetes Deployment Guide
+# Rocket.Chat k3s Lab Deployment Guide
 
 ## Server Environment
-- **OS**: Ubuntu 18.04 VM
-- **Resources**: 7.7 GB RAM, 2 vCPUs
-- **Storage**: 
-  - Root disk: 8 GB (OS and K3s)
-  - Additional disks: Dedicated for MongoDB and Prometheus (optional but recommended)
-- **Docker**: Installed
-- **DNS**: `k8.canepro.me` → VM IP
+- **OS**: Ubuntu 20.04+ (recommended: 22.04 LTS)
+- **Resources**: 4 vCPU, 8 GiB RAM, 19 GiB disk (minimum)
+- **Cluster**: k3s (lightweight Kubernetes)
+- **Ingress**: Traefik (k3s native)
+- **Storage**: Dynamic provisioning with local-path (k3s default)
+- **Monitoring**: Grafana Cloud integration
+- **DNS**: `k8.canepro.me` → Server IP
 
 ## Prerequisites
-- Server with Docker installed
-- DNS record pointing to server IP
-- Email address for Let's Encrypt certificates
+- **k3s cluster** installed and running
+- **kubectl** access configured
+- **Helm v3** installed  
+- **DNS record** pointing to server IP
+- **Grafana Cloud account** (free tier available)
+- **Email address** for Let's Encrypt certificates
 
 ---
 
 ## Deployment Steps
 
-### 1. Prepare Additional Storage Volumes (Recommended)
+### 1. Verify k3s and Prerequisites
 
-For production deployments, it's recommended to use separate disks for MongoDB and Prometheus data to avoid filling the root disk.
-
-**Identify new disks:**
+**Check k3s installation:**
 ```bash
-lsblk
-```
-Look for unpartitioned disks (e.g., `/dev/nvme1n1`, `/dev/nvme2n1`).
-
-**Partition and format each disk:**
-```bash
-# For MongoDB disk (example: /dev/nvme1n1)
-sudo parted /dev/nvme1n1 -- mklabel gpt
-sudo parted -a opt /dev/nvme1n1 -- mkpart primary ext4 0% 100%
-sudo partprobe /dev/nvme1n1
-sudo mkfs.ext4 /dev/nvme1n1p1
-
-# For Prometheus disk (example: /dev/nvme2n1)
-sudo parted /dev/nvme2n1 -- mklabel gpt
-sudo parted -a opt /dev/nvme2n1 -- mkpart primary ext4 0% 100%
-sudo partprobe /dev/nvme2n1
-sudo mkfs.ext4 /dev/nvme2n1p1
+kubectl get nodes
+kubectl cluster-info
 ```
 
-**Create mount points:**
+**Verify Traefik ingress (k3s default):**
 ```bash
-sudo mkdir -p /mnt/mongo-data
-sudo mkdir -p /mnt/prometheus-data
-sudo mkdir -p /mnt/rocketchat-uploads
+kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
+kubectl get svc -n kube-system traefik
+```
+
+**Check available storage:**
+```bash
+df -h /
+# Ensure at least 10GB free for dynamic volumes
+
+kubectl get storageclass
+# Should show: local-path (default)
+```
+
+### 2. Get Repository and Setup Grafana Cloud
+
+**Clone repository:**
+```bash
+git clone https://github.com/Canepro/rocketchat-k8s.git
+cd rocketchat-k8s
+```
+
+**Configure Grafana Cloud credentials:**
+```bash
+# Copy template and edit with your credentials
+cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml
+nano grafana-cloud-secret.yaml
+
+# Add your Grafana Cloud:
+# username: "your-instance-id"     # Usually a number
+# password: "your-api-key"         # Starts with glc_
+```
 ```
 
 **Mount the partitions:**

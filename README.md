@@ -100,32 +100,27 @@ Perfect for teams looking to self-host Rocket.Chat with enterprise-grade reliabi
 ```mermaid
 graph TB
     subgraph "Ingress Layer"
-        A[NGINX Ingress] -->|TLS termination| B[cert-manager]
+        A[Traefik Ingress] -->|TLS termination| B[cert-manager]
         B -->|Let's Encrypt| C[k8.canepro.me]
     end
     
     subgraph "Application Layer"
-        D[Rocket.Chat Pod 1] -.->|NATS| E[NATS Cluster]
-        F[Rocket.Chat Pod 2] -.->|NATS| E
+        D[Rocket.Chat Pod] -.->|NATS| E[NATS Cluster]
         D -->|MongoDB| G[MongoDB ReplicaSet]
-        F -->|MongoDB| G
     end
     
     subgraph "Storage Layer"
         G -->|Data| H[mongo-pv<br/>2Gi]
-        D -->|Uploads| I[uploads-pv<br/>5Gi]
-        F -->|Uploads| I
+        D -->|Uploads| I[uploads-pv<br/>2Gi]
     end
     
     subgraph "Observability"
         J[Prometheus Agent] -->|Scrape| D
-        J -->|Scrape| F
         J -->|Scrape| G
         J -->|Remote Write| K[Grafana Cloud]
     end
     
     A -->|Route traffic| D
-    A -->|Route traffic| F
     
     style C fill:#f9f,stroke:#333
     style K fill:#ff9,stroke:#333
@@ -139,7 +134,7 @@ graph TB
 | **Application** | Rocket.Chat | v7.10.0 | Team collaboration platform |
 | **Database** | MongoDB ReplicaSet | 5.0+ | Primary data store |
 | **Message Queue** | NATS | 2.4+ | Microservices communication |
-| **Ingress** | NGINX | Latest | Load balancing & routing |
+| **Ingress** | Traefik | Latest | Load balancing & routing |
 | **TLS** | cert-manager | v1.14+ | Certificate automation |
 | **Monitoring** | Prometheus Agent | v3.0.0 | Metrics collection |
 | **Observability** | Grafana Cloud | - | Metrics visualization |
@@ -176,9 +171,145 @@ kubectl get certificate -n rocketchat -w
 ./deploy.sh
 ```
 
-### Option 3: Manual Deployment
+### Option 3: K3s Lab Deployment (Resource-Optimized)
+
+Perfect for testing and small team deployments on constrained resources:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/Canepro/rocketchat-k8s.git
+cd rocketchat-k8s
+
+# 2. Setup Grafana Cloud credentials
+cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml
+nano grafana-cloud-secret.yaml
+# Add your Grafana Cloud username and API key
+
+# 3. Apply the secret
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f grafana-cloud-secret.yaml
+
+# 4. Deploy cert-manager and ClusterIssuer
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.yaml
+kubectl wait --for=condition=Available --timeout=300s -n cert-manager deployment/cert-manager
+kubectl apply -f clusterissuer.yaml
+
+# 5. Deploy Rocket.Chat with Helm
+helm repo add rocketchat https://rocketchat.github.io/helm-charts
+helm repo update
+
+helm upgrade --install rocketchat rocketchat/rocketchat \
+  --namespace rocketchat --create-namespace \
+  -f values.yaml
+
+# 6. Deploy monitoring (optional)
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  -f values-monitoring.yaml
+
+# 7. Wait for certificate and check status
+kubectl get certificate -n rocketchat -w
+kubectl get pods -n rocketchat
+```
+
+**Lab Configuration Features:**
+- ✅ Single replica for lower resource usage
+- ✅ Traefik ingress (k3s default)
+- ✅ 2Gi storage for both MongoDB and uploads
+- ✅ Grafana Cloud integration (no local Grafana)
+- ✅ Enterprise microservices enabled
+- ✅ Automatic TLS certificates
+
+### Option 4: Manual Deployment
 
 Follow the comprehensive [Deployment Guide](docs/deployment.md) for manual step-by-step instructions.
+
+---
+
+## 🔄 Git Workflow for Lab Deployment
+
+### From Development to Lab Server
+
+Since you're working in VS Code with GitHub integration, here's the complete workflow:
+
+#### 1. **Commit and Push Changes (VS Code/Local)**
+
+```bash
+# In VS Code terminal or your local machine
+git add .
+git commit -m "feat: Update for k3s lab deployment with Traefik and Grafana Cloud"
+git push origin main
+```
+
+#### 2. **Pull Changes on Lab Server**
+
+```bash
+# SSH to your lab server
+ssh cloud_user@b0f08dc8212c.mylabserver.com
+
+# Clone (first time) or pull (updates)
+# First time:
+git clone https://github.com/Canepro/rocketchat-k8s.git
+cd rocketchat-k8s
+
+# For updates:
+cd rocketchat-k8s
+git pull origin main
+```
+
+#### 3. **Setup Grafana Cloud Credentials**
+
+```bash
+# Copy the template and add your credentials
+cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml
+nano grafana-cloud-secret.yaml
+
+# Add your actual Grafana Cloud credentials:
+# username: "12345"  # Your Grafana Cloud User/Instance ID
+# password: "glc_..."  # Your Grafana Cloud API Key
+```
+
+#### 4. **Deploy with Updated Configuration**
+
+```bash
+# Make deployment script executable
+chmod +x deploy-rocketchat.sh
+
+# Run the deployment
+./deploy-rocketchat.sh
+```
+
+#### 5. **Monitor Deployment Progress**
+
+```bash
+# Watch pods come online
+kubectl get pods -n rocketchat -w
+
+# Check certificate status (takes 2-5 minutes)
+kubectl get certificate -n rocketchat -w
+
+# Check Grafana Cloud connectivity (if monitoring enabled)
+kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus | grep -i "remote_write"
+```
+
+### Updating Your Deployment
+
+When you make configuration changes in VS Code:
+
+```bash
+# Local (VS Code)
+git add .
+git commit -m "Update configuration for XYZ"
+git push origin main
+
+# Lab server
+git pull origin main
+helm upgrade rocketchat rocketchat/rocketchat -n rocketchat -f values.yaml
+
+# If monitoring config changed
+helm upgrade monitoring prometheus-community/kube-prometheus-stack -n monitoring -f values-monitoring.yaml
+```
 
 ---
 
@@ -354,9 +485,64 @@ Rocket.Chat → Prometheus Agent → Grafana Cloud
 - ☸️ Kubernetes cluster (pods, nodes, resources)
 
 **Pre-built Dashboards:**
-- [Rocket.Chat Metrics](https://grafana.com/grafana/dashboards/23428)
-- [Microservice Metrics](https://grafana.com/grafana/dashboards/23427)
-- [MongoDB Global](https://grafana.com/grafana/dashboards/23712)
+- [Rocket.Chat Metrics](https://grafana.com/grafana/dashboards/23428) - Dashboard ID: 23428
+- [Microservice Metrics](https://grafana.com/grafana/dashboards/23427) - Dashboard ID: 23427
+- [MongoDB Global](https://grafana.com/grafana/dashboards/23712) - Dashboard ID: 23712
+
+### Setting Up Grafana Cloud
+
+#### 1. Create Grafana Cloud Account
+
+1. Go to [Grafana Cloud](https://grafana.com/products/cloud/)
+2. Sign up for a free account (includes 10k metrics, 50GB logs, 50GB traces)
+3. Create your first stack (e.g., "rocketchat-lab")
+
+#### 2. Get Your Credentials
+
+1. In your Grafana Cloud dashboard, click "Details" next to **Prometheus**
+2. Copy the **Remote Write Endpoint** (should match the URL in `values-monitoring.yaml`)
+3. Copy your **Username/Instance ID** (usually a numeric ID)
+4. Generate or copy your **Password/API Key**
+
+#### 3. Configure the Secret
+
+```bash
+# Copy the template
+cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml
+
+# Edit with your credentials
+nano grafana-cloud-secret.yaml
+```
+
+Replace the placeholders:
+```yaml
+stringData:
+  username: "your-actual-username-id"     # e.g., "12345"
+  password: "your-actual-api-key"         # e.g., "glc_eyJ0eXAiOiJKV1Q..."
+```
+
+#### 4. Apply and Deploy
+
+```bash
+# Create monitoring namespace and apply secret
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f grafana-cloud-secret.yaml
+
+# Deploy monitoring stack
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  -f values-monitoring.yaml
+```
+
+#### 5. Import Dashboards
+
+Once metrics start flowing (5-10 minutes), import the Rocket.Chat dashboards:
+
+1. In Grafana Cloud, go to **Dashboards** → **New** → **Import**
+2. Enter dashboard ID: `23428` (Rocket.Chat Metrics)
+3. Select your Prometheus data source
+4. Repeat for IDs: `23427`, `23712`
 
 ### Future: Full Observability (Phase 2+)
 

@@ -5,7 +5,7 @@ image:
   tag: 7.10.0        # Match chart appVersion
   pullPolicy: IfNotPresent
 
-replicaCount: 2
+replicaCount: 1
 minAvailable: 1
 
 ## SMTP configuration (official block)
@@ -28,9 +28,14 @@ extraEnv:
 host: k8.canepro.me
 ingress:
   enabled: true
-  ingressClassName: nginx
+  ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: production-cert-issuer
+  hosts:
+    - host: k8.canepro.me
+      paths:
+        - path: /
+          pathType: Prefix
   tls:
     - secretName: rocketchat-tls
       hosts:
@@ -68,17 +73,14 @@ mongodb:
     enabled: true
   persistence:
     enabled: true
-    existingClaim: mongo-pvc   # Bind to your /mnt/mongo-data PV
     accessMode: ReadWriteOnce
-    size: 2Gi                  # Match your mounted disk
+    size: 2Gi
 
 ## Rocket.Chat persistence (uploads)
 persistence:
   enabled: true
-  existingClaim: rocketchat-uploads
-  # accessMode/size retained for documentation; existingClaim takes precedence
   accessMode: ReadWriteOnce
-  size: 5Gi
+  size: 2Gi
 
 ## Microservices (Enterprise Edition)
 microservices:
@@ -94,7 +96,7 @@ nats:
     image: nats:2.4-alpine
   cluster:
     enabled: true
-    replicas: 2
+    replicas: 1
   exporter:
     enabled: true
     serviceMonitor:
