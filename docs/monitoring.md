@@ -154,6 +154,175 @@ kubectl logs -n monitoring -l app=prometheus-agent | grep -i "scrape"
 3. Query: `up{cluster="rocketchat-k3s"}` or `up{cluster="rocketchat-k3s-lab"}`
 4. Should see metrics from Rocket.Chat, MongoDB, NATS, Kubernetes
 
+**Expected metrics:**
+```promql
+# All targets should be up
+up{cluster="rocketchat-k3s-lab"}
+
+# Rocket.Chat specific metrics
+rocketchat_version_info
+
+# MongoDB metrics
+mongodb_up
+
+# NATS metrics  
+nats_server_info
+
+# Kubernetes cluster metrics
+kube_node_info
+```
+
+---
+
+## ⚠️ Common Issues After Deployment
+
+### Issue: 401 Unauthorized Authentication Error
+
+**Symptoms:**
+```bash
+kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus -c prometheus | grep 401
+# ERROR: 401 Unauthorized: authentication error: invalid scope requested
+```
+
+**Cause:** Grafana Cloud API key has **read-only permissions** instead of **write/push permissions**.
+
+**Solution:**
+
+1. **Generate new API key** in Grafana Cloud with **MetricsPublisher** role
+2. **Update secret:**
+   ```bash
+   kubectl delete secret grafana-cloud-credentials -n monitoring
+   kubectl create secret generic grafana-cloud-credentials \
+     --namespace monitoring \
+     --from-literal=username="YOUR_INSTANCE_ID" \
+     --from-literal=password="YOUR_NEW_WRITE_KEY"
+   ```
+3. **Restart Prometheus:**
+   ```bash
+   # For Helm deployment
+   kubectl rollout restart statefulset prom-agent-monitoring-kube-prometheus-prometheus -n monitoring
+   
+   # For raw manifests
+   kubectl delete pod -n monitoring -l app=prometheus-agent
+   ```
+4. **Verify:**
+   ```bash
+   kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus -c prometheus | grep "Done replaying WAL"
+   # Should show successful WAL replay with no 401 errors
+   ```
+
+See [Issue #18 in troubleshooting.md](troubleshooting.md#issue-18-grafana-cloud-401-unauthorized-authentication-error) for complete details.
+
+---
+
+## Successful Deployment Evidence
+
+### Real Deployment (October 9, 2025)
+
+**Environment:**
+- k3s v1.33.5 on Ubuntu
+- 4 vCPU, 8 GiB RAM
+- Domain: k8.canepro.me
+
+**Deployment Results:**
+- ✅ All 4 monitoring pods Running
+- ✅ Resource usage: ~255Mi total (well within limits)
+- ✅ WAL replay: 5.9 seconds
+- ✅ No authentication errors after API key fix
+- ✅ Metrics flowing to Grafana Cloud
+
+**Timeline:**
+- Initial deployment: 3-5 minutes
+- API key issue identified: 5 minutes
+- Fix and verification: 5 minutes
+- **Total: ~15 minutes**
+
+See [deployment-summary.md](deployment-summary.md) for complete timeline.
+
+---
+
+## Rocket.Chat ServiceMonitors
+
+After deploying the monitoring stack, you need to create ServiceMonitors to enable Prometheus to scrape Rocket.Chat-specific metrics.
+
+### Deploy ServiceMonitors
+
+```bash
+# Apply the ServiceMonitor manifests
+kubectl apply -f manifests/rocketchat-servicemonitors.yaml
+
+# Verify ServiceMonitors are created
+kubectl get servicemonitor -n rocketchat
+```
+
+### What Gets Monitored
+
+The ServiceMonitors will scrape metrics from:
+
+1. **Rocket.Chat Main Application** (port 9100)
+   - Service: `rocketchat-rocketchat`
+   - Metrics: Application performance, HTTP requests, etc.
+
+2. **Rocket.Chat Microservices** (port 9458)
+   - Services: `rocketchat-account`, `rocketchat-authorization`, `rocketchat-presence`, `rocketchat-stream-hub`
+   - Metrics: Microservice-specific performance metrics
+
+3. **MongoDB Metrics** (port 9216)
+   - Service: `rocketchat-mongodb-metrics`
+   - Metrics: Database performance, connection stats, query metrics
+
+4. **NATS Metrics** (port 8222)
+   - Service: `rocketchat-nats-metrics`
+   - Metrics: Message queue performance, connection stats
+
+### Verify Metrics in Grafana Cloud
+
+After applying ServiceMonitors, wait 1-2 minutes, then check these queries:
+
+```promql
+# Rocket.Chat application metrics
+up{cluster="rocketchat-k3s-lab", job="rocketchat-main"}
+
+# Microservices metrics
+up{cluster="rocketchat-k3s-lab", job="rocketchat-microservices"}
+
+# MongoDB metrics
+up{cluster="rocketchat-k3s-lab", job="rocketchat-mongodb"}
+
+# NATS metrics
+up{cluster="rocketchat-k3s-lab", job="rocketchat-nats"}
+
+# Look for specific Rocket.Chat metrics
+rocketchat_*
+
+# MongoDB-specific metrics
+mongodb_*
+
+# NATS-specific metrics
+nats_*
+```
+
+### Troubleshooting ServiceMonitors
+
+If metrics don't appear:
+
+1. **Check ServiceMonitor status:**
+   ```bash
+   kubectl describe servicemonitor -n rocketchat
+   ```
+
+2. **Verify Prometheus targets:**
+   ```bash
+   # Port-forward to Prometheus UI
+   kubectl port-forward -n monitoring svc/prom-agent-monitoring-kube-prometheus-prometheus 9090:9090
+   # Then visit http://localhost:9090/targets
+   ```
+
+3. **Check Prometheus logs:**
+   ```bash
+   kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus -c prometheus | grep -i "rocketchat"
+   ```
+
 ---
 
 ## Import Dashboards

@@ -523,8 +523,12 @@ kubectl create secret generic grafana-cloud-credentials \
 # 2. Deploy Prometheus Agent
 kubectl apply -f manifests/
 
-# 3. Verify deployment
+# 3. Deploy Rocket.Chat ServiceMonitors (after Rocket.Chat is running)
+kubectl apply -f manifests/rocketchat-servicemonitors.yaml
+
+# 4. Verify deployment
 kubectl get pods -n monitoring
+kubectl get servicemonitor -n rocketchat
 kubectl logs -n monitoring -l app=prometheus-agent
 ```
 
@@ -857,10 +861,23 @@ Please feel free to open an issue or submit a pull request.
 
 ## 📊 Project Status
 
-- ✅ **Production Ready** - Actively used in production environments
+- ✅ **Production Ready** - Successfully deployed and tested (October 2025)
 - 📈 **Actively Maintained** - Regular updates and improvements
-- 📚 **Well Documented** - Comprehensive guides and troubleshooting
+- 📚 **Well Documented** - Comprehensive guides with real deployment experience
 - 🔒 **Security Focused** - Best practices for secrets and TLS
+- 🎯 **Battle-Tested** - Complete deployment documented in [deployment-summary.md](docs/deployment-summary.md)
+
+### Recent Deployment Success
+
+**Lab Environment (October 9, 2025):**
+- ✅ k3s v1.33.5 cluster
+- ✅ 13 pods running (9 Rocket.Chat + 4 Monitoring)
+- ✅ TLS certificate issued (Let's Encrypt)
+- ✅ Grafana Cloud metrics flowing
+- ✅ Total deployment: ~30 minutes
+- ✅ Resource usage: ~5Gi / 8Gi RAM
+
+See [docs/deployment-summary.md](docs/deployment-summary.md) for complete timeline and lessons learned.
 
 ---
 
