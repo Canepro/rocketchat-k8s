@@ -961,7 +961,238 @@ helm get manifest rocketchat
 
 ---
 
-### Issue 12: PodMonitor CRDs Not Found
+### Issue 12: Deployment Issues - Multiple Pods Failing to Start
+
+**Symptoms:**
+- Multiple pods stuck in `Pending`, `ImagePullBackOff`, or `ContainerStatusUnknown`
+- MongoDB pod stuck in `Pending`
+- Some pods repeatedly restarting
+- Certificate not being issued
+
+**Diagnosis:**
+```bash
+# Check pod status
+kubectl get pods -n rocketchat
+
+# Check resource usage
+kubectl top nodes
+kubectl top pods -n rocketchat
+
+# Check specific pod issues
+kubectl describe pod <pod-name> -n rocketchat
+
+# Check events for clues
+kubectl get events -n rocketchat --sort-by='.lastTimestamp' | tail -30
+
+# Check if MongoDB volume is mounted
+kubectl describe pvc -n rocketchat
+```
+
+**Common Causes:**
+
+1. **Insufficient Memory/CPU**
+   - Server running out of resources
+   - Too many pods trying to start simultaneously
+   - MongoDB needs significant RAM to initialize
+
+2. **Image Pull Issues**
+   - Network connectivity problems
+   - Rate limiting from Docker Hub
+   - Authentication required for private registries
+
+3. **Storage Issues**
+   - PVC not binding correctly
+   - Mount path doesn't exist
+   - Permission problems
+
+**Solutions:**
+
+#### If Memory Pressure:
+
+```bash
+# Check available memory
+free -h
+
+# Check if pods are being evicted
+kubectl get events -n rocketchat | grep -i evict
+
+# Temporarily reduce replicas to free memory
+kubectl scale deployment rocketchat-rocketchat --replicas=1 -n rocketchat
+kubectl scale deployment rocketchat-account --replicas=1 -n rocketchat
+kubectl scale deployment rocketchat-authorization --replicas=1 -n rocketchat
+kubectl scale deployment rocketchat-ddp-streamer --replicas=1 -n rocketchat
+kubectl scale deployment rocketchat-presence --replicas=1 -n rocketchat
+kubectl scale deployment rocketchat-stream-hub --replicas=1 -n rocketchat
+
+# Wait for MongoDB to stabilize first
+kubectl get pods -n rocketchat -w
+```
+
+#### If Image Pull Issues:
+
+```bash
+# Check which image is failing
+kubectl describe pod <failing-pod> -n rocketchat | grep -i image
+
+# Common fix: Pull images manually on node
+sudo docker pull registry.rocket.chat/rocketchat/rocket.chat:7.10.0
+
+# Or try restarting the pod
+kubectl delete pod <pod-name> -n rocketchat
+```
+
+#### If Storage Issues:
+
+```bash
+# Verify PVCs are bound
+kubectl get pvc -n rocketchat
+
+# Check mount directories exist
+ls -ld /mnt/mongo-data /mnt/rocketchat-uploads
+
+# Verify permissions
+sudo chmod 755 /mnt/mongo-data /mnt/rocketchat-uploads
+```
+
+#### Gradual Startup Strategy (Recommended):
+
+If your server has limited resources (7.7GB RAM), start components gradually:
+
+```bash
+# 1. Delete current deployment
+helm uninstall rocketchat -n rocketchat
+
+# 2. Edit values.yaml - reduce microservices replicas
+nano values.yaml
+# Change all microservice replicas to 1 initially
+
+# 3. Redeploy
+helm install rocketchat -f values.yaml rocketchat/rocketchat -n rocketchat
+
+# 4. Wait for MongoDB to be fully ready
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=mongodb -n rocketchat --timeout=300s
+
+# 5. Wait for main Rocket.Chat pods
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=rocketchat -n rocketchat --timeout=300s
+
+# 6. Scale up gradually after stability
+kubectl scale deployment rocketchat-rocketchat --replicas=2 -n rocketchat
+```
+
+#### Resource-Optimized values.yaml:
+
+For servers with 7.7GB RAM, consider these settings:
+
+```yaml
+# Reduce to 1 replica initially
+replicaCount: 1
+
+# MongoDB with reduced resources
+mongodb:
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Microservices with lower resources
+microservices:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+```
+
+---
+
+### Issue 13: Certificate Not Being Issued (Stuck at False)
+
+**Symptoms:**
+```bash
+kubectl get certificate -n rocketchat
+NAME             READY   SECRET           AGE
+rocketchat-tls   False   rocketchat-tls   5m
+```
+
+**Diagnosis:**
+```bash
+# Check certificate details
+kubectl describe certificate rocketchat-tls -n rocketchat
+
+# Check certificate request
+kubectl get certificaterequest -n rocketchat
+kubectl describe certificaterequest -n rocketchat
+
+# Check ACME challenge
+kubectl get challenge -n rocketchat
+kubectl describe challenge -n rocketchat
+
+# Check cert-manager logs
+kubectl logs -n cert-manager deployment/cert-manager --tail=50
+
+# Check if HTTP-01 challenge pod is accessible
+kubectl get pods -n rocketchat | grep acme-http-solver
+```
+
+**Common Causes:**
+
+1. **Rocket.Chat pods not running yet** - cert-manager waits for application to be healthy
+2. **DNS not pointing to server** - HTTP-01 challenge can't reach your server
+3. **Port 80 blocked** - Firewall or security group blocking HTTP
+4. **Ingress not ready** - NGINX ingress controller issues
+
+**Solutions:**
+
+#### Wait for Rocket.Chat pods first:
+
+The certificate will NOT be issued until Rocket.Chat pods are running and healthy!
+
+```bash
+# This is expected - wait for pods to be ready
+kubectl get pods -n rocketchat
+
+# Once pods are running, certificate will be issued automatically
+# Usually within 2-5 minutes after pods are healthy
+```
+
+#### If pods are running but certificate still failing:
+
+```bash
+# Check DNS resolution
+nslookup k8.canepro.me
+dig k8.canepro.me
+
+# Verify port 80 is accessible from internet
+curl http://k8.canepro.me/.well-known/acme-challenge/test
+
+# Check challenge details
+kubectl describe challenge -n rocketchat
+
+# Manual certificate retry
+kubectl delete certificate rocketchat-tls -n rocketchat
+# Will be recreated automatically by ingress
+```
+
+#### Check firewall rules:
+
+```bash
+# On the server
+sudo ufw status
+sudo iptables -L -n | grep -E '80|443'
+
+# Allow HTTP and HTTPS if blocked
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+```
+
+---
+
+### Issue 14: PodMonitor CRDs Not Found
 
 **Symptoms:**
 - Helm install/upgrade fails with "PodMonitor CRD not found"
