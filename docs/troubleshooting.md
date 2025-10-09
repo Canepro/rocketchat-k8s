@@ -1216,6 +1216,7 @@ sudo ufw allow 443/tcp
 | 15 | Helm Not Installed | [Install Helm](#issue-15-helm-not-installed) |
 | 16 | Secret Name Mismatch | [Use grafana-cloud-credentials](#issue-16-grafana-cloud-secret-name-mismatch) |
 | 17 | Storage Dirs Missing | [Create directories or use dynamic](#issue-17-storage-directories-dont-exist) |
+| 18 | Grafana Cloud 401 Error | [Use write-enabled API key](#issue-18-grafana-cloud-401-unauthorized-authentication-error) |
 
 ---
 
@@ -1448,6 +1449,150 @@ kubectl apply -f rocketchat-uploads-pvc.yaml
 ```
 
 **Important**: If directories don't exist and you're using hostPath PVs, the PVs won't bind. But with k3s local-path storage (default), everything works automatically!
+
+---
+
+### Issue 18: Grafana Cloud 401 Unauthorized Authentication Error
+
+**Symptoms:**
+```bash
+kubectl logs -n monitoring -l app=prometheus-agent | grep 401
+# ERROR: server returned HTTP status 401 Unauthorized: 
+# {"status":"error","error":"authentication error: invalid scope requested"}
+```
+
+**Diagnosis:**
+```bash
+# Check Prometheus logs
+kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus -c prometheus | grep "401"
+
+# Check secret contents (base64 encoded)
+kubectl get secret -n monitoring grafana-cloud-credentials -o yaml
+
+# Decode password to see key name
+kubectl get secret -n monitoring grafana-cloud-credentials -o jsonpath='{.data.password}' | base64 -d | base64 -d | jq .
+```
+
+**Common Causes:**
+1. **API key has read-only permissions** (most common)
+   - Key name contains "read" (e.g., `hm-read-*`)
+   - Created with wrong scope/role
+2. **API key expired**
+3. **Wrong API key for the Prometheus endpoint region**
+
+**Solutions:**
+
+**Step 1: Generate Write-Enabled API Key in Grafana Cloud**
+
+**Option A: Via Cloud Access Policies (Recommended)**
+1. Log in to https://grafana.com
+2. Go to your **Stack** → **Configuration** → **Cloud Access Policies**
+3. Click **Create access policy**
+4. Configure:
+   - **Name**: `rocketchat-k8s-metrics-push`
+   - **Scopes**: Select **metrics:write** or **MetricsPublisher**
+   - **Realm**: Select your stack
+5. Click **Create**
+6. Click **Add token**
+7. Copy the token (starts with `glc_`)
+
+**Option B: Via Prometheus Settings**
+1. Go to **Prometheus** → **Details** or **Send metrics**
+2. Look for **"Generate API Token"** or **"Create push credentials"**
+3. Select role: **MetricsPublisher** (not Viewer/Reader)
+4. Copy the generated key
+
+**Step 2: Update Kubernetes Secret**
+
+```bash
+# Delete old secret with read-only key
+kubectl delete secret grafana-cloud-credentials -n monitoring
+
+# Create new secret with write-enabled key
+kubectl create secret generic grafana-cloud-credentials \
+  --namespace monitoring \
+  --from-literal=username="YOUR_INSTANCE_ID" \
+  --from-literal=password="YOUR_NEW_WRITE_KEY"
+
+# Verify secret created
+kubectl describe secret grafana-cloud-credentials -n monitoring
+```
+
+**Step 3: Restart Prometheus to Pick Up New Secret**
+
+```bash
+# For Helm deployment (kube-prometheus-stack)
+kubectl rollout restart statefulset prom-agent-monitoring-kube-prometheus-prometheus -n monitoring
+
+# OR delete the pod directly
+kubectl delete pod prom-agent-monitoring-kube-prometheus-prometheus-0 -n monitoring
+
+# For raw manifests deployment
+kubectl delete pod -n monitoring -l app=prometheus-agent
+
+# Wait for pod to restart
+kubectl get pods -n monitoring -w
+# Press Ctrl+C when Running (2/2)
+```
+
+**Step 4: Verify Fix**
+
+```bash
+# Check for 401 errors (should be none)
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus | grep "401"
+
+# Look for successful WAL replay
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus | grep "Done replaying WAL"
+# Expected: "Done replaying WAL" with duration in seconds
+
+# Monitor for a minute (should see no errors)
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -f
+# Press Ctrl+C after 30-60 seconds of clean logs
+```
+
+**Verify in Grafana Cloud:**
+1. Log in to Grafana Cloud
+2. Go to **Explore** → **Prometheus** datasource
+3. Query: `up{cluster="rocketchat-k3s-lab"}`
+4. Should see metrics from all components
+
+**✅ Success Indicators:**
+- No 401 errors in logs
+- "Done replaying WAL" message appears
+- WAL watcher started successfully
+- Metrics visible in Grafana Cloud
+
+**⚠️ Warning Messages (Normal):**
+```
+WARN: Error on ingesting out-of-order samples (cadvisor)
+```
+These warnings are **normal** for cadvisor metrics and can be ignored. Metrics are still being collected successfully.
+
+---
+
+### How to Identify Read vs Write Keys
+
+**Read-only key:**
+- Name contains: `read`, `viewer`, `readonly`
+- Scope: `metrics:read`
+- Role: Viewer, Reader
+- **Cannot push metrics** ❌
+
+**Write-enabled key:**
+- Name contains: `write`, `push`, `publisher`
+- Scope: `metrics:write`
+- Role: MetricsPublisher, Editor, Admin
+- **Can push metrics** ✅
+
+**Check your key:**
+```bash
+# Decode and inspect the key (base64 encoded JWT)
+kubectl get secret -n monitoring grafana-cloud-credentials -o jsonpath='{.data.password}' | base64 -d
+
+# If it's a JWT (starts with glc_eyJ), decode the payload:
+echo "YOUR_KEY" | base64 -d | jq .
+# Look for "n" field (name) - should contain "write" or "push"
+```
 
 ---
 
