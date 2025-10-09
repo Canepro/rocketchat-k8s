@@ -1,5 +1,12 @@
 # Monitoring configuration for Rocket.Chat with Grafana Cloud
-# This file configures Prometheus Agent to scrape metrics and send to Grafana Cloud
+# This file configures kube-prometheus-stack in agent mode for Grafana Cloud
+#
+# Deploy with:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     -f values-monitoring.yaml
 
 prometheus:
   enabled: true
@@ -12,14 +19,15 @@ prometheus:
       environment: lab
     
     # Remote write configuration for Grafana Cloud
+    # Update the URL with your Grafana Cloud Prometheus endpoint
     remoteWrite:
-      - url: https://prometheus-blocks-prod-us-central1.grafana.net/api/prom/push
+      - url: https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom/push
         basicAuth:
           username:
-            name: grafana-cloud-secret
+            name: grafana-cloud-credentials
             key: username
           password:
-            name: grafana-cloud-secret
+            name: grafana-cloud-credentials
             key: password
         queueConfig:
           capacity: 5000
@@ -40,7 +48,7 @@ prometheus:
         memory: 256Mi
     
     # Storage not needed in agent mode (remote write only)
-    storage: {}
+    storageSpec: {}
     
     # Scrape configuration
     scrapeInterval: 30s
@@ -111,15 +119,3 @@ nodeExporter:
 # Disable AlertManager - alerts will be handled in Grafana Cloud
 alertmanager:
   enabled: false
-
-# ServiceMonitor for Rocket.Chat
-serviceMonitor:
-  enabled: true
-  namespace: rocketchat
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: rocketchat
-  endpoints:
-    - port: http-metrics
-      path: /metrics
-      interval: 30s

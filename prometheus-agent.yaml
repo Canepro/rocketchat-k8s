@@ -1,3 +1,25 @@
+# Prometheus Agent v3.0.0 for Grafana Cloud
+#
+# NOTE: This file contains all manifests in a single file for quick deployment.
+# For better organization, individual manifests are available in manifests/ directory:
+#   - manifests/prometheus-agent-configmap.yaml
+#   - manifests/prometheus-agent-deployment.yaml
+#   - manifests/prometheus-agent-rbac.yaml
+#
+# Deploy with:
+#   kubectl apply -f prometheus-agent.yaml
+# OR:
+#   kubectl apply -f manifests/
+#
+# Prerequisites:
+#   1. Create monitoring namespace: kubectl create namespace monitoring
+#   2. Create Grafana Cloud secret:
+#      kubectl create secret generic grafana-cloud-credentials \
+#        --namespace monitoring \
+#        --from-literal=username="YOUR_GRAFANA_CLOUD_INSTANCE_ID" \
+#        --from-literal=password="YOUR_GRAFANA_CLOUD_API_KEY"
+
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -94,6 +116,8 @@ kind: Deployment
 metadata:
   name: prometheus-agent
   namespace: monitoring
+  labels:
+    app: prometheus-agent
 spec:
   replicas: 1
   selector:
@@ -128,6 +152,18 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
       volumes:
       - name: config
         configMap:
@@ -174,4 +210,3 @@ subjects:
 - kind: ServiceAccount
   name: prometheus-agent
   namespace: monitoring
-

@@ -2,6 +2,8 @@
 
 This document outlines the path from basic metrics monitoring to full observability (metrics + logs + traces) using Grafana Alloy.
 
+> **Note:** For current monitoring setup, see [monitoring.md](monitoring.md)
+
 ## Current State (Phase 1) ✅
 
 **Architecture:**
