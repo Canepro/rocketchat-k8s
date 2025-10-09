@@ -2,69 +2,74 @@
 set -e
 
 echo "============================================"
-echo "🚀 Rocket.Chat k3s Deployment Script"
+echo "🚀 Rocket.Chat k3s Lab Deployment Script"
 echo "============================================"
+echo "Deploying Rocket.Chat with:"
+echo "  • Traefik Ingress (k3s native)"
+echo "  • Enterprise microservices"
+echo "  • Grafana Cloud monitoring"
+echo "  • Let's Encrypt TLS certificates"
 echo ""
 
-# Step 1: Apply PVs and PVC
-echo "📦 Step 1: Creating Persistent Volumes and Claims..."
-kubectl apply -f persistent-volumes.yaml
-kubectl apply -f mongo-pvc.yaml
-kubectl apply -f rocketchat-uploads-pvc.yaml
-echo "✅ PVs and PVC created"
-echo ""
-
-# Wait for PVC to bind
-echo "⏳ Waiting for PVC to bind..."
-kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/mongo-pvc -n rocketchat --timeout=60s || true
-kubectl get pv,pvc -n rocketchat
-echo ""
-
-# Step 2: Apply Grafana Cloud secret
-echo "🔐 Step 2: Creating Grafana Cloud credentials secret..."
-kubectl apply -f grafana-cloud-secret.yaml
-echo "✅ Grafana Cloud secret created"
-echo ""
-
-# Step 3: Apply Prometheus Agent
-echo "📊 Step 3: Deploying Prometheus Agent..."
-kubectl apply -f prometheus-agent.yaml
-echo "✅ Prometheus Agent deployed"
-echo ""
-
-# Wait for Prometheus Agent
-echo "⏳ Waiting for Prometheus Agent to be ready..."
-kubectl wait --for=condition=available deployment/prometheus-agent -n monitoring --timeout=120s || true
-kubectl get pods -n monitoring
-echo ""
-
-# Step 4: Apply CRDs
-echo "📋 Step 4: Installing PodMonitor and ServiceMonitor CRDs..."
-kubectl apply -f podmonitor-crd.yaml
-kubectl apply -f servicemonitor-crd.yaml
-echo "✅ CRDs installed"
-kubectl get crd | grep monitoring.coreos.com
-echo ""
-
-# Step 5: Install NGINX Ingress Controller
-echo "🌐 Step 5: Installing NGINX Ingress Controller..."
-if ! kubectl get namespace ingress-nginx &> /dev/null; then
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
-    echo "⏳ Waiting for NGINX Ingress Controller..."
-    kubectl wait --namespace ingress-nginx \
-      --for=condition=ready pod \
-      --selector=app.kubernetes.io/component=controller \
-      --timeout=300s || true
-else
-    echo "ℹ️  NGINX Ingress Controller already installed"
+# Prerequisites check
+echo "🔍 Checking prerequisites..."
+if ! command -v kubectl &> /dev/null; then
+    echo "❌ kubectl not found. Please install kubectl."
+    exit 1
 fi
-echo "✅ NGINX Ingress Controller ready"
+
+if ! command -v helm &> /dev/null; then
+    echo "❌ helm not found. Please install Helm v3."
+    exit 1
+fi
+
+if ! kubectl cluster-info &> /dev/null; then
+    echo "❌ Cannot connect to Kubernetes cluster. Check your kubeconfig."
+    exit 1
+fi
+
+echo "✅ Prerequisites check passed"
 echo ""
 
-# Step 6: Install cert-manager
-echo "🔒 Step 6: Installing cert-manager..."
+# Check if Grafana Cloud secret exists
+if ! kubectl get secret grafana-cloud-secret -n monitoring &> /dev/null; then
+    echo "⚠️  WARNING: Grafana Cloud secret not found!"
+    echo "   Please create it first:"
+    echo "   1. cp grafana-cloud-secret.yaml.template grafana-cloud-secret.yaml"
+    echo "   2. Edit grafana-cloud-secret.yaml with your credentials"
+    echo "   3. kubectl apply -f grafana-cloud-secret.yaml"
+    echo ""
+    read -p "Do you want to continue without monitoring? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+    SKIP_MONITORING=true
+else
+    echo "✅ Grafana Cloud secret found"
+    SKIP_MONITORING=false
+fi
+echo ""
+
+# Step 1: Check Traefik (k3s native ingress)
+echo "🌐 Step 1: Checking Traefik ingress (k3s native)..."
+if kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik &> /dev/null; then
+    echo "✅ Traefik ingress controller found (k3s native)"
+else
+    echo "⚠️  Traefik not found. This script is designed for k3s with Traefik."
+    echo "   If you're using a different cluster, please install Traefik or update the ingress configuration."
+    read -p "Do you want to continue anyway? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+echo ""
+
+# Step 2: Install cert-manager
+echo "🔒 Step 2: Installing cert-manager..."
 if ! kubectl get namespace cert-manager &> /dev/null; then
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.3/cert-manager.yaml
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.yaml
     echo "⏳ Waiting for cert-manager..."
     kubectl wait --namespace cert-manager \
       --for=condition=ready pod \
@@ -76,68 +81,118 @@ fi
 echo "✅ cert-manager ready"
 echo ""
 
-# Step 7: Apply ClusterIssuer
-echo "📜 Step 7: Creating Let's Encrypt ClusterIssuer..."
+# Step 3: Apply ClusterIssuer
+echo "📜 Step 3: Creating Let's Encrypt ClusterIssuer (Traefik compatible)..."
 kubectl apply -f clusterissuer.yaml
 sleep 5
 kubectl get clusterissuer
 echo "✅ ClusterIssuer created"
 echo ""
 
-# Step 8: Add Rocket.Chat Helm repo
-echo "📦 Step 8: Adding Rocket.Chat Helm repository..."
+# Step 4: Add Helm repositories
+echo "📦 Step 4: Adding Helm repositories..."
 helm repo add rocketchat https://rocketchat.github.io/helm-charts 2>/dev/null || true
+if [[ "$SKIP_MONITORING" == "false" ]]; then
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+fi
 helm repo update
-echo "✅ Helm repo ready"
+echo "✅ Helm repositories ready"
 echo ""
 
-# Step 9: Create SMTP secret
-echo "📧 Step 9: Creating SMTP secret..."
-echo "⚠️  Please enter your Mailgun SMTP password:"
+# Step 5: Create SMTP secret
+echo "📧 Step 5: Creating SMTP secret..."
+kubectl create namespace rocketchat --dry-run=client -o yaml | kubectl apply -f -
+echo "⚠️  Please enter your Mailgun SMTP password (or press Enter to skip):"
 read -s SMTP_PASSWORD
-kubectl create secret generic smtp-credentials -n rocketchat \
-  --from-literal=password="$SMTP_PASSWORD" \
-  --dry-run=client -o yaml | kubectl apply -f -
-echo "✅ SMTP secret created"
+if [[ -n "$SMTP_PASSWORD" ]]; then
+    kubectl create secret generic smtp-credentials -n rocketchat \
+      --from-literal=password="$SMTP_PASSWORD" \
+      --dry-run=client -o yaml | kubectl apply -f -
+    echo "✅ SMTP secret created"
+else
+    echo "⏸️  SMTP secret skipped (you can create it later)"
+fi
 echo ""
 
-# Step 10: Deploy Rocket.Chat
-echo "🚀 Step 10: Deploying Rocket.Chat..."
-helm upgrade --install rocketchat \
-  -n rocketchat \
-  -f values.yaml \
-  rocketchat/rocketchat
-echo "✅ Rocket.Chat deployed"
+# Step 6: Deploy Rocket.Chat
+echo "🚀 Step 6: Deploying Rocket.Chat Enterprise..."
+helm upgrade --install rocketchat rocketchat/rocketchat \
+  --namespace rocketchat --create-namespace \
+  -f values.yaml
+echo "✅ Rocket.Chat deployed with microservices enabled"
 echo ""
 
-# Wait for pods
-echo "⏳ Waiting for Rocket.Chat pods to start..."
-sleep 10
+# Step 7: Deploy monitoring (if not skipped)
+if [[ "$SKIP_MONITORING" == "false" ]]; then
+    echo "📊 Step 7: Deploying Prometheus Agent with Grafana Cloud..."
+    kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+      --namespace monitoring \
+      -f values-monitoring.yaml
+    echo "✅ Monitoring stack deployed"
+else
+    echo "⏸️  Step 7: Monitoring deployment skipped"
+fi
+echo ""
+
+# Step 8: Wait and verify deployment
+echo "⏳ Waiting for Rocket.Chat deployment to stabilize..."
+kubectl rollout status deployment/rocketchat -n rocketchat --timeout=300s
+echo ""
+
+echo "📊 Checking deployment status..."
 kubectl get pods -n rocketchat
+if [[ "$SKIP_MONITORING" == "false" ]]; then
+    kubectl get pods -n monitoring
+fi
 echo ""
 
-# Step 11: Verification
+# Step 9: Verification
 echo "============================================"
 echo "✅ DEPLOYMENT COMPLETE!"
 echo "============================================"
 echo ""
-echo "📊 Verification Commands:"
+echo "🏗️  **Deployed Components:**"
+echo "  • Rocket.Chat Enterprise (microservices mode)"
+echo "  • MongoDB ReplicaSet"
+echo "  • NATS messaging"
+echo "  • Traefik ingress with TLS"
+if [[ "$SKIP_MONITORING" == "false" ]]; then
+    echo "  • Prometheus Agent → Grafana Cloud"
+fi
 echo ""
-echo "# Check all pods:"
+echo "📊 **Status Check Commands:**"
+echo ""
+echo "# Check Rocket.Chat pods:"
 echo "kubectl get pods -n rocketchat"
 echo ""
-echo "# Check certificate (may take 2-5 minutes):"
+echo "# Check TLS certificate (may take 2-5 minutes):"
 echo "kubectl get certificate -n rocketchat"
+echo "kubectl describe certificate rocketchat-tls -n rocketchat"
 echo ""
-echo "# Check ingress:"
-echo "kubectl get ingress -n rocketchat"
+echo "# Check ingress and services:"
+echo "kubectl get ingress,svc -n rocketchat"
 echo ""
-echo "# View Prometheus Agent logs:"
-echo "kubectl logs -n monitoring deployment/prometheus-agent"
+if [[ "$SKIP_MONITORING" == "false" ]]; then
+    echo "# Check monitoring stack:"
+    echo "kubectl get pods -n monitoring"
+    echo ""
+    echo "# Check Grafana Cloud connectivity:"
+    echo "kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus"
+fi
 echo ""
-echo "# Check Grafana Cloud metrics:"
-echo "Go to Grafana Cloud → Explore → Query: up{cluster=\"rocketchat-k3s\"}"
+echo "🌐 **Access Instructions:**"
 echo ""
-echo "🌐 Once certificate is ready, access:"
-echo "   https://k8.canepro.me"
+echo "1. Wait for certificate to be ready (check with above commands)"
+echo "2. Access Rocket.Chat at: https://k8.canepro.me"
+echo "3. Complete initial setup (create admin user)"
+if [[ "$SKIP_MONITORING" == "false" ]]; then
+    echo "4. Import Grafana dashboards (IDs: 23428, 23427, 23712)"
+fi
+echo ""
+echo "📚 **Next Steps:**"
+echo "• Review logs if any pods are not running"
+echo "• Configure SMTP if not done during deployment"
+echo "• Import Grafana Cloud dashboards for monitoring"
+echo "• Review security settings in Rocket.Chat admin panel"
 echo ""
