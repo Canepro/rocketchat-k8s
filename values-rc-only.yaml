@@ -1,0 +1,107 @@
+# Prometheus Monitoring Stack - Grafana Cloud Free Tier Optimized
+# 
+# This configuration deploys kube-prometheus-stack in Agent mode
+# with all high-volume Kubernetes infrastructure monitoring disabled.
+# Only Rocket.Chat application metrics are collected and sent to Grafana Cloud.
+#
+# Ingestion Rate: ~200-400 samples/s (well under 1,500/s free tier limit)
+# Last Updated: October 10, 2025
+
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: false
+
+# Disable all high-volume K8s infrastructure monitoring
+kubeApiServer:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+kubelet:
+  enabled: false
+
+defaultRules:
+  create: false
+
+prometheusOperator:
+  serviceMonitor:
+    selfMonitor: false
+
+prometheus:
+  enabled: true
+  agentMode: true
+  
+  serviceMonitor:
+    selfMonitor: false
+  
+  prometheusSpec:
+    scrapeInterval: 60s
+    evaluationInterval: 60s
+    
+    externalLabels:
+      cluster: rocketchat-k3s-lab
+      environment: lab
+
+    # No pod annotation-based scraping (prevents duplicates)
+    additionalScrapeConfigs: []
+
+    remoteWrite:
+      - url: https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom/push
+        basicAuth:
+          username:
+            name: grafana-cloud-credentials
+            key: username
+          password:
+            name: grafana-cloud-credentials
+            key: password
+        
+        # Disable metadata/exemplars to reduce overhead
+        metadataConfig:
+          send: false
+        sendExemplars: false
+        sendNativeHistograms: false
+        
+        # Conservative queue settings for free tier
+        queueConfig:
+          maxShards: 1
+          maxSamplesPerSend: 200
+          capacity: 10000
+        
+        # Safety filter: Only send Rocket.Chat metrics
+        # Even if unwanted ServiceMonitors exist, only these jobs reach Grafana Cloud
+        writeRelabelConfigs:
+          - action: keep
+            sourceLabels: [job]
+            regex: rocketchat|mongodb|nats
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    
+    storageSpec: {}
+
