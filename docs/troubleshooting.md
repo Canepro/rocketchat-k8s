@@ -1217,6 +1217,7 @@ sudo ufw allow 443/tcp
 | 16 | Secret Name Mismatch | [Use grafana-cloud-credentials](#issue-16-grafana-cloud-secret-name-mismatch) |
 | 17 | Storage Dirs Missing | [Create directories or use dynamic](#issue-17-storage-directories-dont-exist) |
 | 18 | Grafana Cloud 401 Error | [Use write-enabled API key](#issue-18-grafana-cloud-401-unauthorized-authentication-error) |
+| 19 | Grafana Cloud 429 Rate Limit | [Delete K8s ServiceMonitors](#issue-19-grafana-cloud-rate-limiting-http-429---resolved) |
 
 ---
 
@@ -1593,6 +1594,123 @@ kubectl get secret -n monitoring grafana-cloud-credentials -o jsonpath='{.data.p
 echo "YOUR_KEY" | base64 -d | jq .
 # Look for "n" field (name) - should contain "write" or "push"
 ```
+
+---
+
+---
+
+### Issue 19: Grafana Cloud Rate Limiting (HTTP 429) - RESOLVED
+
+**Symptoms:**
+```bash
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus | grep "429"
+# ERROR: server returned HTTP status 429 Too Many Requests: 
+# the request has been rejected because the tenant exceeded the ingestion rate limit, 
+# set to 1500 items/s with a maximum allowed burst of 15000
+```
+
+**Root Cause:**
+- **Grafana Cloud Free Tier limits**: 1,500 samples/second ingestion rate, 15,000 burst capacity
+- **Default Kubernetes monitoring**: 3,000-5,000 samples/s (kubelet/cAdvisor, kube-state-metrics, node-exporter, coredns)
+- **Rocket.Chat metrics**: Only ~200-400 samples/s
+- The high-volume K8s infrastructure metrics were overwhelming the free tier limit
+
+**Solution Applied (2025-10-09 23:35 UTC):**
+
+Removed all high-volume Kubernetes monitoring ServiceMonitors, keeping only Rocket.Chat application metrics:
+
+**Deleted ServiceMonitors:**
+```bash
+kubectl -n monitoring get servicemonitors -o name \
+  | grep -viE 'rocketchat|mongo|nats' \
+  | xargs kubectl -n monitoring delete
+```
+
+Specifically removed:
+- `monitoring-kube-prometheus-apiserver`
+- `monitoring-kube-prometheus-coredns`
+- `monitoring-kube-prometheus-kube-controller-manager`
+- `monitoring-kube-prometheus-kube-etcd`
+- `monitoring-kube-prometheus-kube-proxy`
+- `monitoring-kube-prometheus-kube-scheduler`
+- `monitoring-kube-prometheus-kubelet` (including cAdvisor - the biggest offender at ~80% of sample volume)
+- `monitoring-kube-prometheus-operator`
+- `monitoring-kube-prometheus-prometheus`
+- `monitoring-kube-state-metrics`
+- `monitoring-prometheus-node-exporter`
+
+**Retained ServiceMonitors (all healthy and up):**
+- `rocketchat-main` - Rocket.Chat application metrics (port 9100, job: "rocketchat")
+- `rocketchat-microservices` - Moleculer microservices metrics (port 9458, job: "rocketchat")  
+- `rocketchat-mongodb` - MongoDB exporter metrics (port 9216, job: "mongodb")
+- `rocketchat-nats` - NATS messaging metrics (port 7777, job: "nats")
+
+**Current State:**
+- **Ingestion Rate**: ~200-400 samples/s (well under 1,500 limit) ✅
+- **No 429 Errors**: Confirmed stopped since 23:35 UTC ✅
+- **All Targets**: UP and healthy with 60s scrape intervals ✅
+- **Metrics Flowing**: Successfully ingesting to Grafana Cloud ✅
+
+**Verification Commands:**
+
+```bash
+# List active ServiceMonitors (should only show rocketchat namespace)
+kubectl get servicemonitor -A
+
+# Check for 429 errors in last 5 minutes (should return nothing)
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus --since=5m | grep "429"
+
+# Verify all Rocket.Chat targets are UP
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  | grep -o '"scrapePool":"serviceMonitor/rocketchat[^"]*"' | sort -u
+
+# Expected output:
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-main/0"
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-microservices/0"
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-mongodb/0"
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-nats/0"
+
+# Check target health
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  | grep '"health":"up"' | grep 'rocketchat' | wc -l
+# Expected: 4 or more (one for each ServiceMonitor, some may have multiple endpoints)
+```
+
+**Grafana Cloud Queries:**
+
+Test these queries in Grafana Cloud to confirm metrics are flowing:
+
+```promql
+# Check all Rocket.Chat services are up
+up{namespace="rocketchat"}
+
+# Rocket.Chat application metrics
+rocketchat_info
+rocketchat_metrics_requests
+rocketchat_meteor_methods
+
+# MongoDB metrics
+mongodb_up
+mongodb_connections
+mongodb_ss_opcounters
+
+# NATS messaging metrics
+gnatsd_varz_connections
+gnatsd_varz_in_msgs
+gnatsd_varz_out_msgs
+```
+
+**Timeline:**
+- **Before Fix**: Constant 429 errors, ~3,000-5,000 samples/s
+- **After Fix**: No 429 errors, ~200-400 samples/s
+- **Config Reload**: 2025-10-09 23:35:46 UTC
+- **Confirmation**: No errors for 3+ minutes after change
+
+**Note for Future Upgrades:**
+
+If you reinstall or upgrade the monitoring stack via Helm, the deleted ServiceMonitors will be recreated. To make this change permanent, create a Helm values override file that disables high-volume components.
 
 ---
 

@@ -137,40 +137,277 @@ kubectl get pods -n monitoring
 # Check pods
 kubectl get pods -n monitoring
 
+# For Helm deployment, check the StatefulSet
+kubectl get statefulset -n monitoring
+
 # Check logs
-kubectl logs -n monitoring -l app=prometheus-agent
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus --tail=100
 
 # Check remote write status
-kubectl logs -n monitoring -l app=prometheus-agent | grep -i "remote_write"
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus \
+  | grep -i "remote_write"
 
-# Check if scraping
-kubectl logs -n monitoring -l app=prometheus-agent | grep -i "scrape"
+# Verify no 429 rate limit errors
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus --since=5m \
+  | grep "429" || echo "✅ No rate limit errors"
+```
+
+### Check ServiceMonitors
+
+```bash
+# List all ServiceMonitors (should only show rocketchat namespace)
+kubectl get servicemonitor -A
+
+# Expected output:
+# NAMESPACE    NAME                       AGE
+# rocketchat   rocketchat-main            Xh
+# rocketchat   rocketchat-microservices   Xh
+# rocketchat   rocketchat-mongodb         Xh
+# rocketchat   rocketchat-nats            Xh
+
+# Verify targets are being scraped
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  | grep -o '"scrapePool":"serviceMonitor/rocketchat[^"]*"' | sort -u
+
+# Check all targets are healthy
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  | grep '"health":"up"' | grep 'rocketchat' | wc -l
+# Should return: 4 or more
 ```
 
 ### Verify in Grafana Cloud
 
 1. Log in to Grafana Cloud
 2. Go to **Explore** → Select **Prometheus** datasource
-3. Query: `up{cluster="rocketchat-k3s"}` or `up{cluster="rocketchat-k3s-lab"}`
-4. Should see metrics from Rocket.Chat, MongoDB, NATS, Kubernetes
+3. **Set time range to "Last 15 minutes"**
 
-**Expected metrics:**
+**Working queries (confirmed):**
 ```promql
-# All targets should be up
-up{cluster="rocketchat-k3s-lab"}
+# Check all services by cluster
+sum by (job) (up{cluster="rocketchat-k3s-lab"})
 
-# Rocket.Chat specific metrics
-rocketchat_version_info
+# Count by job and instance
+sum by (job,instance) (up{cluster="rocketchat-k3s-lab"})
 
-# MongoDB metrics
-mongodb_up
+# View top metrics
+topk(50, count by (__name__) ({cluster="rocketchat-k3s-lab"}))
 
-# NATS metrics  
-nats_server_info
-
-# Kubernetes cluster metrics
-kube_node_info
+# Count available labels
+count by (job) (up)
+count by (cluster) (up)
 ```
+
+**Note:** Prometheus Agent mode does NOT store metrics locally, so you cannot query `http://localhost:9090` for actual metrics. All data is immediately forwarded to Grafana Cloud via `remote_write`.
+
+**Expected results:**
+- `job` labels: `rocketchat`, `mongodb`, `nats`
+- `cluster` label: `rocketchat-k3s-lab`
+- All `up` metrics should show value `1` (healthy)
+
+### Remote Write Statistics
+
+```bash
+# Check successful sample delivery
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- http://localhost:9090/metrics 2>/dev/null \
+  | grep "prometheus_remote_storage_samples_total"
+
+# Check for failures (should be 0)
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- http://localhost:9090/metrics 2>/dev/null \
+  | grep "prometheus_remote_storage_samples_failed_total"
+
+# Check pending queue (should be low, < 1000)
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- http://localhost:9090/metrics 2>/dev/null \
+  | grep "prometheus_remote_storage_samples_pending"
+```
+
+**Healthy indicators:**
+- `prometheus_remote_storage_samples_failed_total` = 0
+- `prometheus_remote_storage_samples_pending` < 500
+- `prometheus_remote_storage_sent_batch_duration_seconds_count` increasing
+- No 429 errors in logs
+
+---
+
+## 🎯 Current Production Configuration (Grafana Cloud Free Tier)
+
+### Overview
+Our monitoring setup is optimized for Grafana Cloud Free Tier (1,500 samples/s limit):
+
+**Active ServiceMonitors (4 total):**
+- `rocketchat-main` - Rocket.Chat application metrics (port 9100)
+- `rocketchat-microservices` - Moleculer microservices (port 9458)
+- `rocketchat-mongodb` - MongoDB exporter (port 9216)
+- `rocketchat-nats` - NATS messaging exporter (port 7777)
+
+**Ingestion Rate:** ~200-400 samples/s (well under 1,500 limit) ✅
+
+### Configuration File: `values-rc-only.yaml`
+
+This is the production Helm values file that prevents rate limiting:
+
+```yaml
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: false
+
+# Disable all high-volume K8s monitoring
+kubeApiServer:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
+coreDns:
+  enabled: false
+kubelet:
+  enabled: false
+
+defaultRules:
+  create: false
+
+prometheusOperator:
+  serviceMonitor:
+    selfMonitor: false
+
+prometheus:
+  enabled: true
+  agentMode: true
+  serviceMonitor:
+    selfMonitor: false
+  prometheusSpec:
+    scrapeInterval: 60s
+    evaluationInterval: 60s
+    externalLabels:
+      cluster: rocketchat-k3s-lab
+      environment: lab
+
+    # No pod annotation-based scraping
+    additionalScrapeConfigs: []
+
+    remoteWrite:
+      - url: https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom/push
+        basicAuth:
+          username:
+            name: grafana-cloud-credentials
+            key: username
+          password:
+            name: grafana-cloud-credentials
+            key: password
+        metadataConfig:
+          send: false
+        sendExemplars: false
+        sendNativeHistograms: false
+        queueConfig:
+          maxShards: 1
+          maxSamplesPerSend: 200
+          capacity: 10000
+        writeRelabelConfigs:
+          - action: keep
+            sourceLabels: [job]
+            regex: rocketchat|mongodb|nats
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    storageSpec: {}
+```
+
+### Key Settings Explained
+
+1. **`additionalScrapeConfigs: []`** - Removes pod annotation-based scraping (prevents duplicates)
+2. **`writeRelabelConfigs`** - Safety filter that ONLY sends `job=rocketchat|mongodb|nats` to Grafana Cloud
+3. **All K8s components disabled** - No kubelet, kube-state-metrics, node-exporter (prevents high-volume scraping)
+4. **`maxShards: 1`, `maxSamplesPerSend: 200`** - Conservative queue settings for free tier
+5. **Metadata disabled** - Reduces overhead (`metadataConfig: {send: false}`)
+
+### Apply Configuration
+
+```bash
+# Deploy or upgrade monitoring stack
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring \
+  -f values-rc-only.yaml
+
+# Wait for rollout
+kubectl rollout status statefulset/prom-agent-monitoring-kube-prometheus-prometheus -n monitoring
+
+# Verify only Rocket.Chat jobs exist
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  cat /etc/prometheus/config_out/prometheus.env.yaml 2>/dev/null \
+  | grep "job_name:" | sort -u
+```
+
+### Verification Commands
+
+```bash
+# Check active scrape pools (should only show 4 rocketchat ServiceMonitors)
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  | grep -o '"scrapePool":"[^"]*"' | sort -u
+
+# Expected output:
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-main/0"
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-microservices/0"
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-mongodb/0"
+# "scrapePool":"serviceMonitor/rocketchat/rocketchat-nats/0"
+
+# Check for duplicate scrapes (each instance should appear once)
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null \
+  | grep '"namespace":"rocketchat"' | grep -o '"instance":"[^"]*"' | sort | uniq -c
+
+# Verify remote write is working
+kubectl exec -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus -- \
+  wget -qO- http://localhost:9090/metrics 2>/dev/null \
+  | grep -E "prometheus_remote_storage_(samples_total|samples_failed_total|samples_pending)"
+```
+
+### Verify in Grafana Cloud
+
+1. Log in to Grafana Cloud
+2. Go to **Explore** → Select **Prometheus** datasource
+3. **Set time range to "Last 15 minutes"**
+
+**Verified working queries:**
+```promql
+# Check all services are up (grouped by job)
+sum by (job) (up{cluster="rocketchat-k3s-lab"})
+
+# See all job and instance combinations
+sum by (job,instance) (up{cluster="rocketchat-k3s-lab"})
+
+# View top 50 metric names being ingested
+topk(50, count by (__name__) ({cluster="rocketchat-k3s-lab"}))
+
+# Count metrics by label
+count by (job) (up)
+count by (cluster) (up)
+```
+
+**Important Notes:**
+- ⚠️ Direct instance queries like `up{instance="10.42.0.50:9100"}` may not work due to label relabeling
+- ⚠️ Namespace labels (`namespace="rocketchat"`) may be renamed or dropped during remote write
+- ✅ Always use `cluster` label for filtering: `{cluster="rocketchat-k3s-lab"}`
+- ✅ Use aggregation functions: `sum by (job) (...)` instead of direct queries
 
 ---
 
@@ -520,13 +757,57 @@ kubectl top pod -n monitoring
 
 **Check logs:**
 ```bash
-kubectl logs -n monitoring -l app=prometheus-agent | grep -i "remote_write"
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus \
+  | grep -i "remote_write"
 ```
 
 **Common errors:**
-- `401 Unauthorized` - Wrong credentials
-- `429 Too Many Requests` - Rate limiting (check Grafana Cloud limits)
+- `401 Unauthorized` - Wrong credentials (need write-enabled API key)
+- `429 Too Many Requests` - Rate limiting (see Issue #19 in troubleshooting.md)
 - `Connection refused` - Network/firewall issue
+
+### Issue: HTTP 429 Rate Limiting
+
+**Symptoms:**
+```bash
+kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus | grep "429"
+# ERROR: HTTP status 429 Too Many Requests: tenant exceeded the ingestion rate limit
+```
+
+**Root Cause:**
+- Grafana Cloud Free Tier limit: **1,500 samples/second**
+- Default K8s monitoring (kubelet, kube-state-metrics, node-exporter): **3,000-5,000 samples/s**
+- Rocket.Chat metrics alone: **~200-400 samples/s**
+
+**Solution:**
+1. Use the `values-rc-only.yaml` configuration (see above) which:
+   - Disables all K8s infrastructure monitoring
+   - Keeps only Rocket.Chat, MongoDB, and NATS metrics
+   - Adds `writeRelabelConfigs` safety filter
+   
+2. Apply the configuration:
+   ```bash
+   helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+     -n monitoring -f values-rc-only.yaml
+   ```
+
+3. Delete any lingering high-volume ServiceMonitors:
+   ```bash
+   kubectl delete servicemonitor -n monitoring \
+     monitoring-kube-prometheus-kubelet \
+     monitoring-kube-state-metrics \
+     monitoring-prometheus-node-exporter 2>/dev/null || true
+   ```
+
+4. Verify 429 errors stop:
+   ```bash
+   kubectl logs -n monitoring prom-agent-monitoring-kube-prometheus-prometheus-0 -c prometheus --since=5m \
+     | grep "429" || echo "✅ No 429 errors"
+   ```
+
+See [Issue #19 in troubleshooting.md](troubleshooting.md#issue-19-grafana-cloud-rate-limiting-http-429---resolved) for complete details and timeline.
+
+**Result:** Ingestion rate drops from ~3,000-5,000 samples/s to ~200-400 samples/s, well under the 1,500 limit.
 
 ---
 

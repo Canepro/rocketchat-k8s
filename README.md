@@ -486,17 +486,36 @@ persistence:
 
 ## 📊 Observability
 
-### Current Stack (Phase 1)
+### Current Stack (Phase 1) - Grafana Cloud Free Tier Optimized
 
 ```
-Rocket.Chat → Prometheus Agent v3.0.0 → Grafana Cloud
+Rocket.Chat Pods → 4 ServiceMonitors → Prometheus Agent v3.0.0 → Grafana Cloud
+   (9100, 9458)      (60s interval)     (write filter)        (metrics storage)
+   MongoDB (9216)
+   NATS (7777)
 ```
+
+**Status:** ✅ Operational - No rate limiting, all targets healthy
 
 **Metrics Collected:**
-- 📈 Application metrics (requests, errors, latency)
-- 💾 MongoDB performance (queries, connections, cache)
-- 🔄 NATS messaging (throughput, queues)
-- ☸️ Kubernetes cluster (pods, nodes, resources)
+- 📈 **Rocket.Chat** - Application performance (HTTP requests, errors, latency) - port 9100
+- ⚙️ **Microservices** - Moleculer framework metrics (DDP, auth, presence) - port 9458
+- 💾 **MongoDB** - Database performance (queries, connections, cache, opcounters) - port 9216
+- 🔄 **NATS** - Messaging throughput (connections, in/out messages, subscriptions) - port 7777
+
+**What's NOT monitored** (to stay under free tier 1,500 samples/s limit):
+- ❌ Kubernetes infrastructure (kubelet, cAdvisor, kube-state-metrics, node-exporter)
+- ❌ Control plane (apiserver, scheduler, controller-manager, etcd)
+
+**Key Stats:**
+- **Ingestion Rate:** ~200-400 samples/s (73% under limit)
+- **Resource Usage:** 128-256Mi RAM
+- **Scrape Targets:** 4-5 active endpoints
+- **Failed Samples:** 0
+
+**Configuration Files:**
+- [values-rc-only.yaml](values-rc-only.yaml) - Production Helm values
+- [docs/monitoring-final-state.md](docs/monitoring-final-state.md) - Complete configuration reference
 
 **Pre-built Dashboards:**
 - [Rocket.Chat Metrics](https://grafana.com/grafana/dashboards/23428) - Dashboard ID: 23428
@@ -795,8 +814,9 @@ kubectl get pv,pvc -n rocketchat
 ### Operations
 
 - 📊 **[Monitoring Guide](docs/monitoring.md)** - Complete monitoring setup with Grafana Cloud
+- ✅ **[Monitoring Final State](docs/monitoring-final-state.md)** - Current production configuration (Grafana Cloud Free Tier optimized)
 - 🔮 **[Observability Roadmap](docs/observability-roadmap.md)** - Future: Logs + Traces with Grafana Alloy
-- 🔧 **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions
+- 🔧 **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions (19 documented issues)
 
 ### Reference
 
