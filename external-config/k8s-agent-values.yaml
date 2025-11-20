@@ -51,7 +51,9 @@ agent:
       loki.write "central" {
         endpoint {
           url = "https://observability.canepro.me/loki/loki/api/v1/push"
-          tenant_id = "fake"
+          headers = {
+            "X-Scope-OrgID" = "1",
+          }
           basic_auth {
             username = "observability-user"
             password = "YOUR_PASSWORD_HERE"
