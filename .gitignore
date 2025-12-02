@@ -1,6 +1,7 @@
 # Sensitive files - DO NOT COMMIT
 grafana-cloud-secret.yaml
 grafana-cloud-credentials.yaml
+k8s-agent-values.yaml
 *.key
 *.pem
 

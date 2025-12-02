@@ -1,4 +1,4 @@
-# Prometheus Agent v3.0.0 for Grafana Cloud
+# Prometheus Agent v2.45.0 for Self-Hosted Observability Stack
 #
 # NOTE: This file contains all manifests in a single file for quick deployment.
 # For better organization, individual manifests are available in manifests/ directory:
@@ -13,11 +13,7 @@
 #
 # Prerequisites:
 #   1. Create monitoring namespace: kubectl create namespace monitoring
-#   2. Create Grafana Cloud secret:
-#      kubectl create secret generic grafana-cloud-credentials \
-#        --namespace monitoring \
-#        --from-literal=username="YOUR_GRAFANA_CLOUD_INSTANCE_ID" \
-#        --from-literal=password="YOUR_GRAFANA_CLOUD_API_KEY"
+#   2. Create observability-credentials secret with username and password keys
 
 ---
 apiVersion: v1
@@ -26,22 +22,20 @@ metadata:
   name: prometheus-agent-config
   namespace: monitoring
 data:
-  prometheus.yml: |
+  prometheus.yml.tmpl: |
     global:
       scrape_interval: 30s
       external_labels:
-        cluster: rocketchat-k3s
+        cluster: k8-canepro-me
         environment: production
     
     remote_write:
-      - url: https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom/push
+      - url: https://observability.canepro.me/api/v1/write
         basic_auth:
-          username:
-            name: grafana-cloud-credentials
-            key: username
-          password:
-            name: grafana-cloud-credentials
-            key: password
+          username: GRAFANA_USERNAME_PLACEHOLDER
+          password: GRAFANA_PASSWORD_PLACEHOLDER
+        headers:
+          X-Scope-OrgID: "1"
         queue_config:
           capacity: 5000
           max_shards: 50
@@ -52,7 +46,6 @@ data:
           max_backoff: 1s
 
     scrape_configs:
-      # Scrape Kubernetes pods with prometheus.io annotations
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
           - role: pod
@@ -77,7 +70,6 @@ data:
             action: replace
             target_label: kubernetes_pod_name
 
-      # Scrape Kubernetes services
       - job_name: 'kubernetes-services'
         kubernetes_sd_configs:
           - role: service
@@ -102,7 +94,6 @@ data:
             action: replace
             target_label: kubernetes_service_name
 
-      # Scrape Kubernetes nodes
       - job_name: 'kubernetes-nodes'
         kubernetes_sd_configs:
           - role: node
@@ -129,29 +120,51 @@ spec:
         app: prometheus-agent
     spec:
       serviceAccountName: prometheus-agent
+      initContainers:
+      - name: config-init
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          sed "s/GRAFANA_USERNAME_PLACEHOLDER/$GRAFANA_USERNAME/g; s/GRAFANA_PASSWORD_PLACEHOLDER/$GRAFANA_PASSWORD/g" \
+            /etc/prometheus-template/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml
+        env:
+        - name: GRAFANA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: observability-credentials
+              key: username
+        - name: GRAFANA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: observability-credentials
+              key: password
+        volumeMounts:
+        - mountPath: /etc/prometheus-template
+          name: config-template
+        - mountPath: /etc/prometheus
+          name: config
       containers:
       - name: prometheus
-        image: prom/prometheus:v3.0.0
+        image: prom/prometheus:v2.45.0
         args:
           - '--config.file=/etc/prometheus/prometheus.yml'
-          - '--storage.tsdb.path=/prometheus'
           - '--web.enable-lifecycle'
           - '--enable-feature=agent'
         ports:
         - containerPort: 9090
           name: web
         volumeMounts:
-        - name: config
-          mountPath: /etc/prometheus
-        - name: storage
-          mountPath: /prometheus
+        - mountPath: /etc/prometheus
+          name: config
         resources:
           requests:
-            memory: "256Mi"
+            memory: "128Mi"
             cpu: "100m"
           limits:
             memory: "512Mi"
-            cpu: "250m"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /-/healthy
@@ -165,11 +178,11 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-      - name: config
+      - name: config-template
         configMap:
           name: prometheus-agent-config
-      - name: storage
-        emptyDir: {}   # ephemeral storage, safe for agent mode
+      - name: config
+        emptyDir: {}
 
 ---
 apiVersion: v1
