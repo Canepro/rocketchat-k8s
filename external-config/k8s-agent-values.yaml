@@ -25,7 +25,7 @@ agent:
 
       prometheus.remote_write "central" {
         endpoint {
-          url = "https://observability.canepro.me/prometheus/api/v1/write"
+          url = "https://observability.canepro.me/api/v1/write"
           basic_auth {
             username = "observability-user"
             password = "YOUR_PASSWORD_HERE"
@@ -50,7 +50,7 @@ agent:
 
       loki.write "central" {
         endpoint {
-          url = "https://observability.canepro.me/loki/loki/api/v1/push"
+          url = "https://observability.canepro.me/loki/api/v1/push"
           headers = {
             "X-Scope-OrgID" = "1",
           }
@@ -72,7 +72,7 @@ agent:
 
       otelcol.exporter.otlphttp "central" {
         client {
-          endpoint = "https://observability.canepro.me/tempo"
+          endpoint = "https://observability.canepro.me/v1/traces"
           auth = otelcol.auth.basic.central.handler
         }
       }

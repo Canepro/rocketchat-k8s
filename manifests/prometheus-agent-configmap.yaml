@@ -4,22 +4,20 @@ metadata:
   name: prometheus-agent-config
   namespace: monitoring
 data:
-  prometheus.yml: |
+  prometheus.yml.tmpl: |
     global:
       scrape_interval: 30s
       external_labels:
-        cluster: rocketchat-k3s
+        cluster: k8-canepro-me
         environment: production
     
     remote_write:
-      - url: https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom/push
+      - url: https://observability.canepro.me/api/v1/write
         basic_auth:
-          username:
-            name: grafana-cloud-credentials
-            key: username
-          password:
-            name: grafana-cloud-credentials
-            key: password
+          username: GRAFANA_USERNAME_PLACEHOLDER
+          password: GRAFANA_PASSWORD_PLACEHOLDER
+        headers:
+          X-Scope-OrgID: "1"
         queue_config:
           capacity: 5000
           max_shards: 50
@@ -87,4 +85,3 @@ data:
         relabel_configs:
           - action: labelmap
             regex: __meta_kubernetes_node_label_(.+)
-
