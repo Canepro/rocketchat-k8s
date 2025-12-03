@@ -15,7 +15,7 @@ prometheus:
   prometheusSpec:
     # External labels to identify this cluster in Grafana Cloud
     externalLabels:
-      cluster: rocketchat-k3s-lab
+      cluster: k8-canepro-me
       environment: lab
     
     # Remote write configuration for Grafana Cloud

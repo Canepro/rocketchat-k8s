@@ -293,7 +293,7 @@ prometheus:
     scrapeInterval: 60s
     evaluationInterval: 60s
     externalLabels:
-      cluster: rocketchat-k3s-lab
+      cluster: k8-canepro-me
       environment: lab
 
     # No pod annotation-based scraping

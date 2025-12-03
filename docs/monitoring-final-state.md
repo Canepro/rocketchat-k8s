@@ -98,7 +98,7 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
 ### External Labels
 
 All metrics are tagged with:
-- `cluster: rocketchat-k3s-lab` - Cluster identifier
+- `cluster: k8-canepro-me` - Cluster identifier
 - `environment: lab` - Environment type
 
 ### Write Relabel Configs (Safety Filter)
