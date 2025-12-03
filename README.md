@@ -486,41 +486,51 @@ persistence:
 
 ## 📊 Observability
 
-### Current Stack (Phase 1) - Grafana Cloud Free Tier Optimized
+### Current Stack - Full Observability (Metrics + Logs + Traces)
 
 ```
-Rocket.Chat Pods → 4 ServiceMonitors → Prometheus Agent v3.0.0 → Grafana Cloud
-   (9100, 9458)      (60s interval)     (write filter)        (metrics storage)
-   MongoDB (9216)
-   NATS (7777)
+Rocket.Chat Pods → Grafana Agent (Flow mode) → Central Observability Stack
+├─ Metrics (9100, 9458)                      ├─ Prometheus (metrics)
+├─ Logs (stdout/stderr)                      ├─ Loki (logs)
+└─ Traces (OTLP 4317/4318)                   └─ Tempo (traces)
 ```
 
-**Status:** ✅ Operational - No rate limiting, all targets healthy
+**Status:** ✅ Fully Operational - All three signals working (December 2025)
 
-**Metrics Collected:**
-- 📈 **Rocket.Chat** - Application performance (HTTP requests, errors, latency) - port 9100
-- ⚙️ **Microservices** - Moleculer framework metrics (DDP, auth, presence) - port 9458
-- 💾 **MongoDB** - Database performance (queries, connections, cache, opcounters) - port 9216
-- 🔄 **NATS** - Messaging throughput (connections, in/out messages, subscriptions) - port 7777
+**What's Monitored:**
+- 📈 **Metrics** - Application performance, resource usage, request rates
+  - Rocket.Chat (ports 9100, 9458)
+  - MongoDB (port 9216)
+  - NATS (port 7777)
+  - All microservices (account, authorization, presence, stream-hub, ddp-streamer)
 
-**What's NOT monitored** (to stay under free tier 1,500 samples/s limit):
-- ❌ Kubernetes infrastructure (kubelet, cAdvisor, kube-state-metrics, node-exporter)
-- ❌ Control plane (apiserver, scheduler, controller-manager, etcd)
+- 📝 **Logs** - Real-time log collection from all pods
+  - Application logs (stdout/stderr)
+  - Error tracking and debugging
+  - Audit trails
 
-**Key Stats:**
-- **Ingestion Rate:** ~200-400 samples/s (73% under limit)
-- **Resource Usage:** 128-256Mi RAM
-- **Scrape Targets:** 4-5 active endpoints
-- **Failed Samples:** 0
+- 🔍 **Traces** - Distributed request tracing
+  - OTLP receiver (ports 4317 gRPC, 4318 HTTP)
+  - End-to-end request flow
+  - Performance bottleneck identification
+
+**Key Features:**
+- ✅ Unified Grafana Agent with Flow mode (River config)
+- ✅ Single agent for all three signals (metrics, logs, traces)
+- ✅ Automatic service discovery via Kubernetes API
+- ✅ Central observability stack at observability.canepro.me
+- ✅ No connection errors, all services healthy
 
 **Configuration Files:**
-- [values-rc-only.yaml](values-rc-only.yaml) - Production Helm values
-- [docs/monitoring-final-state.md](docs/monitoring-final-state.md) - Complete configuration reference
+- [k8s-agent-values.yaml](k8s-agent-values.yaml) - Grafana Agent Helm values
+- [docs/OBSERVABILITY-CURRENT-STATE.md](docs/OBSERVABILITY-CURRENT-STATE.md) - Complete documentation
+- [docs/OBSERVABILITY-QUICK-REFERENCE.md](docs/OBSERVABILITY-QUICK-REFERENCE.md) - Quick commands & queries
 
-**Pre-built Dashboards:**
-- [Rocket.Chat Metrics](https://grafana.com/grafana/dashboards/23428) - Dashboard ID: 23428
-- [Microservice Metrics](https://grafana.com/grafana/dashboards/23427) - Dashboard ID: 23427
-- [MongoDB Global](https://grafana.com/grafana/dashboards/23712) - Dashboard ID: 23712
+**Access Points:**
+- **Grafana Dashboard:** https://observability.canepro.me
+- **Prometheus:** https://observability.canepro.me/prometheus
+- **Loki:** Via Grafana Explore
+- **Tempo:** Via Grafana Explore
 
 ---
 
@@ -534,7 +544,7 @@ Deploy Prometheus Agent v3.0.0 directly with kubectl:
 
 ```bash
 # 1. Create Grafana Cloud secret
-kubectl create secret generic grafana-cloud-credentials \
+kubectl create secret generic observability-credentials \
   --namespace monitoring \
   --from-literal=username="YOUR_GRAFANA_CLOUD_INSTANCE_ID" \
   --from-literal=password="YOUR_GRAFANA_CLOUD_API_KEY"
@@ -570,7 +580,7 @@ Deploy kube-prometheus-stack via Helm:
 
 ```bash
 # 1. Create Grafana Cloud secret (same as above)
-kubectl create secret generic grafana-cloud-credentials \
+kubectl create secret generic observability-credentials \
   --namespace monitoring \
   --from-literal=username="YOUR_GRAFANA_CLOUD_INSTANCE_ID" \
   --from-literal=password="YOUR_GRAFANA_CLOUD_API_KEY"
@@ -618,7 +628,7 @@ kubectl get pods -n monitoring
 
 ```bash
 # Create the secret directly
-kubectl create secret generic grafana-cloud-credentials \
+kubectl create secret generic observability-credentials \
   --namespace monitoring \
   --from-literal=username="YOUR_INSTANCE_ID" \
   --from-literal=password="YOUR_API_KEY"
@@ -671,16 +681,32 @@ export GRAFANA_DATASOURCE="Prometheus"
 ./scripts/import-grafana-dashboards.sh
 ```
 
-### Future: Full Observability (Phase 2+)
+### Quick Start
 
-Upgrade to **Grafana Alloy** for unified observability:
+**View Metrics:**
+```bash
+# Access Grafana
+open https://observability.canepro.me
 
-- 📊 **Metrics** - Current functionality (already have)
-- 📝 **Logs** - Application & system log aggregation
-- 🔍 **Traces** - End-to-end request tracing
-- 🔗 **Correlation** - Jump from metric → log → trace
+# Query Prometheus
+rate(rocketchat_http_requests_total[5m])
+```
 
-See [Observability Roadmap](docs/observability-roadmap.md) for migration guide.
+**View Logs:**
+```bash
+# In Grafana Explore → Loki
+{namespace="rocketchat"}
+{namespace="rocketchat"} |= "error"
+```
+
+**View Traces:**
+```bash
+# In Grafana Explore → Tempo
+{service.name="rocket-chat"}
+{duration>1s}
+```
+
+See [Quick Reference Guide](docs/OBSERVABILITY-QUICK-REFERENCE.md) for more queries and troubleshooting.
 
 ---
 
@@ -813,10 +839,16 @@ kubectl get pv,pvc -n rocketchat
 
 ### Operations
 
-- 📊 **[Monitoring Guide](docs/monitoring.md)** - Complete monitoring setup with Grafana Cloud
-- ✅ **[Monitoring Final State](docs/monitoring-final-state.md)** - Current production configuration (Grafana Cloud Free Tier optimized)
-- 🔮 **[Observability Roadmap](docs/observability-roadmap.md)** - Future: Logs + Traces with Grafana Alloy
+- 📊 **[Observability Current State](docs/OBSERVABILITY-CURRENT-STATE.md)** - Complete observability documentation (metrics, logs, traces)
+- ⚡ **[Observability Quick Reference](docs/OBSERVABILITY-QUICK-REFERENCE.md)** - Common queries and troubleshooting commands
 - 🔧 **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions (19 documented issues)
+- 📝 **[External Setup Guide](external-config/ROCKETCHAT-SETUP.md)** - Connect additional Rocket.Chat instances
+
+### Legacy Documentation
+
+- 📊 **[Monitoring Guide](docs/monitoring.md)** - Historical Grafana Cloud setup (superseded)
+- ✅ **[Monitoring Final State](docs/monitoring-final-state.md)** - Old Prometheus Agent config (superseded)
+- 🔮 **[Observability Roadmap](docs/observability-roadmap.md)** - Original migration plan (completed)
 
 ### Reference
 

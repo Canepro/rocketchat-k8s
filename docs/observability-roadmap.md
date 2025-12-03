@@ -1,28 +1,40 @@
 # Observability Evolution Roadmap
 
-This document outlines the path from basic metrics monitoring to full observability (metrics + logs + traces) using Grafana Alloy.
+> **⚠️ OUTDATED DOCUMENT**  
+> This document describes a planned migration path that is **no longer relevant**.  
+> **For current observability setup, see [OBSERVABILITY-CURRENT-STATE.md](OBSERVABILITY-CURRENT-STATE.md)**
 
-> **Note:** For current monitoring setup, see [monitoring.md](monitoring.md)
+---
 
-## Current State (Phase 1) ✅
+## ✅ COMPLETED: Full Observability Stack (December 2025)
 
-**Architecture:**
+**Current Architecture:**
 ```
-Rocket.Chat Pods → Prometheus Agent v3.0.0 → Grafana Cloud (Metrics only)
+Rocket.Chat Pods → Grafana Agent (Flow mode) → Central Observability Stack
+├─ Metrics (Prometheus)
+├─ Logs (Loki)
+└─ Traces (Tempo via OTLP)
 ```
 
-**What we have:**
+**What we have NOW:**
 - ✅ Metrics collection from Rocket.Chat (ports 9100, 9458)
 - ✅ MongoDB metrics via built-in Bitnami exporter
 - ✅ NATS metrics via exporter
 - ✅ Kubernetes cluster metrics
-- ✅ Prometheus Agent forwarding to Grafana Cloud
-- ✅ Dashboards and alerts in Grafana Cloud
+- ✅ **Log collection from all Rocket.Chat pods**
+- ✅ **OTLP trace collection (ports 4317/4318)**
+- ✅ **Unified Grafana Agent with Flow mode**
+- ✅ Central observability stack at observability.canepro.me
 
 **Configuration files:**
-- `prometheus-agent.yaml` - Prometheus Agent v3.0.0 deployment
-- `grafana-cloud-secret.yaml` - Authentication credentials
-- `podmonitor-crd.yaml` - CRDs for metrics discovery
+- `k8s-agent-values.yaml` - Grafana Agent Helm values (Flow mode)
+- All three signals (metrics, logs, traces) in one agent
+
+---
+
+## Historical Context (For Reference Only)
+
+This section documents the original plan, which has been superseded by the current implementation.
 
 ---
 
