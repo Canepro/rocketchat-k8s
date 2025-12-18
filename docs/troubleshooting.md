@@ -1,5 +1,7 @@
 # Rocket.Chat Kubernetes Troubleshooting Guide
 
+> ⚡ **Quick Access**: Looking for common commands only? Check the **[Operations Cheat Sheet](OPERATIONS-CHEAT-SHEET.md)**.
+
 ## Prerequisites Issues
 
 ### Issue 0: Kubectl Permission Denied

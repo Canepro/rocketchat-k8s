@@ -1,0 +1,8 @@
+resources:
+  - clusterissuer.yaml
+  - persistent-volumes.yaml
+  - mongo-pvc.yaml
+  - rocketchat-uploads-pvc.yaml
+  - podmonitor-crd.yaml
+  - manifests/
+
