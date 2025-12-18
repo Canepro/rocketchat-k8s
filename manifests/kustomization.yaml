@@ -6,4 +6,5 @@ resources:
   - prometheus-agent-configmap.yaml
   - prometheus-agent-deployment.yaml
   - prometheus-agent-rbac.yaml
+  - maintenance-cleanup.yaml
 
