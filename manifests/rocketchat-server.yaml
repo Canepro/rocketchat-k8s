@@ -368,7 +368,7 @@ spec:
       serviceAccountName: rocketchat-rocketchat
       containers:
       - name: rocketchat
-        image: "registry.rocket.chat/rocketchat/rocket.chat:7.10.0"
+        image: "registry.rocket.chat/rocketchat/rocket.chat:7.12.2"
         imagePullPolicy: IfNotPresent
         env:
         - name: DEPLOY_PLATFORM
@@ -485,7 +485,7 @@ spec:
     spec:
       containers:
       - name: account-service
-        image: "rocketchat/account-service:7.10.0"
+        image: "rocketchat/account-service:7.12.2"
         env:
         - name: MONGO_URL
           valueFrom:
@@ -535,7 +535,7 @@ spec:
     spec:
       containers:
       - name: authorization-service
-        image: "rocketchat/authorization-service:7.10.0"
+        image: "rocketchat/authorization-service:7.12.2"
         env:
         - name: MONGO_URL
           valueFrom:
@@ -585,7 +585,7 @@ spec:
     spec:
       containers:
       - name: ddp-streamer
-        image: "rocketchat/ddp-streamer-service:7.10.0"
+        image: "rocketchat/ddp-streamer-service:7.12.2"
         env:
         - name: MONGO_URL
           valueFrom:
@@ -658,7 +658,7 @@ spec:
     spec:
       containers:
       - name: presence-service
-        image: "rocketchat/presence-service:7.10.0"
+        image: "rocketchat/presence-service:7.12.2"
         env:
         - name: MONGO_URL
           valueFrom:
@@ -708,7 +708,7 @@ spec:
     spec:
       containers:
       - name: stream-hub
-        image: "rocketchat/stream-hub-service:7.10.0"
+        image: "rocketchat/stream-hub-service:7.12.2"
         env:
         - name: MONGO_URL
           valueFrom:
@@ -782,4 +782,3 @@ spec:
             name: rocketchat-ddp-streamer
             port:
               name: http
-

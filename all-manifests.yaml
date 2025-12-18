@@ -1,0 +1,1865 @@
+---
+# Source: rocketchat/charts/nats/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rocketchat-nats
+  namespace: rocketchat
+  labels:
+    helm.sh/chart: nats-0.15.1
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/version: "2.7.4"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/charts/mongodb/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rocketchat-mongodb
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+secrets:
+  - name: rocketchat-mongodb
+automountServiceAccountToken: true
+---
+# Source: rocketchat/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+  name: rocketchat-rocketchat
+---
+# Source: rocketchat/charts/mongodb/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rocketchat-mongodb
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+type: Opaque
+data:
+  mongodb-root-password: "cm9ja2V0Y2hhdHJvb3Q="
+  mongodb-passwords: "cm9ja2V0Y2hhdA=="
+  mongodb-replica-set-key: "dTJuNTE2Z0lMVQ=="
+---
+# Source: rocketchat/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rocketchat-rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  mail-url: "c210cDovL3Bvc3RtYXN0ZXJAY2FuZXByby5tZTpAc210cC5tYWlsZ3VuLm9yZzo1ODc="
+  mongo-uri: "bW9uZ29kYjovL3JvY2tldGNoYXQ6cm9ja2V0Y2hhdEByb2NrZXRjaGF0LW1vbmdvZGItaGVhZGxlc3M6MjcwMTcvcm9ja2V0Y2hhdD9yZXBsaWNhU2V0PXJzMA=="
+  mongo-oplog-uri: "bW9uZ29kYjovL3Jvb3Q6cm9ja2V0Y2hhdHJvb3RAcm9ja2V0Y2hhdC1tb25nb2RiLWhlYWRsZXNzOjI3MDE3L2xvY2FsP3JlcGxpY2FTZXQ9cnMwJmF1dGhTb3VyY2U9YWRtaW4="
+---
+# Source: rocketchat/charts/mongodb/templates/common-scripts-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-mongodb-common-scripts
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+data:
+  startup-probe.sh: |
+    #!/bin/bash
+    mongosh  $TLS_OPTIONS --port $MONGODB_PORT_NUMBER --eval 'db.hello().isWritablePrimary || db.hello().secondary' | grep 'true'
+  readiness-probe.sh: |
+    #!/bin/bash
+    # Run the proper check depending on the version
+    [[ $(mongod -version | grep "db version") =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && VERSION=${BASH_REMATCH[1]}
+    . /opt/bitnami/scripts/libversion.sh
+    VERSION_MAJOR="$(get_sematic_version "$VERSION" 1)"
+    VERSION_MINOR="$(get_sematic_version "$VERSION" 2)"
+    VERSION_PATCH="$(get_sematic_version "$VERSION" 3)"
+    readiness_test='db.isMaster().ismaster || db.isMaster().secondary'
+    if [[ ( "$VERSION_MAJOR" -ge 5 ) || ( "$VERSION_MAJOR" -ge 4 && "$VERSION_MINOR" -ge 4 && "$VERSION_PATCH" -ge 2 ) ]]; then
+        readiness_test='db.hello().isWritablePrimary || db.hello().secondary'
+    fi
+    mongosh  $TLS_OPTIONS --port $MONGODB_PORT_NUMBER --eval "${readiness_test}" | grep 'true'
+  ping-mongodb.sh: |
+    #!/bin/bash
+    mongosh  $TLS_OPTIONS --port $MONGODB_PORT_NUMBER --eval "db.adminCommand('ping')"
+---
+# Source: rocketchat/charts/mongodb/templates/replicaset/scripts-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-mongodb-scripts
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+data:
+  setup.sh: |-
+    #!/bin/bash
+
+    . /opt/bitnami/scripts/mongodb-env.sh
+    . /opt/bitnami/scripts/libfs.sh
+    . /opt/bitnami/scripts/liblog.sh
+    . /opt/bitnami/scripts/libvalidations.sh
+
+    if is_empty_value "$MONGODB_ADVERTISED_PORT_NUMBER"; then
+      export MONGODB_ADVERTISED_PORT_NUMBER="$MONGODB_PORT_NUMBER"
+    fi
+
+    info "Advertised Hostname: $MONGODB_ADVERTISED_HOSTNAME"
+    info "Advertised Port: $MONGODB_ADVERTISED_PORT_NUMBER"
+
+    # Check for existing replica set in case there is no data in the PVC
+    # This is for cases where the PVC is lost or for MongoDB caches without
+    # persistence
+    current_primary=""
+    if is_dir_empty "${MONGODB_DATA_DIR}/db"; then
+      info "Data dir empty, checking if the replica set already exists"
+        current_primary=$(mongosh admin --host "rocketchat-mongodb-0.rocketchat-mongodb-headless.rocketchat.svc.cluster.local:27017" --authenticationDatabase admin -u $MONGODB_ROOT_USER -p $MONGODB_ROOT_PASSWORD --eval 'db.runCommand("ismaster")' | awk -F\' '/primary/ {print $2}')
+      if ! is_empty_value "$current_primary"; then
+        info "Detected existing primary: ${current_primary}"
+      fi
+    fi
+
+    if ! is_empty_value "$current_primary" && [[ "$MONGODB_ADVERTISED_HOSTNAME:$MONGODB_ADVERTISED_PORT_NUMBER" == "$current_primary" ]]; then
+        info "Advertised name matches current primary, configuring node as a primary"
+        export MONGODB_REPLICA_SET_MODE="primary"
+    elif ! is_empty_value "$current_primary" && [[ "$MONGODB_ADVERTISED_HOSTNAME:$MONGODB_ADVERTISED_PORT_NUMBER" != "$current_primary" ]]; then
+        info "Current primary is different from this node. Configuring the node as replica of ${current_primary}"
+        export MONGODB_REPLICA_SET_MODE="secondary"
+        export MONGODB_INITIAL_PRIMARY_HOST="${current_primary%:*}"
+        export MONGODB_INITIAL_PRIMARY_PORT_NUMBER="${current_primary#*:}"
+        export MONGODB_SET_SECONDARY_OK="yes"
+    elif [[ "$MY_POD_NAME" = "rocketchat-mongodb-0" ]]; then
+        info "Pod name matches initial primary pod name, configuring node as a primary"
+        export MONGODB_REPLICA_SET_MODE="primary"
+    else
+        info "Pod name doesn't match initial primary pod name, configuring node as a secondary"
+        export MONGODB_REPLICA_SET_MODE="secondary"
+        export MONGODB_INITIAL_PRIMARY_PORT_NUMBER="$MONGODB_PORT_NUMBER"
+    fi
+
+    if [[ "$MONGODB_REPLICA_SET_MODE" == "secondary" ]]; then
+        export MONGODB_INITIAL_PRIMARY_ROOT_USER="$MONGODB_ROOT_USER"
+        export MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD="$MONGODB_ROOT_PASSWORD"
+        export MONGODB_ROOT_PASSWORD=""
+        export MONGODB_EXTRA_USERNAMES=""
+        export MONGODB_EXTRA_DATABASES=""
+        export MONGODB_EXTRA_PASSWORDS=""
+        export MONGODB_ROOT_PASSWORD_FILE=""
+        export MONGODB_EXTRA_USERNAMES_FILE=""
+        export MONGODB_EXTRA_DATABASES_FILE=""
+        export MONGODB_EXTRA_PASSWORDS_FILE=""
+    fi
+
+    exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run.sh
+  setup-hidden.sh: |-
+    #!/bin/bash
+
+    . /opt/bitnami/scripts/mongodb-env.sh
+
+    echo "Advertised Hostname: $MONGODB_ADVERTISED_HOSTNAME"
+    echo "Advertised Port: $MONGODB_ADVERTISED_PORT_NUMBER"
+    echo "Configuring node as a hidden node"
+    export MONGODB_REPLICA_SET_MODE="hidden"
+    export MONGODB_INITIAL_PRIMARY_ROOT_USER="$MONGODB_ROOT_USER"
+    export MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD="$MONGODB_ROOT_PASSWORD"
+    export MONGODB_INITIAL_PRIMARY_PORT_NUMBER="$MONGODB_PORT_NUMBER"
+    export MONGODB_ROOT_PASSWORD=""
+    export MONGODB_EXTRA_USERNAMES=""
+    export MONGODB_EXTRA_DATABASES=""
+    export MONGODB_EXTRA_PASSWORDS=""
+    export MONGODB_ROOT_PASSWORD_FILE=""
+    export MONGODB_EXTRA_USERNAMES_FILE=""
+    export MONGODB_EXTRA_DATABASES_FILE=""
+    export MONGODB_EXTRA_PASSWORDS_FILE=""
+    exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run.sh
+---
+# Source: rocketchat/charts/nats/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-nats-config
+  namespace: rocketchat
+  labels:
+    helm.sh/chart: nats-0.15.1
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/version: "2.7.4"
+    app.kubernetes.io/managed-by: Helm
+data:
+  nats.conf: |
+    # NATS Clients Port
+    port: 4222
+
+    # PID file shared with configuration reloader.
+    pid_file: "/var/run/nats/nats.pid"
+
+    ###############
+    #             #
+    # Monitoring  #
+    #             #
+    ###############
+    http: 8222
+    server_name:$POD_NAME
+    ###################################
+    #                                 #
+    # NATS Full Mesh Clustering Setup #
+    #                                 #
+    ###################################
+    cluster {
+      port: 6222
+
+      routes = [
+        nats://rocketchat-nats-0.rocketchat-nats.rocketchat.svc.cluster.local:6222,
+        
+      ]
+      cluster_advertise: $CLUSTER_ADVERTISE
+
+      connect_retries: 120
+    }
+    lame_duck_grace_period: 10s
+    lame_duck_duration: 30s
+---
+# Source: rocketchat/templates/mongodb-init-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-mongodb-fix-clustermonitor-role-configmap
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+
+data:
+  user_set_role_clusterMonitor.sh: |
+    #! /bin/bash
+
+    # #include <everything>
+    source /opt/bitnami/scripts/libmongodb.sh
+
+    error_and_abort() {
+      error "$@"
+      exit 1
+    }
+
+    main() {
+      # mongodb_wait_for_primary_node "$MONGODB_INITIAL_PRIMARY_HOST" "$MONGODB_INITIAL_PRIMARY_PORT_NUMBER" "$MONGODB_INITIAL_PRIMARY_ROOT_USER" "$MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD"
+      # Shouldn't be looping over all dbs, but currently no way of knowing which db is for rocketchat
+      # and which might not be.
+      # Either way, having clusterMonitor role shouldn't hurt 
+      local databases=(${MONGODB_EXTRA_DATABASES/,/ })
+      local usernames+=(${MONGODB_EXTRA_USERNAMES/,/ })
+      # each array should be of the same length
+      local database username last=$((${#databases[@]}-1))
+      for idx in $(seq 0 $last); do
+        database=${databases[$idx]}
+        username=${usernames[$idx]}
+        info "attempting to add clusterMonitor role to user $username"
+        local cmd="
+            db.getSiblingDB('$database').grantRolesToUser(
+            '$username',
+            [
+                {
+                role: 'clusterMonitor',
+                db: 'admin'
+                }
+            ]
+            )
+        "
+        debug "Executing: ${cmd:5:-1}"
+        local out=$(mongodb_execute_print_output "$MONGODB_ROOT_USER" "$MONGODB_ROOT_PASSWORD" "admin" "" "" "--quiet" <<< "$cmd")
+        # local ok=$(perl -MJSON -0ne 'print decode_json($_)->{"ok"}' <<< "$out")
+        local ok=$(awk '/ok:/ { print $2 }' <<< ${out/,/})
+        { [[ -n $out ]] && ! ((ok)); } && error_and_abort "failed to add role clusterMonitor to user \"$username\"; Error: $out"
+        info "clusterMonitor role added to $username"
+      done
+    }
+
+    main
+---
+# Source: rocketchat/templates/scripts-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "rocketchat-rocketchat-scripts"
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+
+data:
+  updateSynapseHomeserverConfig.sh: |
+    [[ $(basename $SHELL) != "bash" ]] && {
+      echo "must be run in bash"
+      exit 1
+    } || :
+
+    set -x
+    _data_dir="${SYNAPSE_DATA_DIR:-/data}"
+    _data_dir="${_data_dir%/}"
+    _config_dir="${SYNAPSE_CONFIG_DIR:-/data}"
+    _config_dir="${_config_dir%/}"
+
+    start_or_exit() {
+      if [ "$1" = "--start" ]; then
+        exec /start.py
+      fi
+
+      exit 0
+    }
+
+    _remove_block() {
+      local type="${1^^}"
+      #local type="$(printf "%s" "$1" | tr '[[:lower:]]' '[[:upper:]]')"
+      local file="$2"
+      local start="@@@ $type ($(basename $HOMESERVER_EXTRA_CONFIG)) START @@@"
+      local end="@@@ $type ($(basename $HOMESERVER_EXTRA_CONFIG)) END @@@"
+
+      local l1="$(awk "/$start/ {print NR; exit}" "$file")"
+      local l2="$(awk "/$end/ {print NR; exit}" "$file")"
+
+      if [ -z "$l1" -o -z "$l2" ]; then
+        return
+      fi
+
+      sed -i "${l1},${l2}d" $file
+    }
+
+    remove_extra_config() {
+      _remove_block "extra config" "$HOMESERVER"
+    }
+
+    add_extra_config() {
+      if [ "$(tail -n 1 "$HOMESERVER" | base64)" != "Cg==" ]; then # `echo | base64`
+        printf "\n" >> "$HOMESERVER" 
+      fi
+
+      echo "# @@@ EXTRA CONFIG START ($(basename $HOMESERVER_EXTRA_CONFIG)) @@@" >>"$HOMESERVER"
+      cat "$HOMESERVER_EXTRA_CONFIG" >> "$HOMESERVER"
+      echo "# @@@ EXTRA CONFIG END ($(basename $HOMESERVER_EXTRA_CONFIG)) @@@" >>"$HOMESERVER"
+    }
+
+    hash() {
+      sha256sum "$1" | awk '{ print $1 }'
+    }
+
+    hash_file() {
+      local basename \
+            name \
+      basename="$(basename "$1")"
+      name=".${basename%.*}_hash"
+      echo -n "${_config_dir}/${name}"
+    }
+
+    extra_config_hash() {
+      hash "$HOMESERVER_EXTRA_CONFIG"
+    }
+
+    extra_config_current_hash() {
+      [[ -f "$(hash_file "$HOMESERVER_EXTRA_CONFIG")" ]] || return ""
+      cat "$(hash_file "$HOMESERVER_EXTRA_CONFIG")"
+    }
+
+    _save_hash() {
+      hash "$1" > "$(hash_file "$1")"
+    }
+
+    save_extra_config_hash() {
+      _save_hash "$HOMESERVER_EXTRA_CONFIG"
+    }
+
+    HOMESERVER="${SYNAPSE_CONFIG_PATH:-$(ls "$_config_dir"/homeserver.y{a,}ml 2>/dev/null)}"
+
+    if [ -z "$HOMESERVER" -o ! -f "$HOMESERVER" ]; then
+      echo "homeserver config not found: \"$HOMESERVER\"" >&2
+      exit 1
+    fi
+
+    if [ -z "$HOMESERVER_EXTRA_CONFIG" ]; then
+      start_or_exit
+    fi
+
+    current_hash="$(extra_config_hash)"
+    expected_hash="$(extra_config_current_hash)"
+
+    if [ "$expected_hash" = "$current_hash" ]; then
+      echo "extra config hashes matched, ignoring append op."
+      exit 0
+    fi
+
+    echo "extra config hashes mismatch, re-setting extra config" >&2
+    remove_extra_config
+    add_extra_config
+    save_extra_config_hash
+
+    start_or_exit
+---
+# Source: rocketchat/templates/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: rocketchat-rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "2Gi"
+---
+# Source: rocketchat/charts/mongodb/templates/metrics-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-mongodb-metrics
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: metrics
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9216"
+    prometheus.io/scrape: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9216
+      targetPort: metrics
+      protocol: TCP
+      name: http-metrics
+  selector:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: mongodb
+---
+# Source: rocketchat/charts/mongodb/templates/replicaset/headless-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-mongodb-headless
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: "mongodb"
+      port: 27017
+      targetPort: mongodb
+  selector:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: mongodb
+---
+# Source: rocketchat/charts/nats/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-nats
+  namespace: rocketchat
+  labels:
+    helm.sh/chart: nats-0.15.1
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/version: "2.7.4"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+  - name: client
+    port: 4222
+  - name: cluster
+    port: 6222
+  - name: monitor
+    port: 8222
+  - name: metrics
+    port: 7777
+  - name: leafnodes
+    port: 7422
+  - name: gateways
+    port: 7522
+---
+# Source: rocketchat/templates/microservices-account-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-account
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+      app.kubernetes.io/name: rocketchat-account
+      app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-authorization-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-authorization
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-authorization
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-ddp-streamer-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-ddp-streamer
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+  - name: http
+    targetPort: 3000
+    port: 3000
+    protocol: TCP
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-ddp-streamer
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-presence-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-presence
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-presence
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-stream-hub-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-stream-hub
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-stream-hub
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/nats-monitor.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-nats-metrics
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8222"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+  publishNotReadyAddresses: true
+  ports:
+  - appProtocol: http
+    name: monitor
+    port: 8222
+    protocol: TCP
+    targetPort: monitor
+  sessionAffinity: None
+---
+# Source: rocketchat/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-rocketchat-monolith-ms-metrics
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: moleculer-metrics
+    port: 9458
+    targetPort: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/charts/nats/templates/nats-box.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-nats-box
+  namespace: rocketchat
+  labels:
+    app: rocketchat-nats-box
+    chart: nats-0.15.1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rocketchat-nats-box
+  template:
+    metadata:
+      labels:
+        app: rocketchat-nats-box
+    spec:
+      volumes:
+      containers:
+      - name: nats-box
+        image: natsio/nats-box:0.8.1
+        imagePullPolicy: IfNotPresent
+        resources:
+          null
+        env:
+        - name: NATS_URL
+          value: rocketchat-nats
+        command:
+        - "tail"
+        - "-f"
+        - "/dev/null"
+        volumeMounts:
+---
+# Source: rocketchat/templates/chat-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat
+        app.kubernetes.io/instance: rocketchat
+      annotations:  
+                  
+        
+        checksum/secret: 7e09000954380cd83b732f715a70c6c8622d6aeecabe6515578d2837ecf9f804
+
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+      serviceAccountName: rocketchat-rocketchat
+      containers:
+      - name: rocketchat
+        image: "registry.rocket.chat/rocketchat/rocket.chat:7.12.2"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DEPLOY_PLATFORM
+          value: helm-chart
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: MONGO_OPLOG_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-oplog-uri
+        - name: ROOT_URL
+          value: https://k8.canepro.me
+        - name: MAIL_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mail-url
+        - name: OVERWRITE_SETTING_Prometheus_Enabled
+          value: "true"
+        - name: OVERWRITE_SETTING_Prometheus_Port
+          value: "9100"
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        # Environment variables for microservices option
+        
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes' # end of microservices envvar. options
+        - name: OVERWRITE_SETTING_SMTP_Host
+          value: smtp.mailgun.org
+        - name: OVERWRITE_SETTING_SMTP_Username
+          value: postmaster@canepro.me
+        securityContext:
+          runAsUser: 999
+        ports:
+        - name: http
+          containerPort: 3000
+        - name: metrics
+          containerPort: 9100
+        - name: ms-metrics
+          containerPort: 9458
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          null
+        volumeMounts:
+        - name: rocket-data
+          mountPath: /app/uploads
+        - name: tmp
+          mountPath: /tmp          
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: rocket-data
+        persistentVolumeClaim:
+          claimName: rocketchat-rocketchat
+      nodeSelector:
+                
+         
+      tolerations:
+---
+# Source: rocketchat/templates/microservices-account-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-account
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-account
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-account
+        app.kubernetes.io/instance: rocketchat
+      annotations:
+                
+        
+    spec:
+      tolerations:
+                
+        
+      nodeSelector:
+                
+        
+      affinity:
+                
+        
+      containers:
+      - name: account-service
+        image: "rocketchat/account-service:7.12.2"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+        volumeMounts:   
+        securityContext:
+          {}
+        resources:
+          {}
+      volumes:
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+
+# vi: ts=8 et sw=2 smarttab
+---
+# Source: rocketchat/templates/microservices-authorization-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-authorization
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-authorization
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-authorization
+        app.kubernetes.io/instance: rocketchat
+      annotations:
+                
+        
+   
+    spec:
+      tolerations:
+                
+        
+      nodeSelector:
+                
+        
+      affinity:
+                
+              
+      containers:
+      - name: authorization-service
+        image: "rocketchat/authorization-service:7.12.2"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+        volumeMounts:   
+        securityContext:
+          {}
+        resources:
+          {}
+      volumes:
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+# Source: rocketchat/templates/microservices-ddp-streamer-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-ddp-streamer
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-ddp-streamer
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-ddp-streamer
+        app.kubernetes.io/instance: rocketchat
+      annotations:
+                
+        
+    spec:
+      tolerations:
+                
+        
+      nodeSelector:
+                
+              
+      affinity:
+                
+                 
+      containers:
+      - name: ddp-streamer
+        image: "rocketchat/ddp-streamer-service:7.12.2"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: PORT
+          value: '3000'
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        - name: ms-metrics
+          containerPort: 9458
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 2
+          timeoutSeconds: 1
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        volumeMounts:   
+        securityContext:
+          {}
+        resources:
+          {}
+      volumes:
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+# Source: rocketchat/templates/microservices-presence-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-presence
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-presence
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-presence
+        app.kubernetes.io/instance: rocketchat
+      annotations:
+            
+        
+    spec:
+      tolerations:
+                
+        
+      nodeSelector:
+                
+              
+      affinity:
+                
+           
+      containers:
+      - name: presence-service
+        image: "rocketchat/presence-service:7.12.2"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+        volumeMounts:   
+        securityContext:
+          {}
+        resources:
+          {}
+      volumes:
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+# Source: rocketchat/templates/microservices-stream-hub-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-stream-hub
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-stream-hub
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-stream-hub
+        app.kubernetes.io/instance: rocketchat
+      annotations:
+               
+        
+    spec:
+      tolerations:
+                
+        
+      nodeSelector:
+                
+              
+      affinity:
+                
+           
+      containers:
+      - name: stream-hub
+        image: "rocketchat/stream-hub-service:7.12.2"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: MONGO_OPLOG_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-oplog-uri
+        
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+        volumeMounts:   
+        securityContext:
+          {}
+        resources:
+          {}
+      volumes:
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+# Source: rocketchat/charts/mongodb/templates/replicaset/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rocketchat-mongodb
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+spec:
+  serviceName: rocketchat-mongodb-headless
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: rocketchat
+      app.kubernetes.io/name: mongodb
+      app.kubernetes.io/component: mongodb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: rocketchat
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: mongodb
+        app.kubernetes.io/version: 6.0.10
+        helm.sh/chart: mongodb-13.18.5
+        app.kubernetes.io/component: mongodb
+    spec:
+      
+      serviceAccountName: rocketchat-mongodb
+      affinity:
+        podAffinity:
+          
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: rocketchat
+                    app.kubernetes.io/name: mongodb
+                    app.kubernetes.io/component: mongodb
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+          
+      securityContext:
+        fsGroup: 1001
+        sysctls: []
+      
+      initContainers:
+        - name: volume-permissions
+          image: docker.io/bitnamilegacy/os-shell:11-debian-11-r72
+          imagePullPolicy: "IfNotPresent"
+          command:
+            - /bin/bash
+          args:
+            - -ec
+            - |
+              mkdir -p /bitnami/mongodb/
+              chown 1001:1001 /bitnami/mongodb/
+              find  /bitnami/mongodb/ -mindepth 1 -maxdepth 1 -not -name ".snapshot" -not -name "lost+found" | xargs -r chown -R 1001:1001
+          securityContext:
+            runAsUser: 0
+          resources:
+            limits: {}
+            requests: {}
+          volumeMounts:
+            - name: datadir
+              mountPath: /bitnami/mongodb
+      containers:
+        - name: mongodb
+          image: docker.io/bitnamilegacy/mongodb:6.0.10-debian-11-r8
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - /scripts/setup.sh
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MY_POD_HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: K8S_SERVICE_NAME
+              value: "rocketchat-mongodb-headless"
+            - name: MONGODB_INITIAL_PRIMARY_HOST
+              value: rocketchat-mongodb-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local
+            - name: MONGODB_REPLICA_SET_NAME
+              value: "rs0"
+            - name: MONGODB_ADVERTISED_HOSTNAME
+              value: "$(MY_POD_NAME).$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local"
+            - name: MONGODB_EXTRA_USERNAMES
+              value: "rocketchat"
+            - name: MONGODB_EXTRA_DATABASES
+              value: "rocketchat"
+            - name: MONGODB_EXTRA_PASSWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-passwords
+            - name: MONGODB_ROOT_USER
+              value: "root"
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-root-password
+            - name: MONGODB_REPLICA_SET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-replica-set-key
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "no"
+            - name: MONGODB_SYSTEM_LOG_VERBOSITY
+              value: "0"
+            - name: MONGODB_DISABLE_SYSTEM_LOG
+              value: "no"
+            - name: MONGODB_DISABLE_JAVASCRIPT
+              value: "no"
+            - name: MONGODB_ENABLE_JOURNAL
+              value: "yes"
+            - name: MONGODB_PORT_NUMBER
+              value: "27017"
+            - name: MONGODB_ENABLE_IPV6
+              value: "no"
+            - name: MONGODB_ENABLE_DIRECTORY_PER_DB
+              value: "no"
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          livenessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 10
+            exec:
+              command:
+                - /bitnami/scripts/ping-mongodb.sh
+          readinessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bitnami/scripts/readiness-probe.sh
+          resources:
+            limits: {}
+            requests: {}
+          volumeMounts:
+            - name: datadir
+              mountPath: /bitnami/mongodb
+              subPath: 
+            - name: common-scripts
+              mountPath: /bitnami/scripts
+            - name: custom-init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+            - name: scripts
+              mountPath: /scripts/setup.sh
+              subPath: setup.sh
+            
+        - name: metrics
+          image: docker.io/bitnamilegacy/mongodb-exporter:0.39.0-debian-11-r106
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - /bin/bash
+            - -ec
+          args:
+            - |
+              /bin/mongodb_exporter  --collector.diagnosticdata --collector.replicasetstatus --compatible-mode --mongodb.direct-connect --mongodb.global-conn-pool --web.listen-address ":9216" --mongodb.uri "mongodb://$MONGODB_ROOT_USER:$(echo $MONGODB_ROOT_PASSWORD | sed -r "s/@/%40/g;s/:/%3A/g")@localhost:27017/admin?" 
+          env:
+            - name: MONGODB_ROOT_USER
+              value: "root"
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-root-password
+          volumeMounts:
+          ports:
+            - name: metrics
+              containerPort: 9216
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 10
+            httpGet:
+              path: /
+              port: metrics
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 10
+            httpGet:
+              path: /
+              port: metrics
+          resources:
+            limits: {}
+            requests: {}
+      volumes:
+        - name: common-scripts
+          configMap:
+            name: rocketchat-mongodb-common-scripts
+            defaultMode: 0550
+        - name: custom-init-scripts
+          configMap:
+            name: rocketchat-mongodb-fix-clustermonitor-role-configmap
+        - name: scripts
+          configMap:
+            name: rocketchat-mongodb-scripts
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: datadir
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "2Gi"
+---
+# Source: rocketchat/charts/nats/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rocketchat-nats
+  namespace: rocketchat
+  labels:
+    helm.sh/chart: nats-0.15.1
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/version: "2.7.4"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/instance: rocketchat
+  replicas: 1
+  serviceName: rocketchat-nats
+
+  podManagementPolicy: Parallel
+
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "7777"
+        prometheus.io/scrape: "true"
+        checksum/config: 3629675b28bf88c0504609b8bb05c27ffbe18d21e8474023d82a52e4a195195e
+      labels:
+        app.kubernetes.io/name: nats
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      # Common volumes for the containers.
+      volumes:
+      - name: config-volume
+        configMap:
+          name: rocketchat-nats-config
+
+      # Local volume shared with the reloader.
+      - name: pid
+        emptyDir: {}
+
+      #################
+      #               #
+      #  TLS Volumes  #
+      #               #
+      #################
+
+      # Required to be able to HUP signal and apply config
+      # reload to the server without restarting the pod.
+      shareProcessNamespace: true
+
+      #################
+      #               #
+      #  NATS Server  #
+      #               #
+      #################
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: nats
+        image: nats:2.4-alpine
+        imagePullPolicy: IfNotPresent
+        resources:
+          {}
+        ports:
+        - containerPort: 4222
+          name: client
+        - containerPort: 6222
+          name: cluster
+        - containerPort: 8222
+          name: monitor
+        - containerPort: 7777
+          name: metrics
+
+        command:
+        - "nats-server"
+        - "--config"
+        - "/etc/nats-config/nats.conf"
+
+        # Required to be able to define an environment variable
+        # that refers to other environment variables.  This env var
+        # is later used as part of the configuration file.
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SERVER_NAME
+          value: $(POD_NAME)
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_ADVERTISE
+          value: $(POD_NAME).rocketchat-nats.$(POD_NAMESPACE).svc.cluster.local
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nats-config
+        - name: pid
+          mountPath: /var/run/nats
+
+        #######################
+        #                     #
+        # Healthcheck Probes  #
+        #                     #
+        #######################
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8222
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /
+            port: 8222
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 30
+
+        # Gracefully stop NATS Server on pod deletion or image upgrade.
+        #
+        lifecycle:
+          preStop:
+            exec:
+              # send the lame duck shutdown signal to trigger a graceful shutdown
+              # nats-server will ignore the TERM signal it receives after this
+              #
+              command:
+              - "nats-server"
+              - "-sl=ldm=/var/run/nats/nats.pid"
+
+      #################################
+      #                               #
+      #  NATS Configuration Reloader  #
+      #                               #
+      #################################
+      - name: reloader
+        image: natsio/nats-server-config-reloader:0.6.3
+        imagePullPolicy: IfNotPresent
+        resources:
+          null
+        command:
+        - "nats-server-config-reloader"
+        - "-pid"
+        - "/var/run/nats/nats.pid"
+        - "-config"
+        - "/etc/nats-config/nats.conf"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nats-config
+        - name: pid
+          mountPath: /var/run/nats
+
+      ##############################
+      #                            #
+      #  NATS Prometheus Exporter  #
+      #                            #
+      ##############################
+      - name: metrics
+        image: natsio/prometheus-nats-exporter:0.9.1
+        imagePullPolicy: IfNotPresent
+        resources:
+          {}
+        args:
+        - -connz
+        - -routez
+        - -subz
+        - -varz
+        - -prefix=nats
+        - -use_internal_server_id
+        - http://localhost:8222/
+        ports:
+        - containerPort: 7777
+          name: metrics
+
+  volumeClaimTemplates:
+---
+# Source: rocketchat/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rocketchat-rocketchat
+  annotations:
+    cert-manager.io/cluster-issuer: production-cert-issuer
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - k8.canepro.me
+      secretName: rocketchat-tls
+  rules:
+  -
+    host: k8.canepro.me
+    http:
+      paths:
+      - path: /
+        pathType:  Prefix 
+        backend:
+          service:
+            name: rocketchat-rocketchat
+            port:
+              name: http
+      - path: /sockjs
+        pathType: Prefix
+        backend:
+          service:
+            name: rocketchat-ddp-streamer
+            port:
+              name: http
+      - path: /websocket
+        pathType: Prefix
+        backend:
+          service:
+            name: rocketchat-ddp-streamer
+            port:
+              name: http
+---
+# Source: rocketchat/charts/nats/templates/tests/test-request-reply.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "rocketchat-nats-test-request-reply"
+  labels:
+    helm.sh/chart: nats-0.15.1
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/version: "2.7.4"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+  - name: nats-box
+    image: synadia/nats-box
+    env:
+    - name: NATS_HOST
+      value: rocketchat-nats
+    command:
+    - /bin/sh
+    - -ec
+    - |
+      nats reply -s nats://$NATS_HOST:4222 'name.>' --command "echo 1" &
+    - |
+      "&&"
+    - |
+      name=$(nats request -s nats://$NATS_HOST:4222 name.test '' 2>/dev/null)
+    - |
+      "&&"
+    - |
+      [ $name = test ]
+
+  restartPolicy: Never
+---
+# Source: rocketchat/templates/tests/test-rocketchat-startup.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "rocketchat-startup-test"
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: rocketchat-startup-test
+      image: r0zbot/rocketchat-test-utils
+      imagePullPolicy: "IfNotPresent"
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+      env:
+        - name: ROCKETCHAT_HOST
+          value: http://rocketchat-rocketchat.rocketchat
+      command:
+        - /bin/bash
+        - -ec
+        - echo "testing host $ROCKETCHAT_HOST" && ./wait_http.sh "$ROCKETCHAT_HOST" && ./basic_test.sh "$ROCKETCHAT_HOST"
+  restartPolicy: Never
