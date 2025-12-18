@@ -2,6 +2,8 @@
 
 **Last Updated:** December 1, 2025
 
+> ⚡ **Quick Access**: Looking for common commands only? Check the **[Operations Cheat Sheet](OPERATIONS-CHEAT-SHEET.md)**.
+
 ## 🚀 Quick Links
 
 | Service | URL | Purpose |

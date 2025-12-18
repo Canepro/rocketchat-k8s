@@ -1,0 +1,785 @@
+---
+# Source: rocketchat/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+  name: rocketchat-rocketchat
+  namespace: rocketchat
+---
+# Source: rocketchat/templates/mongodb-init-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-mongodb-fix-clustermonitor-role-configmap
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+data:
+  user_set_role_clusterMonitor.sh: |
+    #! //bin/bash
+    source /opt/bitnami/scripts/libmongodb.sh
+    error_and_abort() {
+      error "$@"
+      exit 1
+    }
+    main() {
+      local databases=(${MONGODB_EXTRA_DATABASES/,/ })
+      local usernames+=(${MONGODB_EXTRA_USERNAMES/,/ })
+      local database username last=$((${#databases[@]}-1))
+      for idx in $(seq 0 $last); do
+        database=${databases[$idx]}
+        username=${usernames[$idx]}
+        info "attempting to add clusterMonitor role to user $username"
+        local cmd="
+            db.getSiblingDB('$database').grantRolesToUser(
+            '$username',
+            [
+                {
+                role: 'clusterMonitor',
+                db: 'admin'
+                }
+            ]
+            )
+        "
+        local out=$(mongodb_execute_print_output "$MONGODB_ROOT_USER" "$MONGODB_ROOT_PASSWORD" "admin" "" "" "--quiet" <<< "$cmd")
+        local ok=$(awk '/ok:/ { print $2 }' <<< ${out/,/})
+        { [[ -n $out ]] && ! ((ok)); } && error_and_abort "failed to add role clusterMonitor to user \"$username\"; Error: $out"
+        info "clusterMonitor role added to $username"
+      done
+    }
+    main
+---
+# Source: rocketchat/templates/scripts-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "rocketchat-rocketchat-scripts"
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+data:
+  updateSynapseHomeserverConfig.sh: |
+    [[ $(basename $SHELL) != "bash" ]] && {
+      echo "must be run in bash"
+      exit 1
+    } || :
+    set -x
+    _data_dir="${SYNAPSE_DATA_DIR:-/data}"
+    _data_dir="${_data_dir%/}"
+    _config_dir="${SYNAPSE_CONFIG_DIR:-/data}"
+    _config_dir="${_config_dir%/}"
+    start_or_exit() {
+      if [ "$1" = "--start" ]; then
+        exec /start.py
+      fi
+      exit 0
+    }
+    _remove_block() {
+      local type="${1^^}"
+      local file="$2"
+      local start="@@@ $type ($(basename $HOMESERVER_EXTRA_CONFIG)) START @@@"
+      local end="@@@ $type ($(basename $HOMESERVER_EXTRA_CONFIG)) END @@@"
+      local l1="$(awk "/$start/ {print NR; exit}" "$file")"
+      local l2="$(awk "/$end/ {print NR; exit}" "$file")"
+      if [ -z "$l1" -o -z "$l2" ]; then
+        return
+      fi
+      sed -i "${l1},${l2}d" $file
+    }
+    remove_extra_config() {
+      _remove_block "extra config" "$HOMESERVER"
+    }
+    add_extra_config() {
+      if [ "$(tail -n 1 "$HOMESERVER" | base64)" != "Cg==" ]; then
+        printf "\n" >> "$HOMESERVER" 
+      fi
+      echo "# @@@ EXTRA CONFIG START ($(basename $HOMESERVER_EXTRA_CONFIG)) @@@" >>"$HOMESERVER"
+      cat "$HOMESERVER_EXTRA_CONFIG" >> "$HOMESERVER"
+      echo "# @@@ EXTRA CONFIG END ($(basename $HOMESERVER_EXTRA_CONFIG)) @@@" >>"$HOMESERVER"
+    }
+    hash() {
+      sha256sum "$1" | awk '{ print $1 }'
+    }
+    hash_file() {
+      local basename name
+      basename="$(basename "$1")"
+      name=".${basename%.*}_hash"
+      echo -n "${_config_dir}/${name}"
+    }
+    extra_config_hash() {
+      hash "$HOMESERVER_EXTRA_CONFIG"
+    }
+    extra_config_current_hash() {
+      [[ -f "$(hash_file "$HOMESERVER_EXTRA_CONFIG")" ]] || return ""
+      cat "$(hash_file "$HOMESERVER_EXTRA_CONFIG")"
+    }
+    _save_hash() {
+      hash "$1" > "$(hash_file "$1")"
+    }
+    save_extra_config_hash() {
+      _save_hash "$HOMESERVER_EXTRA_CONFIG"
+    }
+    HOMESERVER="${SYNAPSE_CONFIG_PATH:-$(ls "$_config_dir"/homeserver.y{a,}ml 2>/dev/null)}"
+    if [ -z "$HOMESERVER" -o ! -f "$HOMESERVER" ]; then
+      echo "homeserver config not found: \"$HOMESERVER\"" >&2
+      exit 1
+    fi
+    if [ -z "$HOMESERVER_EXTRA_CONFIG" ]; then
+      start_or_exit
+    fi
+    current_hash="$(extra_config_hash)"
+    expected_hash="$(extra_config_current_hash)"
+    if [ "$expected_hash" = "$current_hash" ]; then
+      echo "extra config hashes matched, ignoring append op."
+      exit 0
+    fi
+    echo "extra config hashes mismatch, re-setting extra config" >&2
+    remove_extra_config
+    add_extra_config
+    save_extra_config_hash
+    start_or_exit
+---
+# Source: rocketchat/templates/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: rocketchat-rocketchat
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "2Gi"
+---
+# Source: rocketchat/templates/microservices-account-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-account
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+      app.kubernetes.io/name: rocketchat-account
+      app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-authorization-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-authorization
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-authorization
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-ddp-streamer-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-ddp-streamer
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports:
+  - name: http
+    targetPort: 3000
+    port: 3000
+    protocol: TCP
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-ddp-streamer
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-presence-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-presence
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-presence
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/microservices-stream-hub-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-stream-hub
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    targetPort: 9458
+    port: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat-stream-hub
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-rocketchat
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-rocketchat-monolith-ms-metrics
+  namespace: rocketchat
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9458"
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: moleculer-metrics
+    port: 9458
+    targetPort: 9458
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: rocketchat
+    app.kubernetes.io/instance: rocketchat
+---
+# Source: rocketchat/templates/chat-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-rocketchat
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+      serviceAccountName: rocketchat-rocketchat
+      containers:
+      - name: rocketchat
+        image: "registry.rocket.chat/rocketchat/rocket.chat:7.10.0"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DEPLOY_PLATFORM
+          value: helm-chart
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: MONGO_OPLOG_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-oplog-uri
+        - name: ROOT_URL
+          value: https://k8.canepro.me
+        - name: MAIL_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mail-url
+        - name: OVERWRITE_SETTING_Prometheus_Enabled
+          value: "true"
+        - name: OVERWRITE_SETTING_Prometheus_Port
+          value: "9100"
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: OVERWRITE_SETTING_SMTP_Host
+          value: smtp.mailgun.org
+        - name: OVERWRITE_SETTING_SMTP_Username
+          value: postmaster@canepro.me
+        securityContext:
+          runAsUser: 999
+        ports:
+        - name: http
+          containerPort: 3000
+        - name: metrics
+          containerPort: 9100
+        - name: ms-metrics
+          containerPort: 9458
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: rocket-data
+          mountPath: /app/uploads
+        - name: tmp
+          mountPath: /tmp          
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: rocket-data
+        persistentVolumeClaim:
+          claimName: rocketchat-rocketchat
+---
+# Source: rocketchat/templates/microservices-account-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-account
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-account
+      app.kubernetes.io/instance: rocketchat
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-account
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      containers:
+      - name: account-service
+        image: "rocketchat/account-service:7.10.0"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+---
+# Source: rocketchat/templates/microservices-authorization-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-authorization
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-authorization
+      app.kubernetes.io/instance: rocketchat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-authorization
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      containers:
+      - name: authorization-service
+        image: "rocketchat/authorization-service:7.10.0"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+---
+# Source: rocketchat/templates/microservices-ddp-streamer-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-ddp-streamer
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-ddp-streamer
+      app.kubernetes.io/instance: rocketchat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-ddp-streamer
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      containers:
+      - name: ddp-streamer
+        image: "rocketchat/ddp-streamer-service:7.10.0"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: PORT
+          value: '3000'
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        - name: ms-metrics
+          containerPort: 9458
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 2
+          timeoutSeconds: 1
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+---
+# Source: rocketchat/templates/microservices-presence-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-presence
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-presence
+      app.kubernetes.io/instance: rocketchat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-presence
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      containers:
+      - name: presence-service
+        image: "rocketchat/presence-service:7.10.0"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+---
+# Source: rocketchat/templates/microservices-stream-hub-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketchat-stream-hub
+  namespace: rocketchat
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat-stream-hub
+      app.kubernetes.io/instance: rocketchat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rocketchat-stream-hub
+        app.kubernetes.io/instance: rocketchat
+    spec:
+      containers:
+      - name: stream-hub
+        image: "rocketchat/stream-hub-service:7.10.0"
+        env:
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-uri
+        - name: MONGO_OPLOG_URL
+          valueFrom:
+            secretKeyRef:
+              name: rocketchat-rocketchat
+              key: mongo-oplog-uri
+        - name: TRANSPORTER
+          value: "nats://rocketchat-nats:4222"
+        - name: MOLECULER_LOG_LEVEL
+          value: "warn"
+        - name: HEARTBEAT_INTERVAL
+          value: "10"
+        - name: HEARTBEAT_TIMEOUT
+          value: "30"
+        - name: RETRY_ENABLED
+          value: 'yes'
+        - name: MS_METRICS
+          value: "true"
+        - name: MS_METRICS_PORT
+          value: "9458"
+        ports:
+        - name: ms-metrics
+          containerPort: 9458
+---
+# Source: rocketchat/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rocketchat-rocketchat
+  namespace: rocketchat
+  annotations:
+    cert-manager.io/cluster-issuer: production-cert-issuer
+  labels:
+    app.kubernetes.io/name: rocketchat
+    helm.sh/chart: rocketchat-6.27.1
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - k8.canepro.me
+      secretName: rocketchat-tls
+  rules:
+  - host: k8.canepro.me
+    http:
+      paths:
+      - path: /
+        pathType: Prefix 
+        backend:
+          service:
+            name: rocketchat-rocketchat
+            port:
+              name: http
+      - path: /sockjs
+        pathType: Prefix
+        backend:
+          service:
+            name: rocketchat-ddp-streamer
+            port:
+              name: http
+      - path: /websocket
+        pathType: Prefix
+        backend:
+          service:
+            name: rocketchat-ddp-streamer
+            port:
+              name: http
+

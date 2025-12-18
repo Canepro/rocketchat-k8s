@@ -14,6 +14,16 @@
 
 ---
 
+## ⚡ Quick Access (Operational Readiness)
+
+If you are running this in production, bookmark these guides for immediate access during incidents or maintenance:
+
+*   🔧 **[Troubleshooting Guide](docs/troubleshooting.md)** - Solve common issues (19+ documented solutions)
+*   📊 **[Observability Quick Reference](docs/OBSERVABILITY-QUICK-REFERENCE.md)** - Critical queries for metrics, logs, and traces
+*   ✅ **[Deployment Checklist](docs/deployment-checklist.md)** - Ensure your environment is correctly configured
+
+---
+
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
@@ -839,6 +849,7 @@ kubectl get pv,pvc -n rocketchat
 
 ### Operations
 
+- ⚡ **[Operations Cheat Sheet](docs/OPERATIONS-CHEAT-SHEET.md)** - **New!** High-density command reference for production
 - 📊 **[Observability Current State](docs/OBSERVABILITY-CURRENT-STATE.md)** - Complete observability documentation (metrics, logs, traces)
 - ⚡ **[Observability Quick Reference](docs/OBSERVABILITY-QUICK-REFERENCE.md)** - Common queries and troubleshooting commands
 - 🔧 **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions (19 documented issues)

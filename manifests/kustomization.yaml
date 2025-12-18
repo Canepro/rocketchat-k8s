@@ -1,0 +1,9 @@
+resources:
+  - rocketchat-server.yaml
+  - rocketchat-mongodb.yaml
+  - rocketchat-nats.yaml
+  - rocketchat-servicemonitors.yaml
+  - prometheus-agent-configmap.yaml
+  - prometheus-agent-deployment.yaml
+  - prometheus-agent-rbac.yaml
+
