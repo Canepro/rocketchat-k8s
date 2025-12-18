@@ -2,7 +2,7 @@
 
 image:
   repository: registry.rocket.chat/rocketchat/rocket.chat
-  tag: 7.10.0        # Match chart appVersion
+  tag: 7.12.2        # Match chart appVersion
   pullPolicy: IfNotPresent
 
 replicaCount: 1
