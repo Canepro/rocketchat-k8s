@@ -2,7 +2,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: k3s-image-prune
-  namespace: kube-system
+  # Must be a namespace permitted by the ArgoCD project (canepro-spoke).
+  # This job enters the host namespaces via nsenter, so it does not need to live in kube-system.
+  namespace: monitoring
 spec:
   schedule: "0 3 * * 0" # Every Sunday at 03:00
   concurrencyPolicy: Forbid
@@ -14,6 +16,13 @@ spec:
         spec:
           hostPID: true
           restartPolicy: OnFailure
+          tolerations:
+            - key: "node-role.kubernetes.io/control-plane"
+              operator: "Exists"
+              effect: "NoSchedule"
+            - key: "node-role.kubernetes.io/master"
+              operator: "Exists"
+              effect: "NoSchedule"
           containers:
             - name: prune
               image: alpine:3.19
