@@ -1,0 +1,87 @@
+## Rocket.Chat Helm values (parity-first)
+## Chart: rocketchat/rocketchat 6.27.1
+## Goal: match current runtime behavior while moving to Helm+values GitOps.
+
+image:
+  repository: registry.rocket.chat/rocketchat/rocket.chat
+  # Pin to the currently running version for the migration. Upgrade later by changing ONLY this value.
+  tag: "7.12.2"
+  pullPolicy: IfNotPresent
+
+# Host for Rocket.Chat (used to set ROOT_URL and for ingress)
+host: k8.canepro.me
+
+replicaCount: 1
+minAvailable: 1
+
+# Reuse the existing Secret that already contains:
+# - mongo-uri
+# - mongo-oplog-uri
+# - mail-url
+existingMongodbSecret: rocketchat-rocketchat
+
+smtp:
+  enabled: true
+  # Reuse existing mail-url from the existing Secret instead of generating a new one
+  existingSecret: rocketchat-rocketchat
+
+# Keep the same behavior as current manifests
+prometheusScraping:
+  enabled: true
+  port: 9100
+  msPort: 9458
+
+microservices:
+  enabled: true
+  logLevel: warn
+  heartbeatInterval: 10
+  heartbeatTimeout: 30
+  # Keep defaults for image repos; tag is controlled globally via image.tag above
+  account:
+    replicas: 1
+  authorization:
+    replicas: 1
+  presence:
+    replicas: 1
+  ddpStreamer:
+    replicas: 1
+  streamHub:
+    replicas: 1
+
+# IMPORTANT: do NOT deploy bundled MongoDB or NATS.
+# We keep your existing rocketchat-mongodb and rocketchat-nats resources.
+mongodb:
+  enabled: false
+
+# With microservices enabled, the chart normally deploys NATS unless explicitly disabled.
+# Disable it and source the TRANSPORTER connection string from a small non-sensitive Secret.
+nats:
+  enabled: false
+
+# Reuse existing PVC to avoid any storage churn.
+persistence:
+  enabled: true
+  existingClaim: rocketchat-rocketchat
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: production-cert-issuer
+  path: /
+  pathType: Prefix
+  tls:
+    - secretName: rocketchat-tls
+      hosts:
+        - k8.canepro.me
+
+# Keep existing SMTP override settings from your current Deployment (non-sensitive)
+extraEnv:
+  # Not sensitive; this is just the internal cluster URL for existing NATS
+  - name: TRANSPORTER
+    value: "nats://rocketchat-nats:4222"
+  - name: OVERWRITE_SETTING_SMTP_Host
+    value: "smtp.mailgun.org"
+  - name: OVERWRITE_SETTING_SMTP_Username
+    value: "postmaster@canepro.me"
+
