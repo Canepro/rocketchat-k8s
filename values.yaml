@@ -75,6 +75,8 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
+  # Match the existing PVC's storageClassName to avoid immutable diffs.
+  storageClass: local-path
 
 ingress:
   enabled: true
