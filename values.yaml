@@ -18,12 +18,22 @@ minAvailable: 1
 # - mongo-uri
 # - mongo-oplog-uri
 # - mail-url
-existingMongodbSecret: rocketchat-rocketchat
+# existingMongodbSecret: rocketchat-rocketchat
+
+# Provide explicit URLs because the chart overwrote the secret with empty values.
+# This forces the chart to regenerate the secret with the correct connection strings.
+externalMongodbUrl: "mongodb://root:rocketchatroot@rocketchat-mongodb-0.rocketchat-mongodb-headless.rocketchat.svc.cluster.local:27017/rocketchat?authSource=admin&replicaSet=rs0"
+externalMongodbOplogUrl: "mongodb://root:rocketchatroot@rocketchat-mongodb-0.rocketchat-mongodb-headless.rocketchat.svc.cluster.local:27017/local?authSource=admin&replicaSet=rs0"
 
 smtp:
   enabled: true
-  # Reuse existing mail-url from the existing Secret instead of generating a new one
-  existingSecret: rocketchat-rocketchat
+  # Provide credentials so the chart generates the mail-url in the managed secret.
+  # Using the recovered password from smtp-credentials.
+  username: postmaster@canepro.me
+  password: "Genimi123456"
+  host: smtp.mailgun.org
+  port: 587
+
 
 # Keep the same behavior as current manifests
 prometheusScraping:
