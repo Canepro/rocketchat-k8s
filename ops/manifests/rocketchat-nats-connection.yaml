@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rocketchat-nats-connection
+  namespace: rocketchat
+type: Opaque
+stringData:
+  # Not a credential; this is just the internal cluster URL for existing NATS.
+  connectionString: nats://rocketchat-nats:4222
+
