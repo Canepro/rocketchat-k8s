@@ -1,0 +1,21 @@
+resources:
+  # Core dependencies (kept external to Helm chart)
+  - ../manifests/rocketchat-mongodb.yaml
+  - ../manifests/rocketchat-nats.yaml
+
+  # Monitoring and observability glue
+  - ../manifests/rocketchat-servicemonitors.yaml
+  - ../manifests/podmonitor-crd.yaml
+  - ../manifests/prometheus-agent-configmap.yaml
+  - ../manifests/prometheus-agent-deployment.yaml
+  - ../manifests/prometheus-agent-rbac.yaml
+
+  # Storage + maintenance
+  - ../manifests/persistent-volumes.yaml
+  - ../manifests/mongo-pvc.yaml
+  - ../manifests/rocketchat-uploads-pvc.yaml
+  - ../manifests/maintenance-cleanup.yaml
+
+  # Cluster issuer used by the Rocket.Chat ingress TLS
+  - ../manifests/clusterissuer.yaml
+
