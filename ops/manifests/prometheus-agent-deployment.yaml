@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-agent
+  namespace: monitoring
+  labels:
+    app: prometheus-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-agent
+  template:
+    metadata:
+      labels:
+        app: prometheus-agent
+    spec:
+      serviceAccountName: prometheus-agent
+      initContainers:
+      - name: config-init
+        image: alpine:3.19
+        command:
+        - sh
+        - -c
+        - |
+          apk add --no-cache gettext >/dev/null 2>&1
+          envsubst '$GRAFANA_USERNAME $GRAFANA_PASSWORD' \
+            < /etc/prometheus-template/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml
+        env:
+        - name: GRAFANA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: observability-credentials
+              key: username
+        - name: GRAFANA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: observability-credentials
+              key: password
+        volumeMounts:
+        - mountPath: /etc/prometheus-template
+          name: config-template
+        - mountPath: /etc/prometheus
+          name: config
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--web.enable-lifecycle'
+          - '--enable-feature=agent'
+        ports:
+        - containerPort: 9090
+          name: web
+        volumeMounts:
+        - mountPath: /etc/prometheus
+          name: config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config-template
+        configMap:
+          name: prometheus-agent-config
+      - name: config
+        emptyDir: {}
