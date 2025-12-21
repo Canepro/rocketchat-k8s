@@ -1,4 +1,5 @@
 resources:
+  - manifests/rocketchat-nats-connection.yaml
   - manifests/rocketchat-mongodb.yaml
   - manifests/rocketchat-nats.yaml
 
