@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k3s-image-prune
+  # Must be a namespace permitted by the ArgoCD project (canepro-spoke).
+  # This job enters the host namespaces via nsenter, so it does not need to live in kube-system.
+  namespace: monitoring
+spec:
+  schedule: "0 3 * * 0" # Every Sunday at 03:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          hostPID: true
+          restartPolicy: OnFailure
+          tolerations:
+            - key: "node-role.kubernetes.io/control-plane"
+              operator: "Exists"
+              effect: "NoSchedule"
+            - key: "node-role.kubernetes.io/master"
+              operator: "Exists"
+              effect: "NoSchedule"
+          containers:
+            - name: prune
+              image: alpine:3.19
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  apk add --no-cache util-linux >/dev/null
+                  # Enter the host namespaces (PID 1) and prune unused images.
+                  # Prefer host-installed crictl; fall back to k3s crictl.
+                  nsenter -t 1 -m -u -n -i -- sh -c '
+                    set -eu
+                    if command -v crictl >/dev/null 2>&1; then
+                      crictl rmi --prune
+                      exit 0
+                    fi
+                    if command -v k3s >/dev/null 2>&1; then
+                      k3s crictl rmi --prune
+                      exit 0
+                    fi
+                    echo "Neither crictl nor k3s found on host; skipping prune." >&2
+                  '
+              securityContext:
+                privileged: true
+

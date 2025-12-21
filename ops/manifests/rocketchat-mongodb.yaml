@@ -1,0 +1,444 @@
+---
+# Source: rocketchat/charts/mongodb/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rocketchat-mongodb
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+secrets:
+  - name: rocketchat-mongodb
+automountServiceAccountToken: true
+---
+# Source: rocketchat/charts/mongodb/templates/common-scripts-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-mongodb-common-scripts
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+data:
+  startup-probe.sh: |
+    #!/bin/bash
+    mongosh  $TLS_OPTIONS --port $MONGODB_PORT_NUMBER --eval 'db.hello().isWritablePrimary || db.hello().secondary' | grep 'true'
+  readiness-probe.sh: |
+    #!/bin/bash
+    # Run the proper check depending on the version
+    [[ $(mongod -version | grep "db version") =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && VERSION=${BASH_REMATCH[1]}
+    . /opt/bitnami/scripts/libversion.sh
+    VERSION_MAJOR="$(get_sematic_version "$VERSION" 1)"
+    VERSION_MINOR="$(get_sematic_version "$VERSION" 2)"
+    VERSION_PATCH="$(get_sematic_version "$VERSION" 3)"
+    readiness_test='db.isMaster().ismaster || db.isMaster().secondary'
+    if [[ ( "$VERSION_MAJOR" -ge 5 ) || ( "$VERSION_MAJOR" -ge 4 && "$VERSION_MINOR" -ge 4 && "$VERSION_PATCH" -ge 2 ) ]]; then
+        readiness_test='db.hello().isWritablePrimary || db.hello().secondary'
+    fi
+    mongosh  $TLS_OPTIONS --port $MONGODB_PORT_NUMBER --eval "${readiness_test}" | grep 'true'
+  ping-mongodb.sh: |
+    #!/bin/bash
+    mongosh  $TLS_OPTIONS --port $MONGODB_PORT_NUMBER --eval "db.adminCommand('ping')"
+---
+# Source: rocketchat/charts/mongodb/templates/replicaset/scripts-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rocketchat-mongodb-scripts
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+data:
+  setup.sh: |-
+    #!/bin/bash
+
+    . /opt/bitnami/scripts/mongodb-env.sh
+    . /opt/bitnami/scripts/libfs.sh
+    . /opt/bitnami/scripts/liblog.sh
+    . /opt/bitnami/scripts/libvalidations.sh
+
+    if is_empty_value "$MONGODB_ADVERTISED_PORT_NUMBER"; then
+      export MONGODB_ADVERTISED_PORT_NUMBER="$MONGODB_PORT_NUMBER"
+    fi
+
+    info "Advertised Hostname: $MONGODB_ADVERTISED_HOSTNAME"
+    info "Advertised Port: $MONGODB_ADVERTISED_PORT_NUMBER"
+
+    # Check for existing replica set in case there is no data in the PVC
+    # This is for cases where the PVC is lost or for MongoDB caches without
+    # persistence
+    current_primary=""
+    if is_dir_empty "${MONGODB_DATA_DIR}/db"; then
+      info "Data dir empty, checking if the replica set already exists"
+        current_primary=$(mongosh admin --host "rocketchat-mongodb-0.rocketchat-mongodb-headless.rocketchat.svc.cluster.local:27017" --authenticationDatabase admin -u $MONGODB_ROOT_USER -p $MONGODB_ROOT_PASSWORD --eval 'db.runCommand("ismaster")' | awk -F\' '/primary/ {print $2}')
+      if ! is_empty_value "$current_primary"; then
+        info "Detected existing primary: ${current_primary}"
+      fi
+    fi
+
+    if ! is_empty_value "$current_primary" && [[ "$MONGODB_ADVERTISED_HOSTNAME:$MONGODB_ADVERTISED_PORT_NUMBER" == "$current_primary" ]]; then
+        info "Advertised name matches current primary, configuring node as a primary"
+        export MONGODB_REPLICA_SET_MODE="primary"
+    elif ! is_empty_value "$current_primary" && [[ "$MONGODB_ADVERTISED_HOSTNAME:$MONGODB_ADVERTISED_PORT_NUMBER" != "$current_primary" ]]; then
+        info "Current primary is different from this node. Configuring the node as replica of ${current_primary}"
+        export MONGODB_REPLICA_SET_MODE="secondary"
+        export MONGODB_INITIAL_PRIMARY_HOST="${current_primary%:*}"
+        export MONGODB_INITIAL_PRIMARY_PORT_NUMBER="${current_primary#*:}"
+        export MONGODB_SET_SECONDARY_OK="yes"
+    elif [[ "$MY_POD_NAME" = "rocketchat-mongodb-0" ]]; then
+        info "Pod name matches initial primary pod name, configuring node as a primary"
+        export MONGODB_REPLICA_SET_MODE="primary"
+    else
+        info "Pod name doesn't match initial primary pod name, configuring node as a secondary"
+        export MONGODB_REPLICA_SET_MODE="secondary"
+        export MONGODB_INITIAL_PRIMARY_PORT_NUMBER="$MONGODB_PORT_NUMBER"
+    fi
+
+    if [[ "$MONGODB_REPLICA_SET_MODE" == "secondary" ]]; then
+        export MONGODB_INITIAL_PRIMARY_ROOT_USER="$MONGODB_ROOT_USER"
+        export MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD="$MONGODB_ROOT_PASSWORD"
+        export MONGODB_ROOT_PASSWORD=""
+        export MONGODB_EXTRA_USERNAMES=""
+        export MONGODB_EXTRA_DATABASES=""
+        export MONGODB_EXTRA_PASSWORDS=""
+        export MONGODB_ROOT_PASSWORD_FILE=""
+        export MONGODB_EXTRA_USERNAMES_FILE=""
+        export MONGODB_EXTRA_DATABASES_FILE=""
+        export MONGODB_EXTRA_PASSWORDS_FILE=""
+    fi
+
+    exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run.sh
+  setup-hidden.sh: |-
+    #!/bin/bash
+
+    . /opt/bitnami/scripts/mongodb-env.sh
+
+    echo "Advertised Hostname: $MONGODB_ADVERTISED_HOSTNAME"
+    echo "Advertised Port: $MONGODB_ADVERTISED_PORT_NUMBER"
+    echo "Configuring node as a hidden node"
+    export MONGODB_REPLICA_SET_MODE="hidden"
+    export MONGODB_INITIAL_PRIMARY_ROOT_USER="$MONGODB_ROOT_USER"
+    export MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD="$MONGODB_ROOT_PASSWORD"
+    export MONGODB_INITIAL_PRIMARY_PORT_NUMBER="$MONGODB_PORT_NUMBER"
+    export MONGODB_ROOT_PASSWORD=""
+    export MONGODB_EXTRA_USERNAMES=""
+    export MONGODB_EXTRA_DATABASES=""
+    export MONGODB_EXTRA_PASSWORDS=""
+    export MONGODB_ROOT_PASSWORD_FILE=""
+    export MONGODB_EXTRA_USERNAMES_FILE=""
+    export MONGODB_EXTRA_DATABASES_FILE=""
+    export MONGODB_EXTRA_PASSWORDS_FILE=""
+    exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run.sh
+---
+# Source: rocketchat/charts/mongodb/templates/metrics-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-mongodb-metrics
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: metrics
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9216"
+    prometheus.io/scrape: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9216
+      targetPort: metrics
+      protocol: TCP
+      name: http-metrics
+  selector:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: mongodb
+---
+# Source: rocketchat/charts/mongodb/templates/replicaset/headless-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketchat-mongodb-headless
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: "mongodb"
+      port: 27017
+      targetPort: mongodb
+  selector:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: mongodb
+---
+# Source: rocketchat/charts/mongodb/templates/replicaset/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rocketchat-mongodb
+  namespace: "rocketchat"
+  labels:
+    app.kubernetes.io/instance: rocketchat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: 6.0.10
+    helm.sh/chart: mongodb-13.18.5
+    app.kubernetes.io/component: mongodb
+spec:
+  serviceName: rocketchat-mongodb-headless
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: rocketchat
+      app.kubernetes.io/name: mongodb
+      app.kubernetes.io/component: mongodb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: rocketchat
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: mongodb
+        app.kubernetes.io/version: 6.0.10
+        helm.sh/chart: mongodb-13.18.5
+        app.kubernetes.io/component: mongodb
+    spec:
+      serviceAccountName: rocketchat-mongodb
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: rocketchat
+                    app.kubernetes.io/name: mongodb
+                    app.kubernetes.io/component: mongodb
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+      securityContext:
+        fsGroup: 1001
+      initContainers:
+        - name: volume-permissions
+          image: docker.io/bitnamilegacy/os-shell:11-debian-11-r72
+          imagePullPolicy: "IfNotPresent"
+          command:
+            - /bin/bash
+          args:
+            - -ec
+            - |
+              mkdir -p /bitnami/mongodb/
+              chown 1001:1001 /bitnami/mongodb/
+              find  /bitnami/mongodb/ -mindepth 1 -maxdepth 1 -not -name ".snapshot" -not -name "lost+found" | xargs -r chown -R 1001:1001
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: datadir
+              mountPath: /bitnami/mongodb
+      containers:
+        - name: mongodb
+          image: docker.io/bitnamilegacy/mongodb:6.0.10-debian-11-r8
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - /scripts/setup.sh
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MY_POD_HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: K8S_SERVICE_NAME
+              value: "rocketchat-mongodb-headless"
+            - name: MONGODB_INITIAL_PRIMARY_HOST
+              value: rocketchat-mongodb-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local
+            - name: MONGODB_REPLICA_SET_NAME
+              value: "rs0"
+            - name: MONGODB_ADVERTISED_HOSTNAME
+              value: "$(MY_POD_NAME).$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.cluster.local"
+            - name: MONGODB_EXTRA_USERNAMES
+              value: "rocketchat"
+            - name: MONGODB_EXTRA_DATABASES
+              value: "rocketchat"
+            - name: MONGODB_EXTRA_PASSWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-passwords
+            - name: MONGODB_ROOT_USER
+              value: "root"
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-root-password
+            - name: MONGODB_REPLICA_SET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-replica-set-key
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "no"
+            - name: MONGODB_SYSTEM_LOG_VERBOSITY
+              value: "0"
+            - name: MONGODB_DISABLE_SYSTEM_LOG
+              value: "no"
+            - name: MONGODB_DISABLE_JAVASCRIPT
+              value: "no"
+            - name: MONGODB_ENABLE_JOURNAL
+              value: "yes"
+            - name: MONGODB_PORT_NUMBER
+              value: "27017"
+            - name: MONGODB_ENABLE_IPV6
+              value: "no"
+            - name: MONGODB_ENABLE_DIRECTORY_PER_DB
+              value: "no"
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          livenessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 10
+            exec:
+              command:
+                - /bitnami/scripts/ping-mongodb.sh
+          readinessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bitnami/scripts/readiness-probe.sh
+          volumeMounts:
+            - name: datadir
+              mountPath: /bitnami/mongodb
+            - name: common-scripts
+              mountPath: /bitnami/scripts
+            - name: custom-init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+            - name: scripts
+              mountPath: /scripts/setup.sh
+              subPath: setup.sh
+        - name: metrics
+          image: docker.io/bitnamilegacy/mongodb-exporter:0.39.0-debian-11-r106
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - /bin/bash
+            - -ec
+          args:
+            - |
+              /bin/mongodb_exporter  --collector.diagnosticdata --collector.replicasetstatus --compatible-mode --mongodb.direct-connect --mongodb.global-conn-pool --web.listen-address ":9216" --mongodb.uri "mongodb://$MONGODB_ROOT_USER:$(echo $MONGODB_ROOT_PASSWORD | sed -r "s/@/%40/g;s/:/%3A/g")@localhost:27017/admin?" 
+          env:
+            - name: MONGODB_ROOT_USER
+              value: "root"
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rocketchat-mongodb
+                  key: mongodb-root-password
+          ports:
+            - name: metrics
+              containerPort: 9216
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 10
+            httpGet:
+              path: /
+              port: metrics
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 10
+            httpGet:
+              path: /
+              port: metrics
+      volumes:
+        - name: common-scripts
+          configMap:
+            name: rocketchat-mongodb-common-scripts
+            defaultMode: 0550
+        - name: custom-init-scripts
+          configMap:
+            name: rocketchat-mongodb-fix-clustermonitor-role-configmap
+        - name: scripts
+          configMap:
+            name: rocketchat-mongodb-scripts
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: datadir
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "2Gi"

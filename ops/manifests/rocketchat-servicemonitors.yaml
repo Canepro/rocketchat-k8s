@@ -1,0 +1,85 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rocketchat-main
+  namespace: rocketchat
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat
+      app.kubernetes.io/instance: rocketchat
+  namespaceSelector:
+    matchNames:
+      - rocketchat
+  endpoints:
+    - port: "9100"
+      interval: 30s
+      path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rocketchat-microservices
+  namespace: rocketchat
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rocketchat
+      app.kubernetes.io/instance: rocketchat
+  namespaceSelector:
+    matchNames:
+      - rocketchat
+  endpoints:
+    - port: "9458"
+      interval: 30s
+      path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rocketchat-mongodb
+  namespace: rocketchat
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+      app.kubernetes.io/component: metrics
+      app.kubernetes.io/instance: rocketchat
+  namespaceSelector:
+    matchNames:
+      - rocketchat
+  endpoints:
+    - port: "9216"
+      interval: 30s
+      path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rocketchat-nats
+  namespace: rocketchat
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/instance: rocketchat
+  namespaceSelector:
+    matchNames:
+      - rocketchat
+  endpoints:
+    - port: "8222"
+      interval: 30s
+      path: /metrics
+
