@@ -31,6 +31,40 @@ If pods are not running or healthy:
     df -h
     ```
 
+### Incident Recovery: MongoDB Stuck (Missing ConfigMap)
+**Symptom**: `rocketchat-mongodb-0` pod stuck in `ContainerCreating` or `RunContainerError`.
+**Error**: `kubectl describe pod` shows:
+```
+Warning  FailedMount  ...  MountVolume.SetUp failed for volume "custom-init-scripts" : configmap "rocketchat-mongodb-fix-clustermonitor-role-configmap" not found
+```
+
+**Cause**:
+The `rocketchat-mongodb` StatefulSet mounts a specific ConfigMap (`rocketchat-mongodb-fix-clustermonitor-role-configmap`) to `/docker-entrypoint-initdb.d`. This ConfigMap was accidentally deleted during a manifest cleanup/refactor (Dec 2025). Without it, the pod cannot mount the volume and fails to start.
+
+**Purpose of `rocketchat-mongodb-fix-clustermonitor-role-configmap`**:
+This ConfigMap contains a script (`user_set_role_clusterMonitor.sh`) that runs during MongoDB startup. It explicitly grants the **`clusterMonitor` role** to the `rocketchat` database user on the `admin` database.
+- **Why?** The MongoDB Exporter sidecar (and potentially other monitoring tools) needs this permission to query the MongoDB Replica Set status (`replSetGetStatus`). Without it, metrics collection may fail or report errors.
+
+**Resolution Steps**:
+1.  Verify the ConfigMap is missing:
+    ```bash
+    kubectl get configmap rocketchat-mongodb-fix-clustermonitor-role-configmap -n rocketchat
+    ```
+2.  Restore the definition in `ops/manifests/rocketchat-mongodb.yaml`.
+3.  Commit and push to trigger ArgoCD sync (or `kubectl apply -f ops/manifests/rocketchat-mongodb.yaml`).
+4.  Delete the stuck MongoDB pod to force a restart:
+    ```bash
+    kubectl delete pod rocketchat-mongodb-0 -n rocketchat
+    ```
+5.  Once MongoDB is Running, restart dependent microservices if they are crash-looping:
+    ```bash
+    kubectl delete pod -n rocketchat -l app.kubernetes.io/name=rocketchat-account
+    kubectl delete pod -n rocketchat -l app.kubernetes.io/name=rocketchat-authorization
+    kubectl delete pod -n rocketchat -l app.kubernetes.io/name=rocketchat-ddp-streamer
+    kubectl delete pod -n rocketchat -l app.kubernetes.io/name=rocketchat-presence
+    kubectl delete pod -n rocketchat -l app.kubernetes.io/name=rocketchat-stream-hub
+    ```
+
 ## 🧹 Maintenance
 The `k3s-image-prune` CronJob runs every Sunday at 3:00 AM in the `monitoring` namespace to clear unused container images and prevent disk pressure issues.
 
