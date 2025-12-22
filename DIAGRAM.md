@@ -1,6 +1,6 @@
 # RocketChat GitOps Architecture
 
-This diagram visualizes how the OKE Hub (Control Plane) manages the K3s Spoke (Execution Plane) using ArgoCD and Kustomize.
+This diagram visualizes how the OKE Hub (Control Plane) manages the K3s Spoke (Execution Plane) using ArgoCD, Helm, and Kustomize.
 
 ```mermaid
 graph TD
@@ -13,7 +13,7 @@ graph TD
         direction TB
         Ingress[Traefik Ingress]
         
-        subgraph "RocketChat Microservices"
+        subgraph "RocketChat Microservices (Helm)"
             Server[Main RocketChat Server]
             DDP[DDP Streamer]
             Auth[Authorization Service]
@@ -22,7 +22,7 @@ graph TD
             Hub[Stream Hub]
         end
 
-        subgraph "Data & Messaging"
+        subgraph "Data & Messaging (Ops App)"
             Mongo[(MongoDB)]
             NATS{NATS Bus}
         end
@@ -31,9 +31,10 @@ graph TD
     end
 
     %% GitOps Flow
-    GitRepo -- "Source of Truth" --> ArgoCD
-    ArgoCD -- "Sync State (SSA)" --> Ingress
-    ArgoCD -- "Manage Pods" --> Microservices
+    GitRepo -- "Helm Chart + Values" --> ArgoCD
+    GitRepo -- "Ops Manifests" --> ArgoCD
+    ArgoCD -- "Sync App" --> Server
+    ArgoCD -- "Sync Infra" --> Mongo
 
     %% Internal Data Flow
     Ingress --> Server
@@ -47,4 +48,3 @@ graph TD
     Server -- "Persist" --> Mongo
     Cron -- "Cleanup Host" --> K3s_Node[K3s Image Cache]
 ```
-

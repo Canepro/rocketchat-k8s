@@ -1,19 +1,26 @@
-# ArgoCD Managed RocketChat Workspace
+# RocketChat GitOps Repository
 
 This repository contains the declarative GitOps configuration for the entire Rocket.Chat stack, managed by ArgoCD on the OKE Hub.
 
 ## 🗺️ Architecture
-The Rocket.Chat microservices stack is deployed on a K3s Spoke cluster and managed centrally from an ArgoCD instance.
+The Rocket.Chat microservices stack is deployed on a K3s Spoke cluster and managed centrally from an ArgoCD instance using a **Split-App Pattern**:
+
+1.  **Rocket.Chat App (Helm)**: Manages the application stack (monolith + microservices) via the official Helm chart + `values.yaml`.
+2.  **Ops App (Kustomize)**: Manages infrastructure glue (storage, monitoring, maintenance jobs) via `ops/`.
 
 - **Diagram**: See [DIAGRAM.md](DIAGRAM.md) for the architecture and data flow.
 - **Operations**: See [OPERATIONS.md](OPERATIONS.md) for upgrade and maintenance instructions.
 
 ## 🚀 Quick Start
-To update the cluster state, simply commit and push your changes to the `master` branch:
+To upgrade the Rocket.Chat version:
+1.  Edit `values.yaml`.
+2.  Change `image.tag` to the desired version.
+3.  Commit and push to `master`.
+
 ```bash
 git push origin master
 ```
-ArgoCD will automatically detect the changes and synchronize the cluster.
+ArgoCD will automatically detect the changes and perform a rolling update.
 
 ## 📊 Health Dashboard
 Monitor the real-time status of your stack here:
