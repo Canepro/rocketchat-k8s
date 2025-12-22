@@ -69,6 +69,13 @@ microservices:
 # We keep your existing rocketchat-mongodb and rocketchat-nats resources.
 mongodb:
   enabled: false
+  # Explicitly disable the serviceMonitor for mongodb, as the chart might still try to render it.
+  serviceMonitor:
+    enabled: false
+  metrics:
+    enabled: false
+    serviceMonitor:
+      enabled: false
 
 # With microservices enabled, the chart normally deploys NATS unless explicitly disabled.
 # Disable it and source the TRANSPORTER connection string from a small non-sensitive Secret
