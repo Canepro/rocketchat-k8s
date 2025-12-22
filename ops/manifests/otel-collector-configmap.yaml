@@ -93,6 +93,7 @@ data:
       # Expose detailed internal metrics so span counters appear (otelcol_*spans*)
       telemetry:
         metrics:
+          address: 0.0.0.0:8888
           level: detailed
       pipelines:
         traces:
