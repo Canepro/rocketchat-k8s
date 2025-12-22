@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+      annotations:
+        canepro.me/otel-collector-config-rev: "2025-12-22-01"
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.88.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /otelcol-contrib
+            - --config=/etc/otel-collector-config.yaml
+          env:
+            - name: GOMEMLIMIT
+              value: 512MiB
+            # Credentials for basicauth/oke in the config (kept in Secret; not committed to Git)
+            - name: GRAFANA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: observability-credentials
+                  key: username
+            - name: GRAFANA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: observability-credentials
+                  key: password
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 14250
+              name: jaeger-grpc
+            - containerPort: 14268
+              name: jaeger-http
+            - containerPort: 6831
+              name: jaeger-compact
+            - containerPort: 6832
+              name: jaeger-binary
+            - containerPort: 9411
+              name: zipkin
+            - containerPort: 8888
+              name: prometheus
+            - containerPort: 8889
+              name: metrics
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /etc/otel-collector-config.yaml
+              name: otel-collector-config
+              subPath: otel-collector-config.yaml
+      volumes:
+        - name: otel-collector-config
+          configMap:
+            name: otel-collector-config
+
