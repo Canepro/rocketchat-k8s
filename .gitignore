@@ -39,3 +39,7 @@ charts/
 *-secret.yaml
 *-secrets.yaml
 
+
+# Cursor (local)
+.cursorignore
+.cursorrules
