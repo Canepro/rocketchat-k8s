@@ -15,7 +15,7 @@ spec:
       labels:
         app: prometheus-agent
       annotations:
-        canepro.me/prometheus-agent-config-rev: "2025-12-22-01"
+        canepro.me/prometheus-agent-config-rev: "2025-12-22-03"
     spec:
       serviceAccountName: prometheus-agent
       initContainers:
