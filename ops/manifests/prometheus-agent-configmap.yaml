@@ -10,6 +10,8 @@ data:
       external_labels:
         cluster: k8-canepro-me
         environment: production
+        workspace: production
+        domain: k8.canepro.me
     
     remote_write:
       - url: https://observability.canepro.me/api/v1/write
