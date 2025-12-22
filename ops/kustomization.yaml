@@ -10,6 +10,10 @@ resources:
   - manifests/prometheus-agent-deployment.yaml
   - manifests/prometheus-agent-rbac.yaml
 
+  - manifests/otel-collector-configmap.yaml
+  - manifests/otel-collector-deployment.yaml
+  - manifests/otel-collector-service.yaml
+
   - manifests/persistent-volumes.yaml
   - manifests/mongo-pvc.yaml
   - manifests/rocketchat-uploads-pvc.yaml
