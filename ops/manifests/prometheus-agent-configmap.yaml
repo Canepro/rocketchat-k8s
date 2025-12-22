@@ -92,6 +92,32 @@ data:
             target_label: namespace
             action: replace
 
+      # Scrape OTel Collector self-metrics (spoke cluster)
+      # This lets us verify trace pipeline health (accepted/exported spans) via Prometheus/Grafana,
+      # without requiring any manual debug pods.
+      - job_name: 'otel-collector'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: monitoring
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: otel-collector
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            replacement: $1:8888
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
       # Scrape Kubernetes nodes
       - job_name: 'kubernetes-nodes'
         kubernetes_sd_configs:
