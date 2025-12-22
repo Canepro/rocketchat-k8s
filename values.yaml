@@ -35,11 +35,18 @@ smtp:
   port: 587
 
 
-# Keep the same behavior as current manifests
-prometheusScraping:
+# Enable standard metrics so RocketChat exposes /metrics
+metrics:
   enabled: true
-  port: 9100
-  msPort: 9458
+  # We manage the ServiceMonitor manually in ops/manifests
+  serviceMonitor:
+    enabled: false
+
+# Deprecated/Custom field - removing effectively (commented out)
+# prometheusScraping:
+#   enabled: true
+#   port: 9100
+#   msPort: 9458
 
 # We manage monitoring objects (ServiceMonitors/CRDs) via the ops ArgoCD app.
 # Disable chart-generated monitors to avoid shared-resource conflicts.
