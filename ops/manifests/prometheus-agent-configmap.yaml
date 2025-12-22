@@ -9,6 +9,8 @@ data:
       scrape_interval: 30s
       external_labels:
         cluster: k8-canepro-me
+        # Compatibility with existing Grafana Rocket.Chat dashboards (they filter by tenant_id)
+        tenant_id: k8-canepro-me
         environment: production
         workspace: production
         domain: k8.canepro.me
@@ -54,6 +56,11 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             action: replace
             target_label: kubernetes_pod_name
+        # Compatibility label for dashboards expecting `namespace` instead of `kubernetes_namespace`
+        metric_relabel_configs:
+          - source_labels: [kubernetes_namespace]
+            target_label: namespace
+            action: replace
 
       # Scrape Kubernetes services
       - job_name: 'kubernetes-services'
@@ -79,6 +86,11 @@ data:
           - source_labels: [__meta_kubernetes_service_name]
             action: replace
             target_label: kubernetes_service_name
+        # Compatibility label for dashboards expecting `namespace` instead of `kubernetes_namespace`
+        metric_relabel_configs:
+          - source_labels: [kubernetes_namespace]
+            target_label: namespace
+            action: replace
 
       # Scrape Kubernetes nodes
       - job_name: 'kubernetes-nodes'
