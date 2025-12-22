@@ -15,7 +15,7 @@ spec:
     matchNames:
       - rocketchat
   endpoints:
-    - port: "9100"
+    - port: http
       interval: 30s
       path: /metrics
 
