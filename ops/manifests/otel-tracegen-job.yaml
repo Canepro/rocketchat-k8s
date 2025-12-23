@@ -7,9 +7,10 @@ metadata:
     app: otel-tracegen
   annotations:
     # Jobs have an immutable PodTemplate; ArgoCD must replace the Job to apply image/args changes.
-    argocd.argoproj.io/sync-options: Replace=true
+    # Force=true is required because Job fields like spec.selector are immutable; ArgoCD must delete+recreate.
+    argocd.argoproj.io/sync-options: Replace=true,Force=true
     # Bump this to re-run the Job via GitOps if needed.
-    canepro.me/otel-tracegen-rev: "2025-12-23-05"
+    canepro.me/otel-tracegen-rev: "2025-12-23-06"
 spec:
   backoffLimit: 0
   completions: 1
