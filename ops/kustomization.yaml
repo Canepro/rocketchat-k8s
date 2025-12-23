@@ -13,6 +13,7 @@ resources:
   - manifests/otel-collector-configmap.yaml
   - manifests/otel-collector-deployment.yaml
   - manifests/otel-collector-service.yaml
+  - manifests/otel-tracegen-job.yaml
 
   - manifests/persistent-volumes.yaml
   - manifests/mongo-pvc.yaml
