@@ -7,7 +7,7 @@ metadata:
     app: otel-tracegen
   annotations:
     # Bump this to re-run the Job via GitOps if needed.
-    canepro.me/otel-tracegen-rev: "2025-12-23-01"
+    canepro.me/otel-tracegen-rev: "2025-12-23-02"
 spec:
   backoffLimit: 0
   completions: 1
@@ -21,7 +21,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: telemetrygen
-          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:0.88.0
+          image: ghcr.io/open-telemetry/opentelemetry-collector-releases/telemetrygen:latest
           imagePullPolicy: IfNotPresent
           args:
             # Emit spans into the in-cluster OTel collector (OTLP/gRPC).
