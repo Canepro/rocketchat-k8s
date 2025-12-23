@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: otel-tracegen
+  namespace: monitoring
+  labels:
+    app: otel-tracegen
+  annotations:
+    # Bump this to re-run the Job via GitOps if needed.
+    canepro.me/otel-tracegen-rev: "2025-12-23-01"
+spec:
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: otel-tracegen
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: telemetrygen
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:0.88.0
+          imagePullPolicy: IfNotPresent
+          args:
+            # Emit spans into the in-cluster OTel collector (OTLP/gRPC).
+            - traces
+            - --otlp-endpoint=otel-collector.monitoring.svc.cluster.local:4317
+            - --otlp-insecure
+            - --service=rocketchat-tracegen
+            - --duration=60s
+            - --rate=5
+
