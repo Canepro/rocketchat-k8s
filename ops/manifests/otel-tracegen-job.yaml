@@ -6,8 +6,10 @@ metadata:
   labels:
     app: otel-tracegen
   annotations:
+    # Jobs have an immutable PodTemplate; ArgoCD must replace the Job to apply image/args changes.
+    argocd.argoproj.io/sync-options: Replace=true
     # Bump this to re-run the Job via GitOps if needed.
-    canepro.me/otel-tracegen-rev: "2025-12-23-03"
+    canepro.me/otel-tracegen-rev: "2025-12-23-05"
 spec:
   backoffLimit: 0
   completions: 1
@@ -19,9 +21,15 @@ spec:
         app: otel-tracegen
     spec:
       restartPolicy: Never
+      # Optional: if GHCR blocks anonymous pulls in your environment (403 from ghcr.io/token),
+      # create a docker-registry secret named 'ghcr-pull' in the monitoring namespace and
+      # uncomment this to authenticate pulls.
+      # imagePullSecrets:
+      #   - name: ghcr-pull
       containers:
         - name: telemetrygen
-          image: ghcr.io/open-telemetry/opentelemetry-collector-releases/telemetrygen:latest
+          # telemetrygen generates synthetic traces to validate the OTel pipeline.
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:0.88.0
           imagePullPolicy: IfNotPresent
           args:
             # Emit spans into the in-cluster OTel collector (OTLP/gRPC).
