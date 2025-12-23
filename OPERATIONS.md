@@ -97,6 +97,54 @@ If pods are not running or healthy:
   - `count by (workspace) (rocketchat_info)`
   - `count by (domain) (rocketchat_info)`
 
+### Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)
+**Purpose**
+- Generate synthetic traces on-demand to validate the entire tracing pipeline and Grafana Tempo Explore queries.
+
+**Where it lives (GitOps)**
+- Trace generator job: `ops/manifests/otel-tracegen-job.yaml`
+- OTel Collector config: `ops/manifests/otel-collector-configmap.yaml`
+
+**How it works**
+- The Job runs `telemetrygen` for ~60s at ~5 spans/sec and sends OTLP/gRPC to:
+  - `otel-collector.monitoring.svc.cluster.local:4317`
+- The collector exports traces to the hub Tempo via the `otlphttp/oke` exporter.
+
+**Run it (GitOps rerun)**
+1. Edit `ops/manifests/otel-tracegen-job.yaml`
+   - **Bump the Job name** (Jobs are immutable; a new name = a new run).
+   - **Bump** `canepro.me/otel-tracegen-rev` (for bookkeeping).
+2. Commit + push to `master`. ArgoCD will create the new Job and prune old runs (by default).
+
+**Verify (cluster-side)**
+```bash
+kubectl --context k8-canepro-me -n monitoring get pods | grep -i tracegen
+kubectl --context k8-canepro-me -n monitoring logs job/<job-name>
+kubectl --context k8-canepro-me -n monitoring logs deploy/otel-collector --since=5m | grep -iE '(traces|otlphttp|error|dropped|404)'
+```
+
+**Verify in Grafana (Tempo Explore)**
+- Explore → Tempo → Search:
+  - **Service name**: `rocket-chat` (our collector upserts `service.name` to this)
+  - Typical operation from tracegen: `lets-go`
+- If the Service dropdown is empty, use TraceQL:
+  - `{ resource.service.name = "rocket-chat" }`
+
+**Pin telemetrygen image for reproducible runs**
+- Prefer pinning to a digest (example):
+  - `image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen@sha256:<digest>`
+
+**Common failures we hit**
+- **GHCR 403 (anonymous token forbidden)**: Image pull fails from `ghcr.io/token?... 403`.
+  - Fix: use a different image reference/registry or add `imagePullSecrets` if your environment blocks anonymous pulls.
+- **Image tag not found**: `...telemetrygen:<tag>: not found`.
+  - Fix: use an existing tag or pin to a digest from a known-good run.
+- **Tempo export 404**: collector logs show:
+  - `... responded with HTTP Status Code 404`
+  - Fix: ensure `otlphttp/oke.endpoint` is the **base URL** expected by the hub; the exporter appends `/v1/traces`.
+- **ArgoCD CLI token expired**
+  - `argocd login argocd.canepro.me --grpc-web`
+
 ### Incident Recovery: MongoDB Stuck (Missing ConfigMap)
 **Symptom**: `rocketchat-mongodb-0` pod stuck in `ContainerCreating` or `RunContainerError`.
 **Error**: `kubectl describe pod` shows:
