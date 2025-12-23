@@ -79,8 +79,11 @@ data:
 
       # OKE Central Hub Tempo (Secure HTTP)
       # Using OTLP/HTTP is more reliable through Ingress than gRPC
+      # otlphttp exporter automatically appends /v1/traces, so endpoint should be base URL
       otlphttp/oke:
-        endpoint: https://observability.canepro.me/tempo
+        endpoint: https://observability.canepro.me
+        tls:
+          insecure: false
         auth:
           authenticator: basicauth/oke
 
