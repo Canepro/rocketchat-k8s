@@ -15,7 +15,7 @@ spec:
       labels:
         app: otel-collector
       annotations:
-        canepro.me/otel-collector-config-rev: "2025-12-22-02"
+        canepro.me/otel-collector-config-rev: "2025-12-23-01"
     spec:
       containers:
         - name: otel-collector
