@@ -7,7 +7,7 @@ metadata:
     app: otel-tracegen
   annotations:
     # Bump this to re-run the Job via GitOps if needed.
-    canepro.me/otel-tracegen-rev: "2025-12-23-02"
+    canepro.me/otel-tracegen-rev: "2025-12-23-03"
 spec:
   backoffLimit: 0
   completions: 1
