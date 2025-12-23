@@ -28,3 +28,6 @@ Monitor the real-time status of your stack here:
 
 ## 🧹 Maintenance
 The workspace includes an automated weekly maintenance job (`k3s-image-prune`) that runs every Sunday at 3:00 AM to prevent disk pressure issues by clearing unused container images.
+
+## 🧪 Tracing Validation (Tempo)
+To validate tracing end-to-end (tracegen → OTel Collector → Tempo), see `OPERATIONS.md` → **“Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)”**.
