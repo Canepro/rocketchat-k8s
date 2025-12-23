@@ -9,7 +9,7 @@ metadata:
     app: otel-tracegen
   annotations:
     # Also track the run identifier for easy debugging.
-    canepro.me/otel-tracegen-rev: "2025-12-23-08"
+    canepro.me/otel-tracegen-rev: "2025-12-23-09"
 spec:
   backoffLimit: 0
   completions: 1
