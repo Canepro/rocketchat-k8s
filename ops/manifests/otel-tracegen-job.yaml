@@ -3,13 +3,13 @@ kind: Job
 metadata:
   # Jobs are immutable (notably .spec.selector). To rerun via GitOps, change the Job NAME.
   # ArgoCD will create the new Job and prune the old one automatically.
-  name: otel-tracegen-2025-12-23-08
+  name: otel-tracegen-2025-12-23-10
   namespace: monitoring
   labels:
     app: otel-tracegen
   annotations:
     # Also track the run identifier for easy debugging.
-    canepro.me/otel-tracegen-rev: "2025-12-23-09"
+    canepro.me/otel-tracegen-rev: "2025-12-23-10"
 spec:
   backoffLimit: 0
   completions: 1
