@@ -9,5 +9,6 @@ spec:
   resources:
     requests:
       storage: 2Gi
-  storageClassName: local-storage
+  # AKS Migration: Changed from local-storage to managed-premium (Azure Disk)
+  storageClassName: managed-premium
 

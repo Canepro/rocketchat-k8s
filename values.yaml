@@ -99,8 +99,9 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
-  # Match the existing PVC's storageClassName to avoid immutable diffs.
-  storageClass: local-path
+  # AKS Migration: Uses Azure managed-premium StorageClass
+  # Old cluster uses local-path, AKS uses managed-premium
+  storageClass: managed-premium
 
 ingress:
   enabled: true
