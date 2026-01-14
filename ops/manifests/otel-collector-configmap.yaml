@@ -66,8 +66,9 @@ data:
             value: production
             action: upsert
           # Add cluster identifier to all traces
+          # AKS Migration: Updated cluster label for AKS cluster
           - key: cluster
-            value: rocketchat-k3s
+            value: aks-rocketchat
             action: upsert
           - key: region
             value: remote
