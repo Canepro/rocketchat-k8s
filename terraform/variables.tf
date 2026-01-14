@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   description = "Name of the Azure Resource Group"
   type        = string
-  default     = "rg-rocketchat-aks"
+  default     = "rg-canepro-aks"
 }
 
 variable "location" {
@@ -13,7 +13,7 @@ variable "location" {
 variable "cluster_name" {
   description = "Name of the AKS cluster"
   type        = string
-  default     = "aks-rocketchat"
+  default     = "aks-canepro"
 }
 
 variable "node_count" {
@@ -37,7 +37,7 @@ variable "kubernetes_version" {
 variable "dns_prefix" {
   description = "DNS prefix for AKS cluster"
   type        = string
-  default     = "aks-rocketchat"
+  default     = "aks-canepro"
 }
 
 variable "enable_auto_shutdown" {
@@ -52,6 +52,5 @@ variable "tags" {
   default = {
     Environment = "production"
     ManagedBy   = "Terraform"
-    Project     = "RocketChat"
   }
 }

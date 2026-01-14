@@ -9,9 +9,9 @@ data:
       scrape_interval: 30s
       external_labels:
         # AKS Migration: Updated cluster label for AKS cluster
-        cluster: aks-rocketchat
+        cluster: aks-canepro
         # Compatibility with existing Grafana Rocket.Chat dashboards (they filter by tenant_id)
-        tenant_id: aks-rocketchat
+        tenant_id: aks-canepro
         environment: production
         workspace: production
         domain: k8.canepro.me
