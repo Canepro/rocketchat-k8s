@@ -1,5 +1,5 @@
 ## Rocket.Chat Helm values (parity-first)
-## Chart: rocketchat/rocketchat 6.27.1
+## Chart: rocketchat/rocketchat 6.28.0
 ## Goal: match current runtime behavior while moving to Helm+values GitOps.
 
 image:
