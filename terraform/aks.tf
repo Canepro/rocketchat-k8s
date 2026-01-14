@@ -44,10 +44,8 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Enable Azure Policy (optional)
   azure_policy_enabled = false
 
-  # Enable OMS Agent for monitoring (optional, we use Prometheus Agent)
-  oms_agent {
-    enabled = false
-  }
+  # OMS Agent is not enabled (we use Prometheus Agent for monitoring)
+  # When oms_agent block is omitted, it defaults to disabled
 
   tags = var.tags
 }
