@@ -39,6 +39,11 @@ resource "azurerm_kubernetes_cluster" "main" {
   network_profile {
     network_plugin    = "kubenet"
     load_balancer_sku = "standard"
+    # Service CIDR must not overlap with VNet (10.0.0.0/16) or subnet (10.0.1.0/24)
+    service_cidr       = "10.0.2.0/24"
+    dns_service_ip     = "10.0.2.10"
+    # Pod CIDR for kubenet (each node gets a /24 from this range)
+    pod_cidr           = "10.244.0.0/16"
   }
 
   # Enable Azure Policy (optional)
