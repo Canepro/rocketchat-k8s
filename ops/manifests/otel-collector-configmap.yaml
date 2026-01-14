@@ -68,7 +68,7 @@ data:
           # Add cluster identifier to all traces
           # AKS Migration: Updated cluster label for AKS cluster
           - key: cluster
-            value: aks-rocketchat
+            value: aks-canepro
             action: upsert
           - key: region
             value: remote

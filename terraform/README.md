@@ -1,6 +1,6 @@
 # Terraform Configuration for AKS
 
-This directory contains Terraform configuration to provision the Azure Kubernetes Service (AKS) cluster for RocketChat.
+This directory contains Terraform configuration to provision the Azure Kubernetes Service (AKS) cluster. This is a general-purpose cluster that can host multiple applications (RocketChat, Jenkins, and others).
 
 ## Prerequisites
 

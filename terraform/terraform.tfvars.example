@@ -3,12 +3,12 @@
 # terraform.tfvars is gitignored and should not be committed
 
 # Resource Group
-resource_group_name = "rg-rocketchat-aks"
+resource_group_name = "rg-canepro-aks"
 location            = "uksouth"
 
 # AKS Cluster
-cluster_name        = "aks-rocketchat"
-dns_prefix          = "aks-rocketchat"
+cluster_name        = "aks-canepro"
+dns_prefix          = "aks-canepro"
 node_count          = 2
 vm_size             = "Standard_B2s"
 
@@ -22,5 +22,4 @@ enable_auto_shutdown = true
 tags = {
   Environment = "production"
   ManagedBy   = "Terraform"
-  Project     = "RocketChat"
 }
