@@ -21,6 +21,9 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Enable RBAC
   role_based_access_control_enabled = true
 
+  # API server authorized IP ranges (empty = allow all)
+  api_server_authorized_ip_ranges = []
+
   # Default node pool
   default_node_pool {
     name                = "system"
