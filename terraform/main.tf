@@ -8,11 +8,18 @@ terraform {
     }
   }
 
-  # Backend configuration for Azure Storage
-  # Uncomment and configure after creating storage account
+  # Backend configuration for Azure Storage (Remote State)
+  #
+  # We intentionally keep this backend block empty and supply real values via:
+  #   terraform init -backend-config=backend.hcl
+  #
+  # This avoids committing environment-specific backend settings and works well in Azure Cloud Shell.
+  backend "azurerm" {}
+
+  # Example backend config (DO NOT COMMIT REAL VALUES HERE):
   # backend "azurerm" {
   #   resource_group_name  = "rg-terraform-state"
-  #   storage_account_name = "tfstate<unique-id>"
+  #   storage_account_name = "tfcaneprostate1"
   #   container_name       = "tfstate"
   #   key                  = "aks.terraform.tfstate"
   # }
