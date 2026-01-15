@@ -467,12 +467,14 @@ data:
     }
 
     main() {
-      # mongodb_wait_for_primary_node "$MONGODB_INITIAL_PRIMARY_HOST" "$MONGODB_INITIAL_PRIMARY_PORT_NUMBER" "$MONGODB_INITIAL_PRIMARY_ROOT_USER" "$MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD"
+      # Ensure MongoDB is actually accepting connections before we try to grant roles.
+      # On fresh bootstraps, running this too early can kill the container and create a CrashLoopBackOff.
+      mongodb_wait_for_primary_node "localhost" "$MONGODB_PORT_NUMBER" "$MONGODB_ROOT_USER" "$MONGODB_ROOT_PASSWORD"
       # Shouldn't be looping over all dbs, but currently no way of knowing which db is for rocketchat
       # and which might not be.
       # Either way, having clusterMonitor role shouldn't hurt 
       local databases=(${MONGODB_EXTRA_DATABASES/,/ })
-      local usernames+=(${MONGODB_EXTRA_USERNAMES/,/ })
+      local usernames=(${MONGODB_EXTRA_USERNAMES/,/ })
       # each array should be of the same length
       local database username last=$((${#databases[@]}-1))
       for idx in $(seq 0 $last); do
@@ -492,9 +494,14 @@ data:
         "
         debug "Executing: ${cmd:5:-1}"
         local out=$(mongodb_execute_print_output "$MONGODB_ROOT_USER" "$MONGODB_ROOT_PASSWORD" "admin" "" "" "--quiet" <<< "$cmd")
-        # local ok=$(perl -MJSON -0ne 'print decode_json($_)->{\"ok\"}' <<< "$out")
-        local ok=$(awk '/ok:/ { print $2 }' <<< ${out/,/})
-        { [[ -n $out ]] && ! ((ok)); } && error_and_abort "failed to add role clusterMonitor to user \"$username\"; Error: $out"
+        if [[ -n "$out" ]]; then
+          # Normalize one trailing comma so awk doesn't get confused on older outputs.
+          local ok
+          ok="$(awk '/ok:/ { print $2 }' <<< "${out/,/}")"
+          if [[ "$ok" != "1" ]]; then
+            error_and_abort "failed to add role clusterMonitor to user \"$username\"; Error: $out"
+          fi
+        fi
         info "clusterMonitor role added to $username"
       done
     }
