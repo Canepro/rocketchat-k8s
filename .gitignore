@@ -48,3 +48,11 @@ charts/
 .cursor/
 .cursorignore
 .cursorrules
+
+# Terraform (local state and variable files may contain secrets)
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars
+terraform/*.tfvars

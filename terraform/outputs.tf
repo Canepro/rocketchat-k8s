@@ -57,3 +57,29 @@ output "managed_identity_principal_id" {
   description = "Principal ID of the System-Assigned Managed Identity (for Jenkins Azure access)"
   value       = azurerm_kubernetes_cluster.main.identity[0].principal_id
 }
+
+# Key Vault outputs (for External Secrets Operator configuration)
+output "key_vault_name" {
+  description = "Name of the Azure Key Vault"
+  value       = azurerm_key_vault.rocketchat.name
+}
+
+output "key_vault_uri" {
+  description = "URI of the Azure Key Vault"
+  value       = azurerm_key_vault.rocketchat.vault_uri
+}
+
+output "eso_identity_client_id" {
+  description = "Client ID of the User Assigned Managed Identity for External Secrets Operator"
+  value       = azurerm_user_assigned_identity.eso.client_id
+}
+
+output "eso_identity_principal_id" {
+  description = "Principal ID of the User Assigned Managed Identity for External Secrets Operator"
+  value       = azurerm_user_assigned_identity.eso.principal_id
+}
+
+output "azure_tenant_id" {
+  description = "Azure AD Tenant ID (for ClusterSecretStore configuration)"
+  value       = data.azurerm_client_config.current.tenant_id
+}

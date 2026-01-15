@@ -104,47 +104,131 @@ This repo includes a GitOps-first scaffold for **External Secrets Operator (ESO)
 
 #### One-time bootstrap (Cloud Shell on work machine)
 
-This must be done from **Azure Portal / Cloud Shell** (per the migration plan restrictions).
+This must be done from **Azure Portal / Cloud Shell** (per the migration plan restrictions). All secret values are populated via Cloud Shell commands and are **never stored in git**.
 
-1. **Create / choose an Azure Key Vault**
-   - Record:
-     - `TENANT_ID`
-     - `KEYVAULT_NAME`
+##### Step 1: Provision Key Vault infrastructure via Terraform
 
-2. **Create a User Assigned Managed Identity (UAMI)**
-   - Record its **clientId** (for workload identity):
-     - `UAMI_CLIENT_ID`
+**From Azure Cloud Shell (work machine only):**
 
-3. **Grant the UAMI access to read Key Vault secrets**
-   - RBAC recommended: assign **Key Vault Secrets User** at the Key Vault scope to the UAMI principal.
+```bash
+# Navigate to terraform directory
+cd terraform
 
-4. **Create a federated credential for the ESO ServiceAccount**
-   - ESO runs with ServiceAccount `external-secrets` in namespace `external-secrets`.
-   - Create a federated identity credential linking:
-     - AKS OIDC issuer
-     - subject: `system:serviceaccount:external-secrets:external-secrets`
+# Initialize Terraform (if not already done)
+terraform init
 
-5. **Update repo placeholders (non-secret)**
-   - `GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml`
-     - Replace `REPLACE_WITH_UAMI_CLIENT_ID`
-   - `ops/secrets/clustersecretstore-azure-keyvault.yaml`
-     - Replace `REPLACE_WITH_TENANT_ID`
-     - Replace `REPLACE_WITH_KEYVAULT_NAME`
+# Review the plan (Key Vault + UAMI + RBAC, no secret values)
+terraform plan
 
-6. **Create AKV secret values (match current cluster values during migration)**
-   These AKV secret names are referenced by `ops/secrets/*.yaml`:
+# Apply (creates Key Vault, UAMI, and RBAC role assignment)
+terraform apply
 
-   - `rocketchat-mongo-uri`
-   - `rocketchat-mongo-oplog-uri`
-   - `rocketchat-mongodb-admin-password`
-   - `rocketchat-mongodb-rocketchat-password`
-   - `rocketchat-mongodb-metrics-endpoint-password`
+# Capture outputs needed for GitOps configuration
+terraform output -json > /tmp/terraform-outputs.json
+cat /tmp/terraform-outputs.json
+```
 
-7. **Sync ArgoCD**
-   - Sync `aks-rocketchat-external-secrets` first (installs CRDs/controller)
-   - Then sync `aks-rocketchat-secrets` (creates ExternalSecret objects)
+**Record these values** (you'll need them for Step 3):
+- `key_vault_name` → `KEYVAULT_NAME`
+- `key_vault_uri` → `KEYVAULT_URI` (for reference)
+- `eso_identity_client_id` → `UAMI_CLIENT_ID`
+- `azure_tenant_id` → `TENANT_ID`
 
-After this, Kubernetes Secrets like `rocketchat-mongodb-external` will be continuously reconciled from Key Vault, eliminating manual `kubectl create secret ...` steps.
+**Note:** Terraform creates the Key Vault and UAMI, but **does NOT create any secret values** (those are populated in Step 2).
+
+##### Step 2: Configure secret values in Terraform (Cloud Shell only)
+
+**From Azure Cloud Shell**, edit `terraform/terraform.tfvars` with your actual secret values:
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your actual values
+```
+
+**Fill in these variables** (match your current cluster values):
+- `rocketchat_mongo_uri` - MongoDB connection string
+- `rocketchat_mongo_oplog_uri` - MongoDB oplog connection string
+- `mongodb_admin_password` - MongoDB admin password
+- `mongodb_rocketchat_password` - MongoDB rocketchat user password
+- `mongodb_metrics_endpoint_password` - MongoDB metrics password
+
+**Example `terraform.tfvars`** (replace with your actual values):
+```hcl
+rocketchat_mongo_uri = "mongodb://rocketchat:rocketchatroot@mongodb-0.mongodb-svc.rocketchat.svc.cluster.local:27017/rocketchat?authSource=rocketchat&replicaSet=mongodb"
+rocketchat_mongo_oplog_uri = "mongodb://admin:rocketchatroot@mongodb-0.mongodb-svc.rocketchat.svc.cluster.local:27017/local?authSource=admin&replicaSet=mongodb"
+mongodb_admin_password = "rocketchatroot"
+mongodb_rocketchat_password = "rocketchatroot"
+mongodb_metrics_endpoint_password = "rocketchatroot"
+```
+
+**Important:** 
+- `terraform.tfvars` is **gitignored** and should **never** be committed
+- Secret values will be created in Key Vault when you run `terraform apply`
+- Values are marked `sensitive = true` so they won't appear in Terraform output
+
+**Alternative approach (manual secret creation):** If you prefer not to store secrets in Terraform state, you can remove the `azurerm_key_vault_secret` resources from `keyvault.tf` and populate secrets manually after Terraform apply (see `terraform/README.md` for details).
+
+##### Step 3: Create federated credential for Workload Identity
+
+**From Azure Cloud Shell**, link the ESO ServiceAccount to the UAMI:
+
+```bash
+# Get AKS OIDC issuer URL
+AKS_RESOURCE_GROUP="<your-aks-resource-group>"
+AKS_CLUSTER_NAME="<your-aks-cluster-name>"
+OIDC_ISSUER=$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" \
+  --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+# Get UAMI client ID from Terraform output
+UAMI_CLIENT_ID="<from terraform output: eso_identity_client_id>"
+
+# Create federated credential
+az identity federated-credential create \
+  --name "eso-workload-identity" \
+  --identity-name "<UAMI-name-from-terraform>" \
+  --resource-group "<your-resource-group>" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "system:serviceaccount:external-secrets:external-secrets" \
+  --audience "api://AzureADTokenExchange"
+```
+
+##### Step 4: Update GitOps manifests (non-secret placeholders)
+
+**In your local repo** (not Cloud Shell), update these files with values from Step 1:
+
+1. **`GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml`**
+   - Replace `REPLACE_WITH_UAMI_CLIENT_ID` with `UAMI_CLIENT_ID` from Terraform output
+
+2. **`ops/secrets/clustersecretstore-azure-keyvault.yaml`**
+   - Replace `REPLACE_WITH_TENANT_ID` with `TENANT_ID` from Terraform output
+   - Replace `REPLACE_WITH_KEYVAULT_NAME` with `KEYVAULT_NAME` from Terraform output
+
+3. **Commit and push** to `aks-migration` branch
+
+##### Step 5: Sync ArgoCD applications
+
+**From ArgoCD UI or CLI:**
+
+```bash
+# Sync ESO operator first (installs CRDs and controller)
+argocd app sync aks-rocketchat-external-secrets
+
+# Wait for ESO to be ready
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=external-secrets \
+  -n external-secrets --timeout=300s
+
+# Sync secrets app (creates ClusterSecretStore + ExternalSecrets)
+argocd app sync aks-rocketchat-secrets
+
+# Verify secrets were created
+kubectl -n rocketchat get secret rocketchat-mongodb-external
+kubectl -n rocketchat get externalsecret
+```
+
+After this, Kubernetes Secrets like `rocketchat-mongodb-external` will be **continuously reconciled from Key Vault**, eliminating manual `kubectl create secret ...` steps.
+
+**Note:** Secret values are stored **only in Azure Key Vault** and are **never committed to git**. Terraform state may contain resource IDs but not secret values (ensure state backend is secured).
 
 ### Incident: Grafana "Rocket.Chat Metrics" Dashboard shows N/A / No data
 **Symptoms**
