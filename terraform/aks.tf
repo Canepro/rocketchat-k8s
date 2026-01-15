@@ -21,10 +21,11 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Enable RBAC
   role_based_access_control_enabled = true
 
-  # API server access profile (empty authorized_ip_ranges = allow all)
-  api_server_access_profile {
-    authorized_ip_ranges = []
-  }
+  # API server authorized IP ranges (empty = allow all)
+  # Note: This uses deprecated syntax because api_server_access_profile block
+  # causes perpetual drift (azurerm provider bug). Will migrate to new syntax
+  # when upgrading to provider v4.0.
+  api_server_authorized_ip_ranges = []
 
   # Default node pool
   default_node_pool {
