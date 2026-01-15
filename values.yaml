@@ -14,6 +14,9 @@ host: k8.canepro.me
 replicaCount: 1
 minAvailable: 1
 
+# Chart requires passwords array for secret generation
+passwords: ["dummy-password"]
+
 # Reuse the existing Secret that already contains:
 # - mongo-uri
 # - mongo-oplog-uri
