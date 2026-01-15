@@ -56,3 +56,4 @@ terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/terraform.tfvars
 terraform/*.tfvars
+terraform/backend.hcl
