@@ -41,5 +41,6 @@ charts/
 
 
 # Cursor (local)
+.cursor/
 .cursorignore
 .cursorrules

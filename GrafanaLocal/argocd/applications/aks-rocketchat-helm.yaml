@@ -15,13 +15,13 @@ spec:
       targetRevision: 6.28.0
       helm:
         releaseName: rocketchat
-    # Values from Git repository
+        # Pull values.yaml from the git source below (same pattern as the working k8-canepro-rocketchat app)
+        valueFiles:
+          - $values/values.yaml
+    # Values from Git repository (referenced by $values/* above)
     - ref: values
       repoURL: https://github.com/Canepro/rocketchat-k8s.git
       targetRevision: aks-migration
-      helm:
-        valueFiles:
-          - values.yaml
   destination:
     server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
     namespace: rocketchat
