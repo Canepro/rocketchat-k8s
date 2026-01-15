@@ -131,15 +131,27 @@ This approach keeps secret values out of Terraform state entirely, but requires 
 
 ## State Management
 
-**Recommended:** Use Azure Storage backend for Terraform state (see commented section in `main.tf`):
+**Recommended:** Use Azure Storage backend for Terraform state.
+
+This repo includes an empty backend block in `terraform/main.tf`:
 
 ```hcl
-backend "azurerm" {
-  resource_group_name  = "rg-terraform-state"
-  storage_account_name = "tfstate<unique-id>"
-  container_name       = "tfstate"
-  key                  = "aks.terraform.tfstate"
+terraform {
+  backend "azurerm" {}
 }
+```
+
+Provide the real backend values at init-time via a local `backend.hcl` (gitignored):
+
+```bash
+cat > backend.hcl <<'EOF'
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+
+terraform init -reconfigure -backend-config=backend.hcl
 ```
 
 This ensures:
@@ -148,6 +160,12 @@ This ensures:
 - State is versioned and backed up
 
 **Important:** Even with backend, ensure state backend storage account has proper access controls.
+
+## Jenkins + Terraform (future)
+
+To keep GitOps principles intact:
+- Jenkins can run `terraform fmt`, `terraform validate`, and `terraform plan` as PR checks.
+- Jenkins should not run `terraform apply` unless the organization explicitly changes the Cloud Shell restriction and you implement manual approvals + least-privilege Azure auth + secure handling of `terraform.tfvars` and state.
 
 ## Destroying Resources
 

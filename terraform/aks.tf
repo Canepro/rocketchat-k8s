@@ -53,4 +53,13 @@ resource "azurerm_kubernetes_cluster" "main" {
   # When oms_agent block is omitted, it defaults to disabled
 
   tags = var.tags
+
+  # We are intentionally not managing certain AKS defaults in this repo right now.
+  # This prevents Terraform from making in-place changes during state recovery when the
+  # existing cluster was created previously and has provider-managed defaults.
+  lifecycle {
+    ignore_changes = [
+      default_node_pool[0].upgrade_settings,
+    ]
+  }
 }

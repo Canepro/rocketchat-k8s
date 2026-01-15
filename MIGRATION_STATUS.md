@@ -85,13 +85,14 @@ so Jenkins can be used as **CI only** (PR validation + policy checks), not as a 
 ### Azure restriction (from the migration plan)
 
 - **Terraform applies are executed only from Azure Portal / Cloud Shell on your work machine** (environment restriction).
-- This means Jenkins should **not** be responsible for provisioning AKS via Terraform in this setup.
+- This means Jenkins should **not** run `terraform apply` in this setup.
 
 Recommended Jenkins jobs:
 - `helm template` + `kubeconform` (or `kubeval`) against rendered manifests
 - YAML linting (`yamllint`)
 - policy checks (OPA/Conftest) for forbidden patterns (e.g., raw Secrets in git)
 - optional: `argocd app diff` in “read-only” mode for preview
+- optional: Terraform checks (`terraform fmt -check`, `terraform validate`, `terraform plan`) as PR gates (no apply)
 
 Jenkins should **never** run `kubectl apply` to the cluster in normal operation; ArgoCD remains the deploy engine.
 
