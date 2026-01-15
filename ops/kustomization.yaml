@@ -1,6 +1,5 @@
 resources:
   - manifests/rocketchat-nats-connection.yaml
-  - manifests/rocketchat-mongodb.yaml
   - manifests/rocketchat-nats.yaml
 
   - manifests/rocketchat-servicemonitors.yaml
@@ -16,7 +15,6 @@ resources:
   - manifests/otel-tracegen-job.yaml
 
   - manifests/persistent-volumes.yaml
-  - manifests/mongo-pvc.yaml
   - manifests/rocketchat-uploads-pvc.yaml
   - manifests/maintenance-cleanup.yaml
   - manifests/clusterissuer.yaml

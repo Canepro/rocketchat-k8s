@@ -1,0 +1,62 @@
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mongodb
+  namespace: rocketchat
+spec:
+  # The upstream guide uses 3 members for HA. Reduce to 1 for a cheaper dev/test cluster.
+  members: 3
+  type: ReplicaSet
+  # Rocket.Chat 8+ requires MongoDB 8.2+. Pin an 8.2.x version here.
+  version: "8.2.3"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+    tls:
+      enabled: false
+  # These Secrets are intentionally NOT stored in git.
+  # Create them via your secret management solution (recommended) or manually.
+  users:
+    - name: admin
+      db: admin
+      passwordSecretRef:
+        name: mongodb-admin-password
+      scramCredentialsSecretName: admin-scram-credentials
+      roles:
+        - name: root
+          db: admin
+    - name: rocketchat
+      db: rocketchat
+      passwordSecretRef:
+        name: mongodb-rocketchat-password
+      scramCredentialsSecretName: rocketchat-scram-credentials
+      roles:
+        - name: readWrite
+          db: rocketchat
+  prometheus:
+    username: prometheus-username
+    passwordSecretRef:
+      name: metrics-endpoint-password
+  statefulSet:
+    spec:
+      volumeClaimTemplates:
+        - metadata:
+            name: data-volume
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: managed-premium
+            resources:
+              requests:
+                storage: 50Gi
+      template:
+        spec:
+          containers:
+            - name: mongod
+              resources:
+                limits:
+                  cpu: 1500m
+                  memory: 6Gi
+                requests:
+                  cpu: 500m
+                  memory: 3Gi
+

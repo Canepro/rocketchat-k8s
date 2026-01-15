@@ -31,6 +31,47 @@ If pods are not running or healthy:
     df -h
     ```
 
+## 🗄️ MongoDB: Recommended Deployment (Official MongoDB Kubernetes Operator)
+
+Rocket.Chat has indicated the bundled MongoDB dependency will be removed and should not be used going forward (Bitnami images are no longer produced; security/maintenance concerns). The recommended approach is to run MongoDB independently and point Rocket.Chat at it.
+
+**Reference guide (community, aligns with Rocket.Chat direction)**: `https://gist.github.com/geekgonecrazy/5fcb04aacadaa310aed0b6cc71f9de74`
+
+### What this repo does
+
+- **Disables bundled MongoDB** in `values.yaml` (`mongodb.enabled=false`)
+- **Uses `existingMongodbSecret`** so Rocket.Chat reads `MONGO_URL` from a Secret key named `mongo-uri` (credentials are not stored in git)
+- **Stops deploying the legacy Bitnami MongoDB** manifests from `ops/` (removed from `ops/kustomization.yaml`)
+
+### GitOps install outline (AKS)
+
+1. **Install the MongoDB operator (Helm)**
+   - ArgoCD Application manifest (pinned chart version):
+     - `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml`
+
+2. **Create the operator Secrets (credentials)**
+   - Do **NOT** commit credentials to git.
+   - Create:
+     - `mongodb-admin-password`
+     - `mongodb-rocketchat-password`
+     - `metrics-endpoint-password`
+     - `admin-scram-credentials`
+     - `rocketchat-scram-credentials`
+
+3. **Create a `MongoDBCommunity` resource**
+   - Start from:
+     - `ops/manifests/mongodb-community.example.yaml`
+   - Ensure `storageClassName` matches AKS (we use `managed-premium` by default).
+
+4. **Create Rocket.Chat external Mongo secret**
+   - Create a Secret named `rocketchat-mongodb-external` in namespace `rocketchat` with key `mongo-uri`.
+   - Rocket.Chat chart reads `mongo-uri` into `MONGO_URL`.
+
+### Notes
+
+- **Ingress**: This repo uses Traefik (`ingress.ingressClassName: traefik`) and does not recommend nginx ingress.
+- **Monitoring**: Keep the existing monitoring deploy in `ops/` (Prometheus Agent, PodMonitor CRD, ServiceMonitors).
+
 ### Incident: Grafana "Rocket.Chat Metrics" Dashboard shows N/A / No data
 **Symptoms**
 - Grafana dashboard panels show `N/A` / `No data`
