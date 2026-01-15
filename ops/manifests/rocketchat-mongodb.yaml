@@ -264,6 +264,27 @@ spec:
           volumeMounts:
             - name: datadir
               mountPath: /bitnami/mongodb
+        - name: replica-set-key
+          image: docker.io/bitnamilegacy/os-shell:11-debian-11-r72
+          imagePullPolicy: "IfNotPresent"
+          command:
+            - /bin/bash
+          args:
+            - -ec
+            - |
+              install -d -m 0750 /bitnami/mongodb/data
+              if [[ -f /key/replica-set-key ]]; then
+                cp /key/replica-set-key /bitnami/mongodb/data/replica-set-key
+                chown 1001:1001 /bitnami/mongodb/data/replica-set-key
+                chmod 0400 /bitnami/mongodb/data/replica-set-key
+              fi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: datadir
+              mountPath: /bitnami/mongodb
+            - name: replica-set-key
+              mountPath: /key
       containers:
         - name: mongodb
           image: docker.io/bitnamilegacy/mongodb:6.0.10-debian-11-r8
@@ -431,6 +452,12 @@ spec:
           configMap:
             name: rocketchat-mongodb-scripts
             defaultMode: 0755
+        - name: replica-set-key
+          secret:
+            secretName: rocketchat-mongodb
+            items:
+              - key: mongodb-replica-set-key
+                path: replica-set-key
   volumeClaimTemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim
