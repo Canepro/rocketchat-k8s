@@ -117,11 +117,11 @@ cd terraform
 # Initialize Terraform (if not already done)
 terraform init
 
-# Review the plan (Key Vault + UAMI + RBAC, no secret values)
-terraform plan
+# Review the plan (Key Vault + UAMI + RBAC + Key Vault secret values)
+terraform plan -out=tfplan
 
-# Apply (creates Key Vault, UAMI, and RBAC role assignment)
-terraform apply
+# Apply exactly what you planned
+terraform apply tfplan
 
 # Capture outputs needed for GitOps configuration
 terraform output -json > /tmp/terraform-outputs.json
@@ -134,7 +134,8 @@ cat /tmp/terraform-outputs.json
 - `eso_identity_client_id` → `UAMI_CLIENT_ID`
 - `azure_tenant_id` → `TENANT_ID`
 
-**Note:** Terraform creates the Key Vault and UAMI, but **does NOT create any secret values** (those are populated in Step 2).
+**Note:** Terraform creates the Key Vault, UAMI, RBAC assignment, **and the Key Vault secret values** (from `terraform.tfvars`).  
+This means secret values will exist in **Terraform state**; use a secure state backend and restrict access.
 
 ##### Step 2: Configure secret values in Terraform (Cloud Shell only)
 
@@ -166,6 +167,20 @@ mongodb_metrics_endpoint_password = "rocketchatroot"
 - `terraform.tfvars` is **gitignored** and should **never** be committed
 - Secret values will be created in Key Vault when you run `terraform apply`
 - Values are marked `sensitive = true` so they won't appear in Terraform output
+
+##### Step 2.5: Terraform state + Jenkins (future workflow)
+
+We expect Terraform to be managed in a **stateful** way:
+- Use the Azure Storage backend (`backend "azurerm" {}` in `terraform/main.tf`) and provide backend values via a local `backend.hcl` file (gitignored).
+- Terraform state must be treated as sensitive (it may include Key Vault secret values).
+
+**Jenkins guidance (GitOps-aligned):**
+- Jenkins may run **`terraform fmt` / `terraform validate` / `terraform plan`** as PR checks.
+- Jenkins should **not** run `terraform apply` unless the organization explicitly changes the current restriction and the pipeline is designed with:
+  - manual approvals,
+  - remote backend + state locking,
+  - least-privilege Azure credentials,
+  - and secure handling of `terraform.tfvars` (never stored in git, never echoed to logs).
 
 **Alternative approach (manual secret creation):** If you prefer not to store secrets in Terraform state, you can remove the `azurerm_key_vault_secret` resources from `keyvault.tf` and populate secrets manually after Terraform apply (see `terraform/README.md` for details).
 
