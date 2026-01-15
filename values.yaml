@@ -76,6 +76,8 @@ microservices:
 # We keep your existing rocketchat-mongodb and rocketchat-nats resources.
 mongodb:
   enabled: false
+  # Chart requires passwords array even when MongoDB is disabled
+  passwords: ["dummy-password"]
   # Explicitly disable the serviceMonitor for mongodb, as the chart might still try to render it.
   serviceMonitor:
     enabled: false

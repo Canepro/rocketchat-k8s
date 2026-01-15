@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aks-rocketchat-ops
+  namespace: argocd
+  labels:
+    app: rocketchat-ops
+    cluster: aks-canepro
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Canepro/rocketchat-k8s.git
+    targetRevision: aks-migration
+    path: ops
+    kustomize:
+      # Kustomize will handle resources in multiple namespaces
+      # (rocketchat and monitoring)
+  destination:
+    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
+    # Kustomize manages multiple namespaces, but we need a default namespace
+    # The actual namespaces are defined in the manifest files
+    namespace: rocketchat
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
