@@ -5,7 +5,7 @@ metadata:
   namespace: rocketchat
 spec:
   # The upstream guide uses 3 members for HA. Reduce to 1 for a cheaper dev/test cluster.
-  members: 3
+  members: 1
   type: ReplicaSet
   # Rocket.Chat 8+ requires MongoDB 8.2+. Pin an 8.2.x version here.
   version: "8.2.3"
@@ -56,9 +56,9 @@ spec:
             - name: mongod
               resources:
                 limits:
-                  cpu: 1500m
-                  memory: 6Gi
+                  cpu: 1000m
+                  memory: 2Gi
                 requests:
-                  cpu: 500m
-                  memory: 3Gi
+                  cpu: 250m
+                  memory: 1Gi
 
