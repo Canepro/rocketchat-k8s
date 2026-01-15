@@ -9,6 +9,10 @@ resource "azurerm_kubernetes_cluster" "main" {
   dns_prefix          = var.dns_prefix
   kubernetes_version  = var.kubernetes_version != "" ? var.kubernetes_version : null
 
+  # Required for Azure Workload Identity (used by External Secrets Operator)
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
+
   # Enable System-Assigned Managed Identity (for Jenkins Azure access)
   identity {
     type = "SystemAssigned"
