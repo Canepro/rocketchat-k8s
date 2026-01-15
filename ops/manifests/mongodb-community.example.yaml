@@ -21,7 +21,7 @@ spec:
       db: admin
       passwordSecretRef:
         name: mongodb-admin-password
-      scramCredentialsSecretName: admin-scram-credentials
+      # scramCredentialsSecretName is optional - operator will auto-generate if omitted
       roles:
         - name: root
           db: admin
@@ -29,7 +29,7 @@ spec:
       db: rocketchat
       passwordSecretRef:
         name: mongodb-rocketchat-password
-      scramCredentialsSecretName: rocketchat-scram-credentials
+      # scramCredentialsSecretName is optional - operator will auto-generate if omitted
       roles:
         - name: readWrite
           db: rocketchat
