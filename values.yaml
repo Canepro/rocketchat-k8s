@@ -23,10 +23,10 @@ passwords: ["dummy-password"]
 # - mail-url
 # existingMongodbSecret: rocketchat-rocketchat
 
-# Provide explicit URLs because the chart overwrote the secret with empty values.
-# This forces the chart to regenerate the secret with the correct connection strings.
-externalMongodbUrl: "mongodb://root:rocketchatroot@rocketchat-mongodb-0.rocketchat-mongodb-headless.rocketchat.svc.cluster.local:27017/rocketchat?authSource=admin&replicaSet=rs0"
-externalMongodbOplogUrl: "mongodb://root:rocketchatroot@rocketchat-mongodb-0.rocketchat-mongodb-headless.rocketchat.svc.cluster.local:27017/local?authSource=admin&replicaSet=rs0"
+# Rocket.Chat chart reads `mongo-uri` from this Secret and sets MONGO_URL from it.
+# This keeps MongoDB credentials out of git.
+# (Create the Secret out-of-band or via your secret management solution.)
+existingMongodbSecret: rocketchat-mongodb-external
 
 smtp:
   enabled: true

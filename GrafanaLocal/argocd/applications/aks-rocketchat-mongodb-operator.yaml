@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aks-rocketchat-mongodb-operator
+  namespace: argocd
+  labels:
+    app: mongodb-operator
+    cluster: aks-canepro
+spec:
+  project: default
+  source:
+    repoURL: https://mongodb.github.io/helm-charts
+    chart: mongodb-kubernetes
+    # Pinned from the MongoDB Helm repo index.yaml (latest entry at time of change)
+    targetRevision: 1.6.1
+    helm:
+      releaseName: mongodb-kubernetes-operator
+  destination:
+    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
+    namespace: rocketchat
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+

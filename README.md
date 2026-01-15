@@ -22,6 +22,16 @@ git push origin master
 ```
 ArgoCD will automatically detect the changes and perform a rolling update.
 
+## 🗄️ MongoDB (Recommended: external via official MongoDB Operator)
+
+Rocket.Chat has indicated the built-in / bundled MongoDB should not be used going forward (Bitnami images are no longer produced and there are security/maintenance concerns). The recommended direction is to run MongoDB independently using the official MongoDB Kubernetes Operator and point Rocket.Chat at it.
+
+- **Reference instructions (upstream community guide)**: `https://gist.github.com/geekgonecrazy/5fcb04aacadaa310aed0b6cc71f9de74`
+- **Operator ArgoCD app (this repo)**: `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml`
+- **MongoDBCommunity example (this repo)**: `ops/manifests/mongodb-community.example.yaml`
+
+This repo configures Rocket.Chat to read its Mongo connection string from `existingMongodbSecret` (key `mongo-uri`) so credentials are not stored in git.
+
 ## 📊 Health Dashboard
 Monitor the real-time status of your stack here:
 [https://argocd.canepro.me](https://argocd.canepro.me)
