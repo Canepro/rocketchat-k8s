@@ -32,6 +32,16 @@ Rocket.Chat has indicated the built-in / bundled MongoDB should not be used goin
 
 This repo configures Rocket.Chat to read its Mongo connection string from `existingMongodbSecret` (key `mongo-uri`) so credentials are not stored in git.
 
+## 🔐 GitOps-first Secrets (Recommended on Azure)
+
+We should avoid manual `kubectl create secret ...` for anything that must persist. For Azure, the recommended model is:
+
+- **External Secrets Operator (ESO)** reconciles `ExternalSecret` manifests from git into Kubernetes Secrets.
+- **Azure Key Vault** stores the actual secret values.
+- **ArgoCD remains the deploy engine** (GitOps); CI can validate changes, but should not apply to the cluster.
+
+See `OPERATIONS.md` and `MIGRATION_STATUS.md`.
+
 ## 📊 Health Dashboard
 Monitor the real-time status of your stack here:
 [https://argocd.canepro.me](https://argocd.canepro.me)

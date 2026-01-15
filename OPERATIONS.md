@@ -49,28 +49,45 @@ Rocket.Chat has indicated the bundled MongoDB dependency will be removed and sho
    - ArgoCD Application manifest (pinned chart version):
      - `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml`
 
-2. **Create the operator Secrets (credentials)**
-   - Do **NOT** commit credentials to git.
-   - Create:
-     - `mongodb-admin-password`
-     - `mongodb-rocketchat-password`
-     - `metrics-endpoint-password`
-     - `admin-scram-credentials`
-     - `rocketchat-scram-credentials`
+2. **Provide credentials (GitOps-friendly)**
+   - Do **NOT** commit plaintext credentials to git.
+   - Recommended (Azure): **External Secrets Operator + Azure Key Vault**.
+   - Minimum required Secrets (names referenced by `MongoDBCommunity`):
+     - `mongodb-admin-password` (key: `password`)
+     - `mongodb-rocketchat-password` (key: `password`)
+     - `metrics-endpoint-password` (key: `password`)
+   - Notes:
+     - The operator generates SCRAM credential Secrets itself based on `scramCredentialsSecretName`.
+     - Do **not** manually create SCRAM Secrets unless you know the exact expected format.
 
 3. **Create a `MongoDBCommunity` resource**
    - Start from:
      - `ops/manifests/mongodb-community.example.yaml`
    - Ensure `storageClassName` matches AKS (we use `managed-premium` by default).
 
-4. **Create Rocket.Chat external Mongo secret**
-   - Create a Secret named `rocketchat-mongodb-external` in namespace `rocketchat` with key `mongo-uri`.
-   - Rocket.Chat chart reads `mongo-uri` into `MONGO_URL`.
+4. **Rocket.Chat external Mongo Secret (required keys)**
+   - Rocket.Chat requires **both** keys in the Secret referenced by `existingMongodbSecret`:
+     - `mongo-uri` → used as `MONGO_URL`
+     - `mongo-oplog-uri` → used as `MONGO_OPLOG_URL`
+   - Secret name used in this repo: `rocketchat-mongodb-external` (namespace: `rocketchat`)
+   - GitOps note:
+     - Do not create this via `kubectl create secret` long-term; manage it via your secret mechanism (ESO+AKV recommended).
 
 ### Notes
 
 - **Ingress**: This repo uses Traefik (`ingress.ingressClassName: traefik`) and does not recommend nginx ingress.
 - **Monitoring**: Keep the existing monitoring deploy in `ops/` (Prometheus Agent, PodMonitor CRD, ServiceMonitors).
+
+## 🔐 GitOps-first Secrets (Recommendation)
+
+To make this repo truly GitOps-first, move Secrets out of “manual kubectl creates” and into a managed pattern.
+
+- **Recommended on Azure**: External Secrets Operator + Azure Key Vault
+  - Git stores `ExternalSecret` manifests
+  - Azure Key Vault stores the secret values
+  - ArgoCD syncs the manifests; ESO materializes K8s Secrets
+
+Until this is in place, any manual `kubectl create secret ...` should be treated as **bootstrap-only** and recorded (see `MIGRATION_STATUS.md`).
 
 ### Incident: Grafana "Rocket.Chat Metrics" Dashboard shows N/A / No data
 **Symptoms**
