@@ -89,6 +89,63 @@ To make this repo truly GitOps-first, move Secrets out of “manual kubectl crea
 
 Until this is in place, any manual `kubectl create secret ...` should be treated as **bootstrap-only** and recorded (see `MIGRATION_STATUS.md`).
 
+### Option A Implementation (AKS + Azure Key Vault + External Secrets Operator)
+
+This repo includes a GitOps-first scaffold for **External Secrets Operator (ESO)** + **Azure Key Vault (AKV)** using **Azure Workload Identity**.
+
+#### What gets installed (GitOps)
+
+- **ESO (Helm via ArgoCD)**:
+  - `GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml`
+  - Namespace: `external-secrets`
+- **ClusterSecretStore + ExternalSecrets (Kustomize via ArgoCD)**:
+  - `GrafanaLocal/argocd/applications/aks-rocketchat-secrets.yaml`
+  - Manifests: `ops/secrets/`
+
+#### One-time bootstrap (Cloud Shell on work machine)
+
+This must be done from **Azure Portal / Cloud Shell** (per the migration plan restrictions).
+
+1. **Create / choose an Azure Key Vault**
+   - Record:
+     - `TENANT_ID`
+     - `KEYVAULT_NAME`
+
+2. **Create a User Assigned Managed Identity (UAMI)**
+   - Record its **clientId** (for workload identity):
+     - `UAMI_CLIENT_ID`
+
+3. **Grant the UAMI access to read Key Vault secrets**
+   - RBAC recommended: assign **Key Vault Secrets User** at the Key Vault scope to the UAMI principal.
+
+4. **Create a federated credential for the ESO ServiceAccount**
+   - ESO runs with ServiceAccount `external-secrets` in namespace `external-secrets`.
+   - Create a federated identity credential linking:
+     - AKS OIDC issuer
+     - subject: `system:serviceaccount:external-secrets:external-secrets`
+
+5. **Update repo placeholders (non-secret)**
+   - `GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml`
+     - Replace `REPLACE_WITH_UAMI_CLIENT_ID`
+   - `ops/secrets/clustersecretstore-azure-keyvault.yaml`
+     - Replace `REPLACE_WITH_TENANT_ID`
+     - Replace `REPLACE_WITH_KEYVAULT_NAME`
+
+6. **Create AKV secret values (match current cluster values during migration)**
+   These AKV secret names are referenced by `ops/secrets/*.yaml`:
+
+   - `rocketchat-mongo-uri`
+   - `rocketchat-mongo-oplog-uri`
+   - `rocketchat-mongodb-admin-password`
+   - `rocketchat-mongodb-rocketchat-password`
+   - `rocketchat-mongodb-metrics-endpoint-password`
+
+7. **Sync ArgoCD**
+   - Sync `aks-rocketchat-external-secrets` first (installs CRDs/controller)
+   - Then sync `aks-rocketchat-secrets` (creates ExternalSecret objects)
+
+After this, Kubernetes Secrets like `rocketchat-mongodb-external` will be continuously reconciled from Key Vault, eliminating manual `kubectl create secret ...` steps.
+
 ### Incident: Grafana "Rocket.Chat Metrics" Dashboard shows N/A / No data
 **Symptoms**
 - Grafana dashboard panels show `N/A` / `No data`

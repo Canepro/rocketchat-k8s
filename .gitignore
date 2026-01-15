@@ -39,6 +39,10 @@ charts/
 *-secret.yaml
 *-secrets.yaml
 
+# Exception: ArgoCD Application manifests may include "-secrets" in the filename but are not K8s Secret exports.
+!GrafanaLocal/argocd/applications/*-secrets.yaml
+!GrafanaLocal/argocd/applications/*external-secrets*.yaml
+
 
 # Cursor (local)
 .cursor/
