@@ -82,6 +82,11 @@ Introduce Jenkins **after**:
 
 so Jenkins can be used as **CI only** (PR validation + policy checks), not as a deploy tool.
 
+### Azure restriction (from the migration plan)
+
+- **Terraform applies are executed only from Azure Portal / Cloud Shell on your work machine** (environment restriction).
+- This means Jenkins should **not** be responsible for provisioning AKS via Terraform in this setup.
+
 Recommended Jenkins jobs:
 - `helm template` + `kubeconform` (or `kubeval`) against rendered manifests
 - YAML linting (`yamllint`)
