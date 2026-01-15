@@ -12,7 +12,7 @@ spec:
     # Helm chart from Rocket.Chat Helm repository
     - repoURL: https://rocketchat.github.io/helm-charts
       chart: rocketchat
-      targetRevision: 6.28.0
+      targetRevision: 6.29.0
       helm:
         releaseName: rocketchat
         # Pull values.yaml from the git source below (same pattern as the working k8-canepro-rocketchat app)
