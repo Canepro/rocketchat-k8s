@@ -12,6 +12,7 @@ smtp-credentials.yaml
 *.backup
 *.bak
 backups/
+rocketchat-backup/
 
 # IDE files
 .vscode/
