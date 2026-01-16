@@ -113,6 +113,8 @@ ingress:
   ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: production-cert-issuer
+    # Avoid solver Ingress race: cert-manager patches THIS Ingress with the challenge path
+    acme.cert-manager.io/http01-edit-in-place: "true"
     # Low priority so ACME solver (priority 1000) takes precedence for /.well-known/acme-challenge/
     traefik.ingress.kubernetes.io/router.priority: "1"
   path: /
