@@ -141,7 +141,39 @@ terraform {
 }
 ```
 
-Provide the real backend values at init-time via a local `backend.hcl` (gitignored):
+### Cloud Shell Initialization (Recommended)
+
+Since Cloud Shell sessions are ephemeral, you need to re-initialize Terraform on each new session. Use this command:
+
+```bash
+cd ~/rocketchat-k8s/terraform
+
+terraform init \
+  -backend-config="resource_group_name=rg-terraform-state" \
+  -backend-config="storage_account_name=tfcaneprostate1" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=aks.terraform.tfstate"
+```
+
+**Pro-Tip:** Create an alias for quick access in Cloud Shell:
+
+```bash
+# Add to ~/.bashrc
+nano ~/.bashrc
+
+# Add this line at the bottom:
+alias tfinit='cd ~/rocketchat-k8s/terraform && terraform init -backend-config="resource_group_name=rg-terraform-state" -backend-config="storage_account_name=tfcaneprostate1" -backend-config="container_name=tfstate" -backend-config="key=aks.terraform.tfstate"'
+
+# Reload your shell or source ~/.bashrc
+source ~/.bashrc
+
+# Then just type:
+tfinit
+```
+
+### Alternative: Using backend.hcl File
+
+You can also use a `backend.hcl` file (gitignored):
 
 ```bash
 cat > backend.hcl <<'EOF'
@@ -154,10 +186,15 @@ EOF
 terraform init -reconfigure -backend-config=backend.hcl
 ```
 
+**Note:** Since Cloud Shell sessions are ephemeral, you'll need to recreate this file each session, making the inline command approach more practical.
+
+### Benefits
+
 This ensures:
-- State is stored securely in Azure
-- State can be shared across Cloud Shell sessions
+- State is stored securely in Azure Storage
+- State persists across Cloud Shell sessions
 - State is versioned and backed up
+- State can be shared across team members with proper access
 
 **Important:** Even with backend, ensure state backend storage account has proper access controls.
 
