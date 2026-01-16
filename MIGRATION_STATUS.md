@@ -77,10 +77,26 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - [x] **TLS certificate issued** (Let's Encrypt, `READY: True`)
 - [x] **Network Security Group configured** (subnet-level HTTP/HTTPS rules via Terraform)
 
+## Planned Upgrades
+
+### Node Size Upgrade (Recommended)
+- **Current**: `Standard_D2as_v5` (2 vCPU, 8GB RAM) - Memory usage: 89-94%
+- **Target**: `Standard_D4as_v5` (4 vCPU, 16GB RAM)
+- **Reason**: Need headroom for Jenkins, Loki logging, and future tools
+- **Status**: Terraform config updated, ready to apply
+- **Action Required**: Update `terraform.tfvars` and run `terraform apply`
+
 ## Next Steps (Recommended Order)
 
-1. **Observability verification**: run the plan's metrics + traces checks and record results.
-2. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan).
+1. **Node size upgrade**: Upgrade from `Standard_D2as_v5` (8GB) to `Standard_D4as_v5` (16GB) for:
+   - Room for Jenkins CI/CD
+   - Loki logging solution
+   - Future tools and applications
+   - Current memory usage: 89-94% (needs headroom)
+   - **Action**: Update `terraform.tfvars` → `vm_size = "Standard_D4as_v5"` → `terraform apply`
+2. **Observability verification**: run the plan's metrics + traces checks and record results.
+3. **Loki logging setup**: Deploy Loki/Promtail to send logs to OKE hub (after node upgrade).
+4. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan) - after node upgrade.
 
 ## Cutover to Main Branch
 

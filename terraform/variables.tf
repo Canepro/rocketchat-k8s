@@ -23,9 +23,9 @@ variable "node_count" {
 }
 
 variable "vm_size" {
-  description = "VM size for worker nodes (Standard_D2as_v5 recommended for RocketChat + Jenkins)"
+  description = "VM size for worker nodes (Standard_D4as_v5 recommended for RocketChat + Jenkins + Observability)"
   type        = string
-  default     = "Standard_D2as_v5"  # 2 vCPU, 8GB RAM, consistent performance, cost-effective
+  default     = "Standard_D4as_v5"  # 4 vCPU, 16GB RAM - sufficient for RocketChat + Jenkins + Loki + traces + metrics
 }
 
 variable "kubernetes_version" {

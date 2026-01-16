@@ -10,7 +10,7 @@ location            = "uksouth"
 cluster_name        = "aks-canepro"
 dns_prefix          = "aks-canepro"
 node_count          = 2
-vm_size             = "Standard_D2as_v5"  # 2 vCPU, 8GB RAM - good for RocketChat + Jenkins
+vm_size             = "Standard_D4as_v5"  # 4 vCPU, 16GB RAM - recommended for RocketChat + Jenkins + Observability (Loki, traces, metrics)
 
 # Kubernetes version (leave empty for latest)
 # kubernetes_version = "1.28.0"
