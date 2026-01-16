@@ -82,6 +82,93 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 1. **Observability verification**: run the plan's metrics + traces checks and record results.
 2. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan).
 
+## Cutover to Main Branch
+
+### Current State
+- ✅ **DNS cutover complete**: `k8.canepro.me` → AKS LoadBalancer (`85.210.181.37`)
+- ✅ **TLS certificate issued**: Let's Encrypt certificate valid and working
+- ✅ **All ArgoCD apps syncing**: All AKS applications pointing to `aks-migration` branch
+- ✅ **Production traffic**: All users accessing AKS cluster
+- ⚠️ **ArgoCD apps still on `aks-migration` branch**: Need to switch to `main`
+
+### When to Merge to Main
+
+**Recommended: After 7-14 days of stable operation on AKS**
+
+**Rationale:**
+- Stability period to catch any hidden issues
+- User validation with real-world usage
+- Easier rollback via DNS if needed (vs. undoing merge)
+- Time to verify observability metrics/traces
+
+### Minimum Requirements Before Merge
+
+- [x] **DNS cutover stable** (✅ Done - 2026-01-16)
+- [x] **TLS certificate valid** (✅ Done - 2026-01-16)
+- [ ] **All pods healthy** for at least 48 hours
+- [ ] **No critical errors** in RocketChat logs
+- [ ] **User acceptance**: No major user-reported issues
+- [ ] **Observability verified**: Metrics/traces flowing to Grafana (optional but recommended)
+- [ ] **Data integrity confirmed**: All data accessible, no corruption
+
+### Merge Process
+
+1. **Merge `aks-migration` → `main`**
+   - Create PR or direct merge
+   - Review changes
+   - Merge and push
+
+2. **Update ArgoCD Applications** (after merge)
+   - Update `targetRevision: aks-migration` → `targetRevision: main` in:
+     - `GrafanaLocal/argocd/applications/aks-rocketchat-helm.yaml`
+     - `GrafanaLocal/argocd/applications/aks-rocketchat-ops.yaml`
+     - `GrafanaLocal/argocd/applications/aks-rocketchat-secrets.yaml`
+     - `GrafanaLocal/argocd/applications/aks-traefik.yaml`
+   - Commit and push (ArgoCD will auto-sync)
+
+3. **Update Documentation**
+   - `README.md`: Change "K3s Spoke cluster" → "AKS cluster"
+   - `DIAGRAM.md`: Update architecture diagram if needed
+   - `OPERATIONS.md`: Update any k3s-specific references
+
+4. **Verify ArgoCD Sync**
+   ```bash
+   argocd app list
+   kubectl get pods -n rocketchat
+   ```
+
+### Detaching Old Cluster
+
+**Recommended: After 30 days of stable operation on AKS**
+
+**Steps:**
+1. Identify old cluster ArgoCD applications: `argocd app list`
+2. Delete old applications: `argocd app delete <old-app-name>`
+3. Remove old cluster: `argocd cluster rm <old-cluster-name>`
+4. Clean up old cluster resources (if no longer needed)
+5. Update documentation to remove old cluster references
+
+### Rollback Plan
+
+**Quick Rollback (ArgoCD apps):**
+- Revert ArgoCD applications to `aks-migration` branch
+- Or revert git merge: `git revert <merge-commit-sha>`
+
+**Emergency Rollback (DNS):**
+- Update DNS A record back to old cluster IP
+- Wait for DNS propagation
+- Investigate and fix issues on AKS
+
+### Timeline
+
+```
+Day 0:  DNS cutover (✅ Done - 2026-01-16)
+Day 1-7: Monitor stability, verify all systems
+Day 7-14: Continue monitoring, verify observability
+Day 14+: Merge to main, update ArgoCD apps
+Day 30+: Detach old cluster (if stable)
+```
+
 ## Troubleshooting Documentation
 
 For issues encountered during DNS/TLS setup, see:
