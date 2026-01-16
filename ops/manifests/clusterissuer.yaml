@@ -12,5 +12,10 @@ spec:
     solvers:
       - http01:
           ingress:
-            class: traefik
+            ingressClassName: traefik
+            # High priority ensures ACME solver routes take precedence over app routes
+            ingressTemplate:
+              metadata:
+                annotations:
+                  traefik.ingress.kubernetes.io/router.priority: "1000"
 
