@@ -1,0 +1,71 @@
+# Traefik Helm values for AKS
+# Chart: traefik/traefik
+
+# Create IngressClass with name "traefik" (matches values.yaml ingressClassName)
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+# Service configuration - Azure LoadBalancer
+service:
+  enabled: true
+  type: LoadBalancer
+  annotations:
+    # Azure-specific annotations if needed
+    # service.beta.kubernetes.io/azure-load-balancer-resource-group: "your-rg"
+
+# Entry points configuration
+ports:
+  web:
+    port: 8000
+    expose:
+      default: true
+    exposedPort: 80
+    protocol: TCP
+    # Redirect HTTP to HTTPS
+    redirectTo:
+      port: websecure
+      priority: 10
+  websecure:
+    port: 8443
+    expose:
+      default: true
+    exposedPort: 443
+    protocol: TCP
+    tls:
+      enabled: true
+
+# Enable dashboard (optional, for debugging)
+ingressRoute:
+  dashboard:
+    enabled: false
+
+# Logging
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true
+
+# Resource limits
+resources:
+  requests:
+    cpu: "100m"
+    memory: "50Mi"
+  limits:
+    cpu: "300m"
+    memory: "150Mi"
+
+# Prometheus metrics
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addServicesLabels: true
+
+# Providers - enable Kubernetes Ingress
+providers:
+  kubernetesIngress:
+    enabled: true
+    publishedService:
+      enabled: true
