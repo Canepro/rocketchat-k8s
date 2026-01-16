@@ -22,12 +22,9 @@ ports:
       default: true
     exposedPort: 80
     protocol: TCP
-    # Redirect HTTP to HTTPS (v34+ syntax)
-    redirections:
-      entryPoint:
-        to: websecure
-        scheme: https
-        permanent: true
+    # NOTE: Do NOT redirect HTTP->HTTPS until the first cert is issued.
+    # HTTP-01 validation happens over plain HTTP (port 80); global redirect can cause
+    # ACME to hit HTTPS before a valid cert exists and fail the order.
   websecure:
     port: 8443
     expose:
