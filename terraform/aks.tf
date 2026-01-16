@@ -29,13 +29,14 @@ resource "azurerm_kubernetes_cluster" "main" {
 
   # Default node pool
   default_node_pool {
-    name                = "system"
-    node_count          = var.node_count
-    vm_size             = var.vm_size
-    os_disk_size_gb     = 30
-    type                = "VirtualMachineScaleSets"
-    enable_auto_scaling = false
-    vnet_subnet_id      = azurerm_subnet.aks.id
+    name                         = "system"
+    node_count                   = var.node_count
+    vm_size                      = var.vm_size
+    os_disk_size_gb              = 30
+    type                         = "VirtualMachineScaleSets"
+    enable_auto_scaling          = false
+    vnet_subnet_id               = azurerm_subnet.aks.id
+    temporary_name_for_rotation  = "tempnodepool"  # Required when updating vm_size
 
     # Labels and taints
     node_labels = {
