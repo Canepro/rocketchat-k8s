@@ -23,9 +23,9 @@ variable "node_count" {
 }
 
 variable "vm_size" {
-  description = "VM size for worker nodes"
+  description = "VM size for worker nodes (Standard_D2as_v5 recommended for RocketChat + Jenkins)"
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_D2as_v5"  # 2 vCPU, 8GB RAM, consistent performance, cost-effective
 }
 
 variable "kubernetes_version" {
@@ -41,9 +41,27 @@ variable "dns_prefix" {
 }
 
 variable "enable_auto_shutdown" {
-  description = "Enable auto-shutdown for worker nodes (for cost optimization)"
+  description = "Enable scheduled AKS stop/start (stops cluster evenings/weekends for cost savings)"
   type        = bool
   default     = true
+}
+
+variable "shutdown_timezone" {
+  description = "Timezone for auto-shutdown schedules (e.g., 'GMT Standard Time' for UK)"
+  type        = string
+  default     = "GMT Standard Time"
+}
+
+variable "shutdown_time" {
+  description = "Time to stop the cluster on weekdays (24h format, e.g., '20:00')"
+  type        = string
+  default     = "20:00"
+}
+
+variable "startup_time" {
+  description = "Time to start the cluster on weekdays (24h format, e.g., '07:00')"
+  type        = string
+  default     = "07:00"
 }
 
 variable "tags" {
