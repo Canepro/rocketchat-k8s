@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aks-traefik
+  namespace: argocd
+  labels:
+    app: traefik
+    cluster: aks-canepro
+spec:
+  project: default
+  sources:
+    # Traefik Helm chart
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 34.4.1
+      helm:
+        releaseName: traefik
+        valueFiles:
+          - $values/traefik-values.yaml
+    # Values from Git repository
+    - ref: values
+      repoURL: https://github.com/Canepro/rocketchat-k8s.git
+      targetRevision: aks-migration
+  destination:
+    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
