@@ -22,10 +22,12 @@ ports:
       default: true
     exposedPort: 80
     protocol: TCP
-    # Redirect HTTP to HTTPS
-    redirectTo:
-      port: websecure
-      priority: 10
+    # Redirect HTTP to HTTPS (v34+ syntax)
+    redirections:
+      entryPoint:
+        to: websecure
+        scheme: https
+        permanent: true
   websecure:
     port: 8443
     expose:
