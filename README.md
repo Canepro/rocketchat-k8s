@@ -50,4 +50,16 @@ Monitor the real-time status of your stack here:
 The workspace includes an automated weekly maintenance job (`k3s-image-prune`) that runs every Sunday at 3:00 AM to prevent disk pressure issues by clearing unused container images.
 
 ## 🧪 Tracing Validation (Tempo)
-To validate tracing end-to-end (tracegen → OTel Collector → Tempo), see `OPERATIONS.md` → **“Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)”**.
+To validate tracing end-to-end (tracegen → OTel Collector → Tempo), see `OPERATIONS.md` → **"Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)"**.
+
+## 🔧 Troubleshooting
+
+- **DNS & TLS Issues**: See [`TROUBLESHOOTING_DNS_TLS.md`](TROUBLESHOOTING_DNS_TLS.md) for comprehensive guide on:
+  - ACME certificate issuance failures
+  - Network Security Group configuration
+  - ArgoCD and cert-manager conflicts
+  - Verification procedures
+
+- **General Operations**: See [`OPERATIONS.md`](OPERATIONS.md) for day-2 operations, upgrades, and common issues.
+
+- **Migration Status**: See [`MIGRATION_STATUS.md`](MIGRATION_STATUS.md) for current migration progress and completed tasks.

@@ -58,8 +58,12 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
   - OTel Collector exporting traces; traces searchable with expected cluster attribute.
 
 ### Phase 9–11: Data migration + cutover + monitoring
+- **DNS Cutover**: ✅ **Complete** (2026-01-16)
+  - Domain `k8.canepro.me` pointing to AKS LoadBalancer IP (`85.210.181.37`)
+  - Let's Encrypt TLS certificate issued and valid
+  - HTTPS accessible and working
 - **Pending / not recorded** in repo yet:
-  - export/import procedures, validation checklist completion, DNS cutover, post-cutover monitoring.
+  - export/import procedures, validation checklist completion, post-cutover monitoring.
 
 ## Completed Tasks (2026-01-16)
 
@@ -68,12 +72,24 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - [x] Legacy Bitnami MongoDB removed from cluster
 - [x] Legacy `rocketchat-mongodb.yaml` manifest deleted from repo
 - [x] All RocketChat pods healthy
+- [x] **Traefik ingress controller deployed** (GitOps via ArgoCD)
+- [x] **DNS cutover completed** (`k8.canepro.me` → AKS LoadBalancer)
+- [x] **TLS certificate issued** (Let's Encrypt, `READY: True`)
+- [x] **Network Security Group configured** (subnet-level HTTP/HTTPS rules via Terraform)
 
 ## Next Steps (Recommended Order)
 
 1. **Observability verification**: run the plan's metrics + traces checks and record results.
-2. **Cutover checklist**: formalize validation + DNS cutover steps and capture "go/no-go" gates.
-3. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan).
+2. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan).
+
+## Troubleshooting Documentation
+
+For issues encountered during DNS/TLS setup, see:
+- **`TROUBLESHOOTING_DNS_TLS.md`**: Comprehensive guide covering:
+  - ACME challenge routing failures (ArgoCD conflicts)
+  - Network Security Group configuration issues
+  - Verification commands and clean re-issuance procedures
+  - Best practices learned
 
 ## When to Introduce Jenkins (Guidance)
 
