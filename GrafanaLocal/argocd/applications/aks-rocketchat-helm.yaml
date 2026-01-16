@@ -25,6 +25,13 @@ spec:
   destination:
     server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
     namespace: rocketchat
+  # Ignore cert-manager's in-place edits to ingress for ACME challenges
+  ignoreDifferences:
+    - group: networking.k8s.io
+      kind: Ingress
+      name: rocketchat-rocketchat
+      jsonPointers:
+        - /spec/rules/0/http/paths
   syncPolicy:
     automated:
       prune: true
