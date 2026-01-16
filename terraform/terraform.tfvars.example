@@ -19,7 +19,7 @@ vm_size             = "Standard_D4as_v5"  # 4 vCPU, 16GB RAM - recommended for R
 # Cluster stops at shutdown_time, starts at startup_time on weekdays only
 # Stays OFF all weekend (Friday evening -> Monday morning)
 enable_auto_shutdown = true
-shutdown_timezone    = "GMT Standard Time"  # UK timezone
+shutdown_timezone    = "Europe/London"      # UK timezone (IANA format required by Azure Automation)
 shutdown_time        = "20:00"              # 8 PM stop
 startup_time         = "07:00"              # 7 AM start
 

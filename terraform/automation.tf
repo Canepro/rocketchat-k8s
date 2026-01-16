@@ -15,11 +15,11 @@ resource "azurerm_automation_account" "aks" {
   tags = var.tags
 }
 
-# Grant Automation Account permission to manage AKS
+# Grant Automation Account permission to manage AKS (start/stop cluster)
 resource "azurerm_role_assignment" "automation_aks_contributor" {
   count                = var.enable_auto_shutdown ? 1 : 0
   scope                = azurerm_kubernetes_cluster.main.id
-  role_definition_name = "Azure Kubernetes Service Contributor"
+  role_definition_name = "Contributor"  # Standard role for AKS cluster management (start/stop)
   principal_id         = azurerm_automation_account.aks[0].identity[0].principal_id
 }
 
