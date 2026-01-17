@@ -144,3 +144,29 @@ resource "azurerm_key_vault_secret" "mongodb_metrics_endpoint_password" {
     Purpose = "MongoDBMetricsPassword"  # Purpose tag (for resource organization)
   })
 }
+
+# Observability credentials: Username for basic auth to central observability hub (Grafana/Mimir/Tempo/Loki)
+# This credential is used by Prometheus Agent, OTel Collector, and Promtail for authenticating to the hub.
+resource "azurerm_key_vault_secret" "observability_username" {
+  name         = "rocketchat-observability-username"  # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-observability-credentials.yaml)
+  value        = var.observability_username  # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id = azurerm_key_vault.rocketchat.id  # Key Vault resource ID (from Key Vault resource above)
+  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer]  # Wait for RBAC role assignment (required for RBAC mode)
+
+  tags = merge(var.tags, {
+    Purpose = "ObservabilityCredentials"  # Purpose tag (for resource organization)
+  })
+}
+
+# Observability credentials: Password for basic auth to central observability hub (Grafana/Mimir/Tempo/Loki)
+# This credential is used by Prometheus Agent, OTel Collector, and Promtail for authenticating to the hub.
+resource "azurerm_key_vault_secret" "observability_password" {
+  name         = "rocketchat-observability-password"  # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-observability-credentials.yaml)
+  value        = var.observability_password  # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id = azurerm_key_vault.rocketchat.id  # Key Vault resource ID (from Key Vault resource above)
+  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer]  # Wait for RBAC role assignment (required for RBAC mode)
+
+  tags = merge(var.tags, {
+    Purpose = "ObservabilityCredentials"  # Purpose tag (for resource organization)
+  })
+}
