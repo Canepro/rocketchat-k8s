@@ -87,9 +87,16 @@ data:
               - __meta_kubernetes_pod_uid
               - __meta_kubernetes_pod_container_name
             separator: /
-            regex: '(.+)/(.+)'
             target_label: __path__  # Special label that tells Promtail which file to read
             # Path format: /var/log/pods/*<uid>*/<container-name>/*.log
-            # $1 = pod UID, $2 = container name
+            # $1 = pod UID (first source label)
+            # $2 = container name (second source label)
+            # No regex needed; default regex matches everything; $1/$2 refer to captured groups if regex provided,
+            # but standard behavior with default regex (.*) captures everything into $1.
+            # Wait, standard pattern uses explicit separator and $1 references parts if regex captures them.
+            # Actually, the standard pattern uses NO regex, and relies on globbing.
+            # replacement: /var/log/pods/*$1/*.log  <-- This assumes $1 is UID.
+            # Let's use explicit regex to be 100% sure we capture UID and Container Name separately.
+            regex: ([^/]+)/([^/]+)
             replacement: /var/log/pods/*$1*/$2/*.log
 
