@@ -79,7 +79,7 @@ data:
           # Kubelet stores logs at: /var/log/pods/<namespace>_<pod-name>_<uid>/<container-name>/<instance>.log
           # Example: /var/log/pods/rocketchat_rocketchat-abc123_def456-789/rocketchat/0.log
           # AKS uses containerd, which follows this exact path format
-          # Build pod directory name: <namespace>_<pod-name>_<uid>
+          # Step 1: Build pod directory name: <namespace>_<pod-name>_<uid>
           - action: replace
             source_labels:
               - __meta_kubernetes_namespace
@@ -87,14 +87,17 @@ data:
               - __meta_kubernetes_pod_uid
             separator: _
             target_label: __tmp_kubernetes_pod_dir
-          # Construct the full log file path
+          # Step 2: Construct the full log file path using the pod directory and container name
+          # The regex captures both parts (pod_dir/container_name) separately
           - action: replace
             source_labels:
               - __tmp_kubernetes_pod_dir
               - __meta_kubernetes_pod_container_name
             separator: /
+            regex: '(.+)/(.+)'
             target_label: __path__  # Special label that tells Promtail which file to read
             # Path format: /var/log/pods/<namespace>_<pod-name>_<uid>/<container-name>/*.log
+            # $1 = pod directory (namespace_pod_uid), $2 = container name
             # The * glob matches the instance number (0.log, 1.log, etc. for restarted containers)
             replacement: /var/log/pods/$1/$2/*.log
 
