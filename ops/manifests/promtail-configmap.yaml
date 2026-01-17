@@ -1,0 +1,86 @@
+# Promtail Configuration
+# Promtail is a log shipper that collects logs from Kubernetes pods and sends them to a central Loki instance.
+# This ConfigMap defines how Promtail discovers pods, reads their logs, and formats them for Loki.
+# See VERSIONS.md for version tracking and update procedures.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail.yaml: |
+    # Server configuration: HTTP endpoint for metrics and readiness probes
+    server:
+      http_listen_port: 3101  # Port for health checks and metrics endpoint
+      grpc_listen_port: 0     # gRPC disabled (not needed for this setup)
+
+    # Positions file: Tracks where Promtail last read from each log file
+    # This prevents re-reading logs after pod restarts. Stored on host path.
+    positions:
+      filename: /run/promtail/positions.yaml
+
+    # Client configuration: Where to send logs (central Loki instance)
+    clients:
+      - url: https://observability.canepro.me/loki/api/v1/push  # Loki push API endpoint
+        basic_auth:
+          # Credentials from observability-credentials secret (injected via env vars)
+          username: ${GRAFANA_USERNAME}
+          password: ${GRAFANA_PASSWORD}
+        headers:
+          # Match Mimir/Tempo tenancy convention used elsewhere in this repo.
+          # This header tells the hub which "organization" these logs belong to.
+          X-Scope-OrgID: "1"
+
+    # Scrape configurations: Define what logs to collect and how to label them
+    scrape_configs:
+      # This job discovers all Kubernetes pods and collects their logs
+      - job_name: kubernetes-pods
+        # Pipeline stages: Process logs before sending to Loki
+        pipeline_stages:
+          # AKS uses containerd/CRI (Container Runtime Interface) format for logs.
+          # This stage decodes the CRI log format into readable text.
+          - cri: {}
+
+        # Kubernetes service discovery: Automatically discover pods in the cluster
+        kubernetes_sd_configs:
+          - role: pod  # Discover pods (can also be 'service' or 'node')
+
+        # Relabel configs: Transform Kubernetes metadata into Loki labels
+        relabel_configs:
+          # Core identity labels: Essential for filtering logs in Loki
+          - action: replace
+            source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace  # Example: "rocketchat", "monitoring"
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod  # Example: "rocketchat-rocketchat-abc123"
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container  # Example: "rocketchat"
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node  # Which AKS node the pod is running on
+
+          # Map pod labels into Loki labels (be mindful: high-cardinality labels can be expensive)
+          # This copies all pod labels (like app=rocketchat) into Loki labels for filtering
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+
+          # Static labels for cluster identification (matches metrics/traces labeling)
+          # These labels help filter logs from this specific cluster in the central Loki
+          - action: replace
+            target_label: cluster
+            replacement: aks-canepro  # Identifies logs from this AKS cluster
+          - action: replace
+            target_label: domain
+            replacement: k8.canepro.me  # Domain this cluster serves
+
+          # Tell Promtail where to find log files on the node's filesystem
+          # Kubelet stores logs at: /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log
+          # Example: /var/log/pods/rocketchat_rocketchat-abc123_def456/rocketchat/0.log
+          - action: replace
+            source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+            separator: /
+            target_label: __path__  # Special label that tells Promtail which file to read
+            replacement: /var/log/pods/*$1/$2/*.log
+

@@ -14,6 +14,11 @@ resources:
   - manifests/otel-collector-service.yaml
   - manifests/otel-tracegen-job.yaml
 
+  # Loki log shipping (Promtail)
+  - manifests/promtail-configmap.yaml
+  - manifests/promtail-daemonset.yaml
+  - manifests/promtail-rbac.yaml
+
   - manifests/persistent-volumes.yaml
   - manifests/rocketchat-uploads-pvc.yaml
   - manifests/maintenance-cleanup.yaml

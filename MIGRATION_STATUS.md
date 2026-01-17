@@ -53,9 +53,26 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - **Done**: storage class aligned; Rocket.Chat + ops resources deployed.
 
 ### Phase 8: Observability verification (must do)
-- **Pending**: confirm:
-  - Prometheus Agent remote_write success and series visible with the expected `cluster=...` label.
-  - OTel Collector exporting traces; traces searchable with expected cluster attribute.
+- **Setup Complete**: Verification guide and script created (2026-01-16)
+  - Guide: `ops/manifests/observability-verification.md`
+  - Script: `ops/scripts/verify-observability.sh`
+- **Cluster Status Verified** ✅ (2026-01-16):
+  - ✅ Prometheus Agent: Running, no remote_write errors
+  - ✅ OTel Collector: Running, no export errors
+  - ✅ Configuration: Correct cluster labels (`aks-canepro`)
+  - ✅ Secrets: observability-credentials exists
+- **Grafana Metrics Verification** ✅ (2026-01-16):
+  - ✅ Metrics flowing: **6,205 series** visible with `cluster=aks-canepro` label
+  - ✅ Remote write working: Cert-manager and other metrics successfully ingested
+  - ✅ Prometheus Agent self-metrics scrape job added: Enables `prometheus_remote_storage_*` metrics monitoring
+- **Pending**: 
+  - Traces with `cluster=aks-canepro` searchable in Grafana Tempo
+
+### Phase 8b: Loki logging (recommended next)
+- **Pending deploy**: Promtail DaemonSet ships Kubernetes pod logs to central Loki.
+  - Manifests: `ops/manifests/promtail-*.yaml` (added, v3.6.0)
+  - Endpoint: `https://observability.canepro.me/loki/api/v1/push` (via `observability-credentials`)
+  - **Note**: Promtail will be deprecated in favor of Grafana Alloy after March 2026 (see `VERSIONS.md`)
 
 ### Phase 9–11: Data migration + cutover + monitoring
 - **DNS Cutover**: ✅ **Complete** (2026-01-16)
@@ -91,7 +108,10 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 
 ## Next Steps (Recommended Order)
 
-1. **Observability verification**: run the plan's metrics + traces checks and record results.
+1. **Observability verification** ✅ **Setup Complete**: 
+   - Verification guide created: `ops/manifests/observability-verification.md`
+   - Verification script created: `ops/scripts/verify-observability.sh`
+   - **Action Required**: Run verification steps and record results (see guide for details)
 2. **Loki logging setup**: Deploy Loki/Promtail to send logs to OKE hub (now have headroom).
 3. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan) - headroom available.
 4. **Continue monitoring**: Verify stability for 7-14 days before merging to `main`.

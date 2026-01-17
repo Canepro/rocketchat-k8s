@@ -1,3 +1,7 @@
+# OpenTelemetry Collector Service
+# This Service exposes the OTel Collector's receivers for applications to send traces to.
+# Applications can send traces via OTLP (gRPC/HTTP), Jaeger, or Zipkin protocols.
+# See VERSIONS.md for version tracking.
 apiVersion: v1
 kind: Service
 metadata:
@@ -6,35 +10,39 @@ metadata:
   labels:
     app: otel-collector
 spec:
-  type: ClusterIP
+  type: ClusterIP  # Internal service only (applications in cluster send traces here)
   selector:
-    app: otel-collector
+    app: otel-collector  # Routes to pods with this label (from otel-collector-deployment.yaml)
   ports:
+    # OTLP (OpenTelemetry Protocol) - Modern, recommended protocol for traces
     - name: otlp-grpc
       port: 4317
-      targetPort: 4317
+      targetPort: 4317  # gRPC endpoint (used by telemetrygen job and modern apps)
     - name: otlp-http
       port: 4318
-      targetPort: 4318
+      targetPort: 4318  # HTTP endpoint (alternative to gRPC)
+    # Jaeger protocol ports (for compatibility with Jaeger clients)
     - name: jaeger-grpc
       port: 14250
-      targetPort: 14250
+      targetPort: 14250  # Jaeger gRPC endpoint
     - name: jaeger-http
       port: 14268
-      targetPort: 14268
+      targetPort: 14268  # Jaeger HTTP endpoint (thrift over HTTP)
     - name: jaeger-compact
       port: 6831
-      targetPort: 6831
+      targetPort: 6831  # Jaeger compact thrift UDP
     - name: jaeger-binary
       port: 6832
-      targetPort: 6832
+      targetPort: 6832  # Jaeger binary thrift UDP
+    # Zipkin protocol port (for compatibility with Zipkin clients)
     - name: zipkin
       port: 9411
-      targetPort: 9411
+      targetPort: 9411  # Zipkin HTTP endpoint
+    # Prometheus metrics endpoints (for scraping collector's own metrics)
     - name: prometheus
       port: 8888
-      targetPort: 8888
+      targetPort: 8888  # Collector's internal Prometheus metrics
     - name: metrics
       port: 8889
-      targetPort: 8889
+      targetPort: 8889  # Alternative metrics endpoint
 

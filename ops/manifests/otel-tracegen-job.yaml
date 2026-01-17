@@ -1,8 +1,13 @@
+# OpenTelemetry Trace Generation Job
+# This Job generates synthetic traces and sends them to the OTel Collector for testing.
+# Useful for verifying the trace pipeline (OTel Collector → Tempo → Grafana).
+# See VERSIONS.md for version tracking. Image is pinned to digest for reproducibility.
 apiVersion: batch/v1
 kind: Job
 metadata:
   # Jobs are immutable (notably .spec.selector). To rerun via GitOps, change the Job NAME.
   # ArgoCD will create the new Job and prune the old one automatically.
+  # Name includes timestamp (2025-12-23-10) to allow re-running with new names
   name: otel-tracegen-2025-12-23-10
   namespace: monitoring
   labels:
@@ -30,14 +35,16 @@ spec:
         - name: telemetrygen
           # telemetrygen generates synthetic traces to validate the OTel pipeline.
           # Pinned to a known-good digest (from the last successful run) for reproducibility.
+          # See VERSIONS.md - pinned for stability (can update to latest if needed)
           image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen@sha256:d9243daa690ebc25db5f62537fe203792594bc35d8223456a84ca41df290dcb5
           imagePullPolicy: IfNotPresent
           args:
             # Emit spans into the in-cluster OTel collector (OTLP/gRPC).
-            - traces
-            - --otlp-endpoint=otel-collector.monitoring.svc.cluster.local:4317
-            - --otlp-insecure
-            - --service=rocketchat-tracegen
-            - --duration=60s
-            - --rate=5
+            - traces  # Generate traces (not metrics or logs)
+            - --otlp-endpoint=otel-collector.monitoring.svc.cluster.local:4317  # OTel Collector service
+            - --otlp-insecure  # Don't use TLS (collector is in-cluster)
+            - --service=rocketchat-tracegen  # Service name for traces (shows up in Grafana Tempo)
+            - --duration=60s  # Generate traces for 60 seconds
+            - --rate=5  # Generate 5 traces per second
+
 

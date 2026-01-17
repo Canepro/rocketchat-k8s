@@ -1,0 +1,117 @@
+# Promtail DaemonSet
+# Promtail runs as a DaemonSet (one pod per node) to collect logs from all Kubernetes pods.
+# Each Promtail pod reads log files from its host node's /var/log/pods directory and ships them to Loki.
+# See VERSIONS.md for version tracking. Latest version: v3.6.0 (Note: Promtail is deprecated in favor of Grafana Alloy after March 2026)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app: promtail
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      # Service account with RBAC permissions to discover pods and read node filesystem
+      serviceAccountName: promtail
+      terminationGracePeriodSeconds: 30  # Grace period for clean shutdown
+      tolerations:
+        # Allow scheduling on all nodes including system nodes (like kube-system)
+        # This ensures we collect logs from all pods, even those on tainted nodes
+        - operator: Exists
+      containers:
+        - name: promtail
+          # Promtail image version - See VERSIONS.md for latest version and update procedure
+          # Current: v3.6.0 (latest as of 2026-01-16)
+          # Note: Promtail will be deprecated in favor of Grafana Alloy after March 2026
+          image: grafana/promtail:3.6.0
+          imagePullPolicy: IfNotPresent
+          args:
+            # Config file location (mounted from ConfigMap)
+            - -config.file=/etc/promtail/promtail.yaml
+            # Enable environment variable expansion in config (allows ${GRAFANA_USERNAME} etc.)
+            - -config.expand-env=true
+          env:
+            # Reuse the existing observability basic auth secret (same as Prometheus Agent / OTel Collector)
+            # These env vars are referenced in the ConfigMap as ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD}
+            - name: GRAFANA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: observability-credentials
+                  key: username
+            - name: GRAFANA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: observability-credentials
+                  key: password
+          ports:
+            # HTTP port for health checks and metrics (matching ConfigMap server.http_listen_port)
+            - name: http-metrics
+              containerPort: 3101
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3101
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 3101
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            # Config file from ConfigMap
+            - name: config
+              mountPath: /etc/promtail
+              readOnly: true
+            # Positions file: Tracks read position for each log file (persists across restarts)
+            - name: positions
+              mountPath: /run/promtail
+            # Pod logs directory: Where kubelet stores container logs on the node
+            # Format: /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            # Container logs symlinks: Symlinks from /var/log/containers point to /var/log/pods
+            # This mount is optional but helps with log discovery
+            - name: varlogcontainers
+              mountPath: /var/log/containers
+              readOnly: true
+      volumes:
+        # Configuration from ConfigMap (see promtail-configmap.yaml)
+        - name: config
+          configMap:
+            name: promtail-config
+        # Positions file: Stored on host to persist across pod restarts
+        # This ensures Promtail doesn't re-read old logs after restart
+        - name: positions
+          hostPath:
+            path: /var/lib/promtail
+            type: DirectoryOrCreate  # Create directory if it doesn't exist
+        # Host path mounts: Access node's log directories (read-only for security)
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods  # Actual pod log files
+            type: Directory
+        - name: varlogcontainers
+          hostPath:
+            path: /var/log/containers  # Symlinks to pod logs
+            type: Directory
+

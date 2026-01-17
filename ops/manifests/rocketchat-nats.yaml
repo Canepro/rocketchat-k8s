@@ -1,4 +1,10 @@
+# Rocket.Chat NATS Stack
+# NATS is the message queue used by Rocket.Chat microservices for communication.
+# This manifest defines a NATS StatefulSet with clustering support and monitoring.
+# See VERSIONS.md for version tracking and upgrade status.
 ---
+# PodDisruptionBudget: Ensures at least one NATS pod remains available during updates
+# This prevents all NATS pods from being terminated simultaneously
 # Source: rocketchat/charts/nats/templates/pdb.yaml
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -6,18 +12,20 @@ metadata:
   name: rocketchat-nats
   namespace: rocketchat
   labels:
-    helm.sh/chart: nats-0.15.1
+    helm.sh/chart: nats-0.15.1  # NATS Helm chart version
     app.kubernetes.io/name: nats
     app.kubernetes.io/instance: rocketchat
-    app.kubernetes.io/version: "2.7.4"
+    app.kubernetes.io/version: "2.7.4"  # NATS Server application version
     app.kubernetes.io/managed-by: Helm
 spec:
-  maxUnavailable: 1
+  maxUnavailable: 1  # Allow one pod to be unavailable during disruptions
   selector:
     matchLabels:
       app.kubernetes.io/name: nats
       app.kubernetes.io/instance: rocketchat
 ---
+# NATS ConfigMap: Configuration for NATS server cluster
+# Contains cluster configuration, ports, and monitoring settings
 # Source: rocketchat/charts/nats/templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -32,7 +40,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nats.conf: |
-    # NATS Clients Port
+    # NATS Clients Port: Applications connect to NATS on this port
     port: 4222
 
     # PID file shared with configuration reloader.
@@ -43,7 +51,7 @@ data:
     # Monitoring  #
     #             #
     ###############
-    http: 8222
+    http: 8222  # HTTP monitoring port (used by Prometheus NATS Exporter)
     server_name:$POD_NAME
     ###################################
     #                                 #
@@ -51,19 +59,22 @@ data:
     #                                 #
     ###################################
     cluster {
-      port: 6222
+      port: 6222  # Cluster communication port (for NATS clustering)
 
       routes = [
         nats://rocketchat-nats-0.rocketchat-nats.rocketchat.svc.cluster.local:6222,
         
       ]
-      cluster_advertise: $CLUSTER_ADVERTISE
+      cluster_advertise: $CLUSTER_ADVERTISE  # Advertise cluster address
 
-      connect_retries: 120
+      connect_retries: 120  # Retry cluster connections up to 120 times
     }
-    lame_duck_grace_period: 10s
-    lame_duck_duration: 30s
+    # Graceful shutdown settings (for rolling updates)
+    lame_duck_grace_period: 10s  # Grace period before shutting down
+    lame_duck_duration: 30s      # Duration to wait before full shutdown
 ---
+# NATS Service: Headless service for StatefulSet
+# Headless (ClusterIP: None) allows direct pod-to-pod communication
 # Source: rocketchat/charts/nats/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -80,22 +91,24 @@ spec:
   selector:
     app.kubernetes.io/name: nats
     app.kubernetes.io/instance: rocketchat
-  clusterIP: None
-  publishNotReadyAddresses: true
+  clusterIP: None  # Headless service (no load balancing, direct pod access)
+  publishNotReadyAddresses: true  # Publish pod IPs even when not ready (for clustering)
   ports:
   - name: client
-    port: 4222
+    port: 4222  # Client connections port
   - name: cluster
-    port: 6222
+    port: 6222  # Cluster communication port
   - name: monitor
-    port: 8222
+    port: 8222  # Monitoring HTTP port
   - name: metrics
-    port: 7777
+    port: 7777  # Prometheus metrics port (from metrics sidecar)
   - name: leafnodes
-    port: 7422
+    port: 7422  # Leaf nodes port (unused but reserved)
   - name: gateways
-    port: 7522
+    port: 7522  # Gateways port (unused but reserved)
 ---
+# NATS Metrics Service: Service for Prometheus scraping
+# This service exposes the Prometheus NATS Exporter metrics endpoint
 # Source: rocketchat/templates/nats-monitor.yaml
 apiVersion: v1
 kind: Service
@@ -103,9 +116,9 @@ metadata:
   name: rocketchat-nats-metrics
   namespace: rocketchat
   annotations:
-    prometheus.io/path: "/metrics"
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "8222"
+    prometheus.io/path: "/metrics"  # Prometheus scrape path
+    prometheus.io/scrape: "true"    # Enable scraping
+    prometheus.io/port: "8222"      # Port for scraping
 spec:
   type: ClusterIP
   selector:
@@ -117,9 +130,11 @@ spec:
     name: monitor
     port: 8222
     protocol: TCP
-    targetPort: monitor
+    targetPort: monitor  # Routes to the metrics sidecar container
   sessionAffinity: None
 ---
+# NATS Box Deployment: Debugging and testing tool for NATS
+# Provides CLI tools (nats, nats-sub, nats-pub) for interacting with NATS
 # Source: rocketchat/charts/nats/templates/nats-box.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -141,16 +156,20 @@ spec:
     spec:
       containers:
       - name: nats-box
+        # NATS Box version - See VERSIONS.md for latest version and upgrade status
+        # Current: 0.8.1 (latest: 0.16.2 - can upgrade)
         image: natsio/nats-box:0.8.1
         imagePullPolicy: IfNotPresent
         env:
         - name: NATS_URL
-          value: rocketchat-nats
+          value: rocketchat-nats  # NATS server service name
         command:
         - "tail"
         - "-f"
-        - "/dev/null"
+        - "/dev/null"  # Keep container running (for exec/kubectl debug)
 ---
+# NATS StatefulSet: Main NATS server deployment
+# StatefulSet ensures stable pod identities (rocketchat-nats-0, rocketchat-nats-1, etc.)
 # Source: rocketchat/charts/nats/templates/statefulset.yaml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -168,16 +187,17 @@ spec:
     matchLabels:
       app.kubernetes.io/name: nats
       app.kubernetes.io/instance: rocketchat
-  replicas: 1
-  serviceName: rocketchat-nats
-  podManagementPolicy: Parallel
+  replicas: 1  # Single replica (can scale to 3 for HA clustering)
+  serviceName: rocketchat-nats  # Headless service name (for StatefulSet networking)
+  podManagementPolicy: Parallel  # Start pods in parallel (vs OrderedReady)
   template:
     metadata:
       annotations:
+        # Prometheus scraping annotations (Prometheus Agent discovers these)
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
-        checksum/config: 3629675b28bf88c0504609b8bb05c27ffbe18d21e8474023d82a52e4a195195e
+        checksum/config: 3629675b28bf88c0504609b8bb05c27ffbe18d21e8474023d82a52e4a195195e  # Config change detection
       labels:
         app.kubernetes.io/name: nats
         app.kubernetes.io/instance: rocketchat
@@ -185,24 +205,27 @@ spec:
       volumes:
       - name: config-volume
         configMap:
-          name: rocketchat-nats-config
+          name: rocketchat-nats-config  # NATS configuration from ConfigMap above
       - name: pid
-        emptyDir: {}
-      shareProcessNamespace: true
-      terminationGracePeriodSeconds: 60
+        emptyDir: {}  # Shared PID file for configuration reloader
+      shareProcessNamespace: true  # Share PID namespace between containers (for reloader)
+      terminationGracePeriodSeconds: 60  # Grace period for graceful shutdown
       containers:
+      # Main NATS server container
       - name: nats
+        # NATS Server version - See VERSIONS.md for latest version and upgrade status
+        # Current: 2.4-alpine (latest: 2.10.24 - major version jump, test carefully)
         image: nats:2.4-alpine
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 4222
-          name: client
+          name: client  # Client connections port
         - containerPort: 6222
-          name: cluster
+          name: cluster  # Cluster communication port
         - containerPort: 8222
-          name: monitor
+          name: monitor  # Monitoring HTTP port
         - containerPort: 7777
-          name: metrics
+          name: metrics  # Prometheus metrics port (from metrics sidecar)
         command:
         - "nats-server"
         - "--config"
@@ -211,23 +234,23 @@ spec:
         - name: POD_NAME
           valueFrom:
             fieldRef:
-              fieldPath: metadata.name
+              fieldPath: metadata.name  # Pod name (e.g., rocketchat-nats-0)
         - name: SERVER_NAME
-          value: $(POD_NAME)
+          value: $(POD_NAME)  # Use pod name as server name
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
-              fieldPath: metadata.namespace
+              fieldPath: metadata.namespace  # Namespace (rocketchat)
         - name: CLUSTER_ADVERTISE
-          value: $(POD_NAME).rocketchat-nats.$(POD_NAMESPACE).svc.cluster.local
+          value: $(POD_NAME).rocketchat-nats.$(POD_NAMESPACE).svc.cluster.local  # Cluster advertise address
         volumeMounts:
         - name: config-volume
-          mountPath: /etc/nats-config
+          mountPath: /etc/nats-config  # NATS configuration file location
         - name: pid
-          mountPath: /var/run/nats
+          mountPath: /var/run/nats  # PID file location (shared with reloader)
         livenessProbe:
           httpGet:
-            path: /
+            path: /  # Health check endpoint
             port: 8222
           initialDelaySeconds: 10
           timeoutSeconds: 5
@@ -242,38 +265,44 @@ spec:
           timeoutSeconds: 5
           periodSeconds: 10
           successThreshold: 1
-          failureThreshold: 30
+          failureThreshold: 30  # Allow up to 5 minutes for startup
         lifecycle:
           preStop:
             exec:
               command:
               - "nats-server"
-              - "-sl=ldm=/var/run/nats/nats.pid"
+              - "-sl=ldm=/var/run/nats/nats.pid"  # Lame duck mode (graceful shutdown)
+      # Configuration reloader sidecar: Watches ConfigMap changes and reloads NATS config
       - name: reloader
+        # NATS Config Reloader version - See VERSIONS.md for latest version and upgrade status
+        # Current: 0.6.3 (latest: 1.1.0 - major version jump, test carefully)
         image: natsio/nats-server-config-reloader:0.6.3
         imagePullPolicy: IfNotPresent
         command:
         - "nats-server-config-reloader"
         - "-pid"
-        - "/var/run/nats/nats.pid"
+        - "/var/run/nats/nats.pid"  # PID file location
         - "-config"
-        - "/etc/nats-config/nats.conf"
+        - "/etc/nats-config/nats.conf"  # Config file to watch
         volumeMounts:
         - name: config-volume
-          mountPath: /etc/nats-config
+          mountPath: /etc/nats-config  # Watch for config changes
         - name: pid
-          mountPath: /var/run/nats
+          mountPath: /var/run/nats  # Access PID file
+      # Prometheus metrics exporter sidecar: Exposes NATS metrics in Prometheus format
       - name: metrics
+        # Prometheus NATS Exporter version - See VERSIONS.md for latest version and upgrade status
+        # Current: 0.9.1 (latest: 0.10.0 - minor version, lower risk)
         image: natsio/prometheus-nats-exporter:0.9.1
         imagePullPolicy: IfNotPresent
         args:
-        - -connz
-        - -routez
-        - -subz
-        - -varz
-        - -prefix=nats
-        - -use_internal_server_id
-        - http://localhost:8222/
+        - -connz      # Connection metrics
+        - -routez     # Route metrics (clustering)
+        - -subz       # Subscription metrics
+        - -varz       # Variable metrics (general stats)
+        - -prefix=nats  # Metric name prefix
+        - -use_internal_server_id  # Use internal server ID for metrics
+        - http://localhost:8222/  # NATS monitoring endpoint (from main container)
         ports:
         - containerPort: 7777
-          name: metrics
+          name: metrics  # Prometheus scrapes this port

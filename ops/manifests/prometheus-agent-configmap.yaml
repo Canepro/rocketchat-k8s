@@ -1,21 +1,30 @@
+# Prometheus Agent Configuration
+# This ConfigMap contains the Prometheus Agent configuration template.
+# The template uses environment variable substitution (${GRAFANA_USERNAME}, ${GRAFANA_PASSWORD}) 
+# for credentials, which are rendered by the init container before Prometheus Agent starts.
+# See VERSIONS.md for version tracking.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-agent-config
   namespace: monitoring
 data:
+  # Prometheus configuration template (rendered by init container in prometheus-agent-deployment.yaml)
   prometheus.yml.tmpl: |
     global:
-      scrape_interval: 30s
+      scrape_interval: 30s  # How often to scrape metrics from targets
       external_labels:
+        # External labels: Added to all metrics sent to remote_write endpoint
+        # These labels help identify metrics in Grafana/Mimir (filter by cluster, tenant_id, etc.)
         # AKS Migration: Updated cluster label for AKS cluster
-        cluster: aks-canepro
+        cluster: aks-canepro  # Cluster identifier (filter by this in Grafana)
         # Compatibility with existing Grafana Rocket.Chat dashboards (they filter by tenant_id)
-        tenant_id: aks-canepro
-        environment: production
-        workspace: production
-        domain: k8.canepro.me
+        tenant_id: aks-canepro  # Tenant identifier (for dashboard compatibility)
+        environment: production  # Environment label
+        workspace: production  # Workspace label
+        domain: k8.canepro.me  # Domain this cluster serves
     
+    # Remote write configuration: Where to send scraped metrics
     remote_write:
       - url: https://observability.canepro.me/api/v1/write
         basic_auth:
@@ -92,6 +101,29 @@ data:
           - source_labels: [kubernetes_namespace]
             target_label: namespace
             action: replace
+
+      # Scrape Prometheus Agent self-metrics (for remote_write health monitoring)
+      # This lets us verify remote_write success rates and queue health via Prometheus/Grafana
+      - job_name: 'prometheus-agent'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: monitoring
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: prometheus-agent
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            replacement: $1:9090
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
 
       # Scrape OTel Collector self-metrics (spoke cluster)
       # This lets us verify trace pipeline health (accepted/exported spans) via Prometheus/Grafana,
