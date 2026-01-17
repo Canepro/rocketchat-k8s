@@ -37,6 +37,8 @@ spec:
             - -config.file=/etc/promtail/promtail.yaml
             # Enable environment variable expansion in config (allows ${GRAFANA_USERNAME} etc.)
             - -config.expand-env=true
+            # Debug logging helps diagnose scrape / path issues (can be reverted to info later)
+            - -log.level=debug
           env:
             # Reuse the existing observability basic auth secret (same as Prometheus Agent / OTel Collector)
             # These env vars are referenced in the ConfigMap as ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD}
@@ -60,11 +62,21 @@ spec:
               port: 3101
             initialDelaySeconds: 5
             periodSeconds: 10
-          livenessProbe:
+          startupProbe:
+            # Promtail can report "not ready" until it successfully finds at least one file to tail.
+            # Give it time to discover targets and begin tailing before liveness kicks in.
             httpGet:
               path: /ready
               port: 3101
-            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30  # ~5 minutes
+          livenessProbe:
+            httpGet:
+              # Liveness should verify the process is up, not that it is fully "ready".
+              # Using /metrics prevents restart loops when /ready is failing due to scrape/path issues.
+              path: /metrics
+              port: 3101
+            initialDelaySeconds: 30
             periodSeconds: 20
           resources:
             requests:
