@@ -1,70 +1,87 @@
-# Traefik Helm values for AKS
-# Chart: traefik/traefik
+# Traefik Helm Values for AKS
+# This file contains Helm values for the Traefik ingress controller deployment via ArgoCD.
+# These values override the default Traefik Helm chart values.
+# Chart: traefik/traefik 34.4.1 - See VERSIONS.md for latest version and upgrade status.
+# See VERSIONS.md for version tracking. Current: Traefik Helm chart 34.4.1
 
+# IngressClass configuration: Create Traefik IngressClass for ingress resources
 # Create IngressClass with name "traefik" (matches values.yaml ingressClassName)
+# All ingress resources with ingressClassName: traefik will use this ingress controller
 ingressClass:
-  enabled: true
-  isDefaultClass: true
+  enabled: true  # Enable IngressClass creation (required for Kubernetes ingress routing)
+  isDefaultClass: true  # Set Traefik as the default IngressClass (optional, for convenience)
 
+# Service configuration: Azure LoadBalancer for external access
 # Service configuration - Azure LoadBalancer
 service:
-  enabled: true
-  type: LoadBalancer
+  enabled: true  # Enable Kubernetes Service (creates LoadBalancer in Azure)
+  type: LoadBalancer  # Azure LoadBalancer type (exposes Traefik externally with public IP)
   annotations:
-    # Azure-specific annotations if needed
+    # Azure-specific annotations if needed (for LoadBalancer configuration)
+    # Uncomment and configure if you need to specify LoadBalancer resource group:
     # service.beta.kubernetes.io/azure-load-balancer-resource-group: "your-rg"
 
+# Entry points configuration: HTTP and HTTPS ports
 # Entry points configuration
 ports:
+  # HTTP entry point (port 80): Plain HTTP traffic and ACME HTTP-01 challenges
   web:
-    port: 8000
+    port: 8000  # Internal container port (Traefik listens on this port)
     expose:
-      default: true
-    exposedPort: 80
-    protocol: TCP
+      default: true  # Expose this entry point by default
+    exposedPort: 80  # External LoadBalancer port (exposed to internet)
+    protocol: TCP  # Protocol (TCP for HTTP/HTTPS)
     # NOTE: Do NOT redirect HTTP->HTTPS until the first cert is issued.
     # HTTP-01 validation happens over plain HTTP (port 80); global redirect can cause
     # ACME to hit HTTPS before a valid cert exists and fail the order.
+    # After certificates are issued, you can enable HTTP->HTTPS redirect in ingress annotations
+  # HTTPS entry point (port 443): TLS-encrypted traffic
   websecure:
-    port: 8443
+    port: 8443  # Internal container port (Traefik listens on this port)
     expose:
-      default: true
-    exposedPort: 443
-    protocol: TCP
+      default: true  # Expose this entry point by default
+    exposedPort: 443  # External LoadBalancer port (exposed to internet)
+    protocol: TCP  # Protocol (TCP for HTTP/HTTPS)
     tls:
-      enabled: true
+      enabled: true  # Enable TLS termination (Traefik handles TLS certificates)
 
+# Dashboard configuration: Traefik web UI (optional, disabled for security)
 # Enable dashboard (optional, for debugging)
 ingressRoute:
   dashboard:
-    enabled: false
+    enabled: false  # Disable Traefik dashboard (not needed for production, can be enabled for debugging)
 
+# Logging configuration: Traefik access and general logs
 # Logging
 logs:
   general:
-    level: INFO
+    level: INFO  # General log level (INFO, DEBUG, ERROR, etc.)
   access:
-    enabled: true
+    enabled: true  # Enable access logs (HTTP request logs for debugging)
 
+# Resource limits: Container resource requests and limits
 # Resource limits
 resources:
   requests:
-    cpu: "100m"
-    memory: "50Mi"
+    cpu: "100m"  # CPU request (minimum CPU allocation)
+    memory: "50Mi"  # Memory request (minimum memory allocation)
   limits:
-    cpu: "300m"
-    memory: "150Mi"
+    cpu: "300m"  # CPU limit (maximum CPU allocation)
+    memory: "150Mi"  # Memory limit (maximum memory allocation)
 
+# Prometheus metrics: Enable metrics endpoint for Prometheus scraping
 # Prometheus metrics
 metrics:
   prometheus:
-    entryPoint: metrics
-    addEntryPointsLabels: true
-    addServicesLabels: true
+    entryPoint: metrics  # Metrics entry point name (for Prometheus scraping)
+    addEntryPointsLabels: true  # Add entry point labels to metrics (for filtering)
+    addServicesLabels: true  # Add service labels to metrics (for filtering)
+    # Prometheus Agent will scrape Traefik metrics via ServiceMonitor or pod annotations
 
+# Provider configuration: Enable Kubernetes Ingress provider
 # Providers - enable Kubernetes Ingress
 providers:
   kubernetesIngress:
-    enabled: true
+    enabled: true  # Enable Kubernetes Ingress provider (allows Traefik to read Ingress resources)
     publishedService:
-      enabled: true
+      enabled: true  # Publish LoadBalancer service (for ingress status updates)

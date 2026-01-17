@@ -1,10 +1,17 @@
+# Rocket.Chat NATS Connection Secret
+# This Secret provides the NATS connection string to Rocket.Chat microservices.
+# It's not a credential - just the internal cluster URL for the existing NATS server.
+# Rocket.Chat microservices read this Secret to connect to NATS for messaging.
+# See ops/manifests/rocketchat-nats.yaml for NATS server deployment.
 apiVersion: v1
 kind: Secret
 metadata:
-  name: rocketchat-nats-connection
-  namespace: rocketchat
-type: Opaque
+  name: rocketchat-nats-connection  # Secret name (referenced in values.yaml as nats.existingSecret.name)
+  namespace: rocketchat  # Namespace for Rocket.Chat and NATS
+type: Opaque  # Opaque Secret type (allows arbitrary string data)
 stringData:
   # Not a credential; this is just the internal cluster URL for existing NATS.
-  connectionString: nats://rocketchat-nats:4222
+  # Rocket.Chat Helm chart reads this Secret and sets TRANSPORTER env var for microservices
+  # Format: nats://<service-name>:<port> (NATS service name in rocketchat namespace)
+  connectionString: nats://rocketchat-nats:4222  # NATS service name and client port
 

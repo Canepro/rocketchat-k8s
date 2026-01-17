@@ -1,76 +1,101 @@
-# Get current client configuration (for RBAC)
+# Terraform Configuration: AKS Cluster
+# This file provisions the Azure Kubernetes Service (AKS) cluster for Rocket.Chat.
+# The cluster includes: Node pool, networking, RBAC, and identity configuration.
+# See VERSIONS.md for Kubernetes version tracking (managed by AKS).
+
+# Get current client configuration (for RBAC and authentication)
+# This data source retrieves current Azure client configuration (tenant ID, object ID, etc.)
+# Used for RBAC role assignments and authentication
 data "azurerm_client_config" "current" {}
 
+# AKS Cluster: Main Kubernetes cluster resource
+# This resource creates the AKS cluster with all required configuration.
 # AKS Cluster
 resource "azurerm_kubernetes_cluster" "main" {
-  name                = var.cluster_name
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  dns_prefix          = var.dns_prefix
-  kubernetes_version  = var.kubernetes_version != "" ? var.kubernetes_version : null
+  name                = var.cluster_name  # Cluster name (from variables.tf, default: "aks-canepro")
+  location            = azurerm_resource_group.main.location  # Azure region (from resource group)
+  resource_group_name = azurerm_resource_group.main.name  # Resource group (from main.tf)
+  dns_prefix          = var.dns_prefix  # DNS prefix for cluster FQDN (from variables.tf, default: "aks-canepro")
+  kubernetes_version  = var.kubernetes_version != "" ? var.kubernetes_version : null  # Kubernetes version (empty = latest)
 
   # Required for Azure Workload Identity (used by External Secrets Operator)
-  oidc_issuer_enabled       = true
-  workload_identity_enabled = true
+  # Workload Identity allows Kubernetes ServiceAccounts to authenticate to Azure services
+  # This is used by External Secrets Operator to authenticate to Azure Key Vault
+  oidc_issuer_enabled       = true  # Enable OIDC issuer (required for Workload Identity)
+  workload_identity_enabled = true  # Enable Workload Identity (for ESO Key Vault authentication)
 
   # Enable System-Assigned Managed Identity (for Jenkins Azure access)
+  # System-Assigned Managed Identity allows the AKS cluster to authenticate to Azure services
+  # This can be used by Jenkins (or other services) running in the cluster for Azure access
   identity {
-    type = "SystemAssigned"
+    type = "SystemAssigned"  # System-Assigned Managed Identity (managed by Azure)
   }
 
-  # Enable RBAC
-  role_based_access_control_enabled = true
+  # Enable RBAC (Role-Based Access Control)
+  # RBAC is required for proper Kubernetes security and is required for many features
+  role_based_access_control_enabled = true  # Enable RBAC (required for AKS)
 
   # API server authorized IP ranges (empty = allow all)
+  # This controls which IP addresses can access the Kubernetes API server
   # Note: This uses deprecated syntax because api_server_access_profile block
   # causes perpetual drift (azurerm provider bug). Will migrate to new syntax
   # when upgrading to provider v4.0.
-  api_server_authorized_ip_ranges = []
+  # Empty array means allow all IPs (less secure but more flexible)
+  api_server_authorized_ip_ranges = []  # Allow all IPs (can restrict to specific IPs for security)
 
+  # Default node pool: Worker nodes for running Kubernetes pods
   # Default node pool
   default_node_pool {
-    name                         = "system"
-    node_count                   = var.node_count
-    vm_size                      = var.vm_size
-    os_disk_size_gb              = 30
-    type                         = "VirtualMachineScaleSets"
-    enable_auto_scaling          = false
-    vnet_subnet_id               = azurerm_subnet.aks.id
-    temporary_name_for_rotation  = "tempnodepool"  # Required when updating vm_size
+    name                         = "system"  # Node pool name (must be lowercase, alphanumeric, max 12 chars)
+    node_count                   = var.node_count  # Number of nodes (from variables.tf, default: 2)
+    vm_size                      = var.vm_size  # VM size (from variables.tf, default: "Standard_D4as_v5")
+    os_disk_size_gb              = 30  # OS disk size in GB (minimum 30GB for AKS)
+    type                         = "VirtualMachineScaleSets"  # Node pool type (VMSS for scalability)
+    enable_auto_scaling          = false  # Disable auto-scaling (manual scaling for now)
+    vnet_subnet_id               = azurerm_subnet.aks.id  # Subnet for nodes (from network.tf)
+    temporary_name_for_rotation  = "tempnodepool"  # Required when updating vm_size (enables rolling node updates)
 
-    # Labels and taints
+    # Labels and taints: Kubernetes node labels and taints
+    # Labels help identify node roles and capabilities
     node_labels = {
-      "node.kubernetes.io/role" = "worker"
+      "node.kubernetes.io/role" = "worker"  # Node role label (used for scheduling)
     }
 
-    tags = var.tags
+    tags = var.tags  # Tags for node pool VMs (from variables.tf)
   }
 
+  # Network configuration: Kubernetes networking setup
   # Network configuration
   network_profile {
-    network_plugin    = "kubenet"
-    load_balancer_sku = "standard"
+    network_plugin    = "kubenet"  # Network plugin (kubenet for basic networking, azure CNI for advanced)
+    load_balancer_sku = "standard"  # LoadBalancer SKU (standard for production, basic for testing)
     # Service CIDR must not overlap with VNet (10.0.0.0/16) or subnet (10.0.1.0/24)
-    service_cidr   = "10.0.2.0/24"
-    dns_service_ip = "10.0.2.10"
+    # Service CIDR: IP range for Kubernetes Services (ClusterIP, LoadBalancer, etc.)
+    service_cidr   = "10.0.2.0/24"  # Service CIDR (must not overlap with VNet or subnet)
+    dns_service_ip = "10.0.2.10"  # DNS service IP (must be within service_cidr and not .1)
     # Pod CIDR for kubenet (each node gets a /24 from this range)
-    pod_cidr = "10.244.0.0/16"
+    # Pod CIDR: IP range for Kubernetes Pods (kubenet uses this for pod networking)
+    pod_cidr = "10.244.0.0/16"  # Pod CIDR (must not overlap with VNet, subnet, or service_cidr)
   }
 
   # Enable Azure Policy (optional)
-  azure_policy_enabled = false
+  # Azure Policy allows you to enforce governance policies on Kubernetes resources
+  azure_policy_enabled = false  # Disable Azure Policy (not needed for this setup)
 
   # OMS Agent is not enabled (we use Prometheus Agent for monitoring)
+  # OMS Agent is Azure's built-in monitoring agent (we use Prometheus Agent instead)
   # When oms_agent block is omitted, it defaults to disabled
+  # See ops/manifests/prometheus-agent-deployment.yaml for Prometheus Agent deployment
 
-  tags = var.tags
+  tags = var.tags  # Tags for AKS cluster (from variables.tf)
 
+  # Lifecycle configuration: Prevent Terraform from modifying certain resources
   # We are intentionally not managing certain AKS defaults in this repo right now.
   # This prevents Terraform from making in-place changes during state recovery when the
   # existing cluster was created previously and has provider-managed defaults.
   lifecycle {
     ignore_changes = [
-      default_node_pool[0].upgrade_settings,
+      default_node_pool[0].upgrade_settings,  # Ignore upgrade settings (managed by AKS automatically)
     ]
   }
 }

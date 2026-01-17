@@ -1,22 +1,29 @@
-## Rocket.Chat Helm values (parity-first)
-## Chart: rocketchat/rocketchat 6.29.0
-## Goal: match current runtime behavior while moving to Helm+values GitOps.
+# Rocket.Chat Helm Values
+# This file contains Helm values for the Rocket.Chat deployment via ArgoCD.
+# These values override the default Rocket.Chat Helm chart values.
+# Chart: rocketchat/rocketchat 6.29.0 - See VERSIONS.md for latest version and upgrade status.
+# Goal: match current runtime behavior while moving to Helm+values GitOps.
+# See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 7.13.2
 
+# Rocket.Chat container image configuration
 image:
-  repository: registry.rocket.chat/rocketchat/rocket.chat
+  repository: registry.rocket.chat/rocketchat/rocket.chat  # Official Rocket.Chat image registry
   # Pin to the currently running version for the migration. Upgrade later by changing ONLY this value.
-  tag: "7.13.2"
-  pullPolicy: IfNotPresent
+  # See VERSIONS.md for latest version and upgrade status
+  tag: "7.13.2"  # Rocket.Chat application version - Check latest at https://github.com/RocketChat/Rocket.Chat/releases
+  pullPolicy: IfNotPresent  # Image pull policy (pull if not present locally)
 
-# Host for Rocket.Chat (used to set ROOT_URL and for ingress)
-host: k8.canepro.me
+# Host configuration for Rocket.Chat (used to set ROOT_URL and for ingress)
+host: k8.canepro.me  # Domain name for Rocket.Chat (matches ingress host below)
 
-replicaCount: 1
-minAvailable: 1
+# Deployment configuration
+replicaCount: 1  # Number of Rocket.Chat replicas (1 for single-instance deployment)
+minAvailable: 1  # Minimum available replicas for PodDisruptionBudget (allows rolling updates)
 
-# Chart requires passwords array for secret generation
-passwords: ["dummy-password"]
+# Chart requires passwords array for secret generation (required even if not used)
+passwords: ["dummy-password"]  # Dummy password array (not used when existingMongodbSecret is set)
 
+# MongoDB secret configuration: Use existing Secret from External Secrets Operator
 # Reuse the existing Secret that already contains:
 # - mongo-uri
 # - mongo-oplog-uri
@@ -24,26 +31,31 @@ passwords: ["dummy-password"]
 # existingMongodbSecret: rocketchat-rocketchat
 
 # Rocket.Chat chart reads `mongo-uri` from this Secret and sets MONGO_URL from it.
-# This keeps MongoDB credentials out of git.
+# This keeps MongoDB credentials out of git (secrets are synced from Azure Key Vault by ESO).
+# Secret is created by ExternalSecret in ops/secrets/externalsecret-rocketchat-mongodb-external.yaml
 # (Create the Secret out-of-band or via your secret management solution.)
-existingMongodbSecret: rocketchat-mongodb-external
+existingMongodbSecret: rocketchat-mongodb-external  # Secret name (created by External Secrets Operator)
 
+# SMTP configuration: Email sending via Mailgun SMTP relay
 smtp:
-  enabled: true
+  enabled: true  # Enable SMTP for email notifications
   # Provide credentials so the chart generates the mail-url in the managed secret.
   # Using the recovered password from smtp-credentials.
-  username: postmaster@canepro.me
-  password: "Genimi123456"
-  host: smtp.mailgun.org
-  port: 587
+  # Note: These credentials are used by the Helm chart but not stored in git (chart generates secret)
+  username: postmaster@canepro.me  # Mailgun SMTP username
+  password: "Genimi123456"  # Mailgun SMTP password (chart generates secret with this)
+  host: smtp.mailgun.org  # Mailgun SMTP host
+  port: 587  # SMTP port (TLS/STARTTLS)
 
 
+# Metrics configuration: Enable Prometheus metrics endpoint
 # Enable standard metrics so RocketChat exposes /metrics
 metrics:
-  enabled: true
-  # We manage the ServiceMonitor manually in ops/manifests
+  enabled: true  # Enable /metrics endpoint on Rocket.Chat service
+  # We manage the ServiceMonitor manually in ops/manifests (to avoid chart conflicts)
+  # See ops/manifests/rocketchat-servicemonitors.yaml for ServiceMonitor configuration
   serviceMonitor:
-    enabled: false
+    enabled: false  # Disable chart-generated ServiceMonitor (use manual one)
 
 # Deprecated/Custom field - removing effectively (commented out)
 # prometheusScraping:
@@ -51,79 +63,94 @@ metrics:
 #   port: 9100
 #   msPort: 9458
 
+# Monitoring configuration: Disable chart-generated ServiceMonitors/PodMonitors
 # We manage monitoring objects (ServiceMonitors/CRDs) via the ops ArgoCD app.
 # Disable chart-generated monitors to avoid shared-resource conflicts.
+# See ops/manifests/rocketchat-servicemonitors.yaml for manual ServiceMonitor configuration
 serviceMonitor:
-  enabled: false
+  enabled: false  # Disable chart-generated ServiceMonitor (use manual one)
 podMonitor:
-  enabled: false
+  enabled: false  # Disable chart-generated PodMonitor (not needed for this setup)
 
+# Microservices configuration: Enable Rocket.Chat microservices architecture
 microservices:
-  enabled: true
-  logLevel: warn
-  heartbeatInterval: 10
-  heartbeatTimeout: 30
+  enabled: true  # Enable microservices mode (splits Rocket.Chat into multiple services)
+  logLevel: warn  # Log level for microservices (warn, info, debug)
+  heartbeatInterval: 10  # Heartbeat interval in seconds (for health checks)
+  heartbeatTimeout: 30  # Heartbeat timeout in seconds (for health checks)
   # Keep defaults for image repos; tag is controlled globally via image.tag above
+  # All microservices use the same image repository but can have different tags if needed
   account:
-    replicas: 1
+    replicas: 1  # Account microservice replicas (user account management)
   authorization:
-    replicas: 1
+    replicas: 1  # Authorization microservice replicas (authentication/authorization)
   presence:
-    replicas: 1
+    replicas: 1  # Presence microservice replicas (user online/offline status)
   ddpStreamer:
-    replicas: 1
+    replicas: 1  # DDP Streamer microservice replicas (real-time messaging)
   streamHub:
-    replicas: 1
+    replicas: 1  # Stream Hub microservice replicas (message routing)
 
+# MongoDB configuration: Disable chart-bundled MongoDB (use existing MongoDB Community Operator deployment)
 # IMPORTANT: do NOT deploy bundled MongoDB or NATS.
 # We keep your existing rocketchat-mongodb and rocketchat-nats resources.
+# See ops/manifests/ for MongoDB Community Operator deployment
 mongodb:
-  enabled: false
+  enabled: false  # Disable chart-bundled MongoDB (use existing MongoDB Community Operator)
   # Chart requires passwords array even when MongoDB is disabled
-  passwords: ["dummy-password"]
+  passwords: ["dummy-password"]  # Dummy password array (required by chart, not used)
   # Explicitly disable the serviceMonitor for mongodb, as the chart might still try to render it.
+  # See ops/manifests/rocketchat-servicemonitors.yaml for manual ServiceMonitor configuration
   serviceMonitor:
-    enabled: false
+    enabled: false  # Disable chart-generated ServiceMonitor (use manual one)
   metrics:
-    enabled: false
+    enabled: false  # Disable chart-bundled MongoDB metrics (use existing MongoDB metrics)
     serviceMonitor:
-      enabled: false
+      enabled: false  # Disable chart-generated ServiceMonitor (use manual one)
 
+# NATS configuration: Disable chart-bundled NATS (use existing NATS deployment)
 # With microservices enabled, the chart normally deploys NATS unless explicitly disabled.
 # Disable it and source the TRANSPORTER connection string from a small non-sensitive Secret
 # (so all microservices get the same TRANSPORTER via chart templating).
+# See ops/manifests/rocketchat-nats.yaml for NATS server deployment
 nats:
-  enabled: false
+  enabled: false  # Disable chart-bundled NATS (use existing NATS StatefulSet)
   existingSecret:
-    name: rocketchat-nats-connection
-    key: connectionString
+    name: rocketchat-nats-connection  # Secret name (from ops/manifests/rocketchat-nats-connection.yaml)
+    key: connectionString  # Secret key containing NATS connection string (nats://rocketchat-nats:4222)
 
+# Persistence configuration: Rocket.Chat file uploads storage
 # Keep Rocket.Chat uploads PVC managed by the chart (so it is not treated as an extraneous resource).
-# Match the current PVC characteristics (2Gi, RWO, local-path).
+# Match the current PVC characteristics (2Gi, RWO, managed-premium).
+# See ops/manifests/rocketchat-uploads-pvc.yaml for manual PVC (chart also creates one)
 persistence:
-  enabled: true
-  accessMode: ReadWriteOnce
-  size: 2Gi
+  enabled: true  # Enable persistent storage for file uploads
+  accessMode: ReadWriteOnce  # Single node read/write (Rocket.Chat uses one replica)
+  size: 2Gi  # Storage size (adjust based on upload volume requirements)
   # AKS Migration: Uses Azure managed-premium StorageClass
   # Old cluster uses local-path, AKS uses managed-premium
-  storageClass: managed-premium
+  storageClass: managed-premium  # Azure managed-premium StorageClass (standard AKS StorageClass)
 
+# Ingress configuration: Traefik ingress for HTTP/HTTPS routing and TLS termination
 ingress:
-  enabled: true
-  ingressClassName: traefik
+  enabled: true  # Enable ingress (create Ingress resource for Traefik)
+  ingressClassName: traefik  # Traefik ingress class (must match Traefik IngressClass name)
   annotations:
-    cert-manager.io/cluster-issuer: production-cert-issuer
-  path: /
-  pathType: Prefix
+    # cert-manager annotation: Use Let's Encrypt ClusterIssuer for TLS certificates
+    # See ops/manifests/clusterissuer.yaml for ClusterIssuer configuration
+    cert-manager.io/cluster-issuer: production-cert-issuer  # ClusterIssuer name (from clusterissuer.yaml)
+  path: /  # Ingress path (root path for all Rocket.Chat requests)
+  pathType: Prefix  # Path matching type (prefix matching)
   tls:
-    - secretName: rocketchat-tls
+    # TLS configuration: Let's Encrypt certificate for domain
+    - secretName: rocketchat-tls  # Secret name for TLS certificate (created by cert-manager)
       hosts:
-        - k8.canepro.me
+        - k8.canepro.me  # Domain name for TLS certificate (must match host above)
 
+# Environment variables: Additional Rocket.Chat configuration
 # Keep existing SMTP override settings from your current Deployment (non-sensitive)
 extraEnv:
   - name: OVERWRITE_SETTING_SMTP_Host
-    value: "smtp.mailgun.org"
+    value: "smtp.mailgun.org"  # SMTP host override (matches smtp.host above)
   - name: OVERWRITE_SETTING_SMTP_Username
-    value: "postmaster@canepro.me"
-
+    value: "postmaster@canepro.me"  # SMTP username override (matches smtp.username above)

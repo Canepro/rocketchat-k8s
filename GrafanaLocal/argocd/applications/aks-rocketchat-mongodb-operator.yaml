@@ -1,23 +1,28 @@
+# ArgoCD Application: MongoDB Community Operator
+# This ArgoCD Application deploys MongoDB Community Operator using the official Helm chart.
+# The operator manages MongoDB instances in Kubernetes (MongoDB Community Server).
+# See VERSIONS.md for version tracking. Current: MongoDB Operator Helm chart 1.6.1
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: aks-rocketchat-mongodb-operator
   namespace: argocd
   labels:
-    app: mongodb-operator
-    cluster: aks-canepro
+    app: mongodb-operator  # Application identifier in ArgoCD
+    cluster: aks-canepro  # Cluster identifier for filtering in ArgoCD
 spec:
-  project: default
+  project: default  # ArgoCD project (controls permissions and allowed resources)
   source:
-    repoURL: https://mongodb.github.io/helm-charts
-    chart: mongodb-kubernetes
+    repoURL: https://mongodb.github.io/helm-charts  # MongoDB Helm chart repository
+    chart: mongodb-kubernetes  # Chart name (MongoDB Community Operator)
     # Pinned from the MongoDB Helm repo index.yaml (latest entry at time of change)
-    targetRevision: 1.6.1
+    # See VERSIONS.md for latest version and upgrade status
+    targetRevision: 1.6.1  # Chart version - Check latest at https://github.com/mongodb/mongodb-kubernetes-operator/releases
     helm:
-      releaseName: mongodb-kubernetes-operator
+      releaseName: mongodb-kubernetes-operator  # Helm release name (used for resource naming)
   destination:
-    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
-    namespace: rocketchat
+    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    namespace: rocketchat  # Target namespace (operator watches this namespace for MongoDB resources)
   syncPolicy:
     automated:
       prune: true
