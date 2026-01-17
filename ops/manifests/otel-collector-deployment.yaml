@@ -1,3 +1,7 @@
+# OpenTelemetry Collector Deployment
+# The OTel Collector receives traces from applications (via OTLP/gRPC/HTTP) and forwards them to central Tempo.
+# It can also receive Jaeger and Zipkin formatted traces (for compatibility).
+# See VERSIONS.md for version tracking. Latest version: v0.142.0 (as of 2026-01-16)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,7 +10,7 @@ metadata:
   labels:
     app: otel-collector
 spec:
-  replicas: 1
+  replicas: 1  # Single replica is sufficient (not stateful)
   selector:
     matchLabels:
       app: otel-collector
@@ -15,19 +19,30 @@ spec:
       labels:
         app: otel-collector
       annotations:
+        # Config revision annotation: Update this when config changes to trigger pod restart
         canepro.me/otel-collector-config-rev: "2025-12-23-01"
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:0.88.0
+          # OpenTelemetry Collector Contrib image version - See VERSIONS.md for latest version and update procedure
+          # Current: v0.142.0 (latest stable as of 2026-01-16)
+          # Note: v0.88.0 is outdated. Update to v0.142.0 or later.
+          # "contrib" variant includes extra receivers/exporters beyond core collector
+          image: otel/opentelemetry-collector-contrib:0.142.0
           imagePullPolicy: IfNotPresent
           command:
+            # OTel Collector binary (contrib variant)
             - /otelcol-contrib
+            # Config file location (from ConfigMap)
             - --config=/etc/otel-collector-config.yaml
           env:
+            # Go memory limit: Prevents collector from using too much memory
+            # Set to 512MiB to match resource limits below
             - name: GOMEMLIMIT
               value: 512MiB
-            # Credentials for basicauth/oke in the config (kept in Secret; not committed to Git)
+            # Credentials for basic auth to central Tempo hub (from observability-credentials secret)
+            # These are referenced in the ConfigMap as ${env:GRAFANA_USERNAME} and ${env:GRAFANA_PASSWORD}
+            # Kept in Secret (not committed to Git) for security
             - name: GRAFANA_USERNAME
               valueFrom:
                 secretKeyRef:

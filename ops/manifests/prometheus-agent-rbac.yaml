@@ -1,3 +1,9 @@
+# Prometheus Agent RBAC (Role-Based Access Control)
+# These RBAC resources grant Prometheus Agent the necessary Kubernetes API permissions to:
+# 1. Discover pods, services, and nodes (for metrics scraping)
+# 2. Read ingress resources (for service discovery)
+# 3. Access node proxy endpoints (for node metrics)
+# See VERSIONS.md for version tracking.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -5,25 +11,30 @@ metadata:
   namespace: monitoring
 
 ---
+# ClusterRole: Defines what permissions Prometheus Agent needs across the entire cluster
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: prometheus-agent
 rules:
-- apiGroups: [""]
+# Core Kubernetes resources needed for service discovery and scraping
+- apiGroups: [""]  # Core Kubernetes API group
   resources:
-  - nodes
-  - nodes/proxy
-  - services
-  - endpoints
-  - pods
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["extensions", "networking.k8s.io"]
+  - nodes        # Read node information (for node metrics scraping)
+  - nodes/proxy  # Access node proxy endpoints (for kubelet metrics)
+  - services     # Discover services (for service-based metrics scraping)
+  - endpoints    # Discover endpoints (for service-based metrics scraping)
+  - pods         # Discover pods (main purpose: find pods with prometheus.io/scrape annotations)
+  verbs: ["get", "list", "watch"]  # Read-only permissions (Prometheus Agent doesn't modify anything)
+# Ingress resources for service discovery
+- apiGroups: ["extensions", "networking.k8s.io"]  # Support both old and new ingress API groups
   resources:
-  - ingresses
-  verbs: ["get", "list", "watch"]
+  - ingresses    # Read ingress resources (for service discovery and metrics)
+  verbs: ["get", "list", "watch"]  # Read-only permissions
 
 ---
+# ClusterRoleBinding: Grants the ClusterRole to the Prometheus Agent ServiceAccount
+# This allows Prometheus Agent pods to use the API permissions defined above
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -31,9 +42,9 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: prometheus-agent
+  name: prometheus-agent  # Reference to the ClusterRole above
 subjects:
 - kind: ServiceAccount
   name: prometheus-agent
-  namespace: monitoring
+  namespace: monitoring  # The ServiceAccount we created above
 

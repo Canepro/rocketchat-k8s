@@ -1,0 +1,44 @@
+# Promtail RBAC (Role-Based Access Control)
+# These RBAC resources grant Promtail the necessary Kubernetes API permissions to:
+# 1. Discover pods and namespaces (for log file discovery)
+# 2. Access node information (for log path construction)
+# 3. Watch for pod changes (to automatically discover new pods)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail
+  namespace: monitoring
+
+---
+# ClusterRole: Defines what permissions Promtail needs across the entire cluster
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail
+rules:
+  - apiGroups: [""]  # Core Kubernetes API group
+    resources:
+      - nodes        # Read node information (for log path discovery)
+      - nodes/proxy  # Access node proxy (rarely used, but kept for compatibility)
+      - services     # Discover services (for service-based log discovery)
+      - endpoints    # Discover endpoints (for service-based log discovery)
+      - pods         # Discover pods (main purpose: find pods and their log files)
+      - namespaces   # Discover namespaces (filter pods by namespace)
+    verbs: ["get", "list", "watch"]  # Read-only permissions (Promtail doesn't modify anything)
+
+---
+# ClusterRoleBinding: Grants the ClusterRole to the Promtail ServiceAccount
+# This allows Promtail pods to use the API permissions defined above
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: promtail  # Reference to the ClusterRole above
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: monitoring  # The ServiceAccount we created above
+

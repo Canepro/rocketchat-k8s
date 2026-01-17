@@ -1,45 +1,58 @@
+# Maintenance Cleanup CronJob
+# This CronJob periodically prunes unused container images from nodes to free up disk space.
+# Uses nsenter to access the host filesystem and run crictl commands.
+# Note: Originally named "k3s-image-prune" but works on AKS with containerd as well.
+# See VERSIONS.md for version tracking. Current: alpine:3.19 (can upgrade to 3.20)
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: k3s-image-prune
+  name: k3s-image-prune  # TODO: Consider renaming to "aks-image-prune" for consistency
   # Must be a namespace permitted by the ArgoCD project (canepro-spoke).
   # This job enters the host namespaces via nsenter, so it does not need to live in kube-system.
   namespace: monitoring
 spec:
-  schedule: "0 3 * * 0" # Every Sunday at 03:00
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
+  schedule: "0 3 * * 0"  # Every Sunday at 03:00 UTC (weekly cleanup)
+  concurrencyPolicy: Forbid  # Don't run multiple instances simultaneously
+  successfulJobsHistoryLimit: 1  # Keep only 1 successful job in history
+  failedJobsHistoryLimit: 1  # Keep only 1 failed job in history
   jobTemplate:
     spec:
       template:
         spec:
-          hostPID: true
-          restartPolicy: OnFailure
+          hostPID: true  # Access host PID namespace (needed for nsenter)
+          restartPolicy: OnFailure  # Restart on failure, but not on success
           tolerations:
+            # Allow scheduling on control-plane nodes (may have more images)
             - key: "node-role.kubernetes.io/control-plane"
               operator: "Exists"
               effect: "NoSchedule"
+            # Legacy control-plane node label (for compatibility)
             - key: "node-role.kubernetes.io/master"
               operator: "Exists"
               effect: "NoSchedule"
           containers:
             - name: prune
+              # Alpine Linux version - See VERSIONS.md for latest version and upgrade status
+              # Current: 3.19 (latest: 3.20 - can upgrade with low risk)
               image: alpine:3.19
               command:
                 - /bin/sh
                 - -c
                 - |
-                  set -eu
+                  set -eu  # Exit on error and undefined variables
+                  # Install util-linux package (provides nsenter command)
                   apk add --no-cache util-linux >/dev/null
                   # Enter the host namespaces (PID 1) and prune unused images.
-                  # Prefer host-installed crictl; fall back to k3s crictl.
+                  # nsenter allows us to run commands in the host's namespace from within the container.
+                  # Prefer host-installed crictl; fall back to k3s crictl (for legacy k3s clusters).
                   nsenter -t 1 -m -u -n -i -- sh -c '
                     set -eu
+                    # Try to use host-installed crictl (AKS uses containerd)
                     if command -v crictl >/dev/null 2>&1; then
-                      crictl rmi --prune
+                      crictl rmi --prune  # Remove unused images
                       exit 0
                     fi
+                    # Fallback for k3s clusters (legacy support)
                     if command -v k3s >/dev/null 2>&1; then
                       k3s crictl rmi --prune
                       exit 0
@@ -47,5 +60,6 @@ spec:
                     echo "Neither crictl nor k3s found on host; skipping prune." >&2
                   '
               securityContext:
-                privileged: true
+                privileged: true  # Required for nsenter to access host namespaces
+
 

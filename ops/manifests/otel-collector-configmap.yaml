@@ -1,17 +1,28 @@
+# OpenTelemetry Collector Configuration
+# This ConfigMap contains the OTel Collector configuration for trace collection and export.
+# The collector receives traces from applications (via OTLP/Jaeger/Zipkin) and forwards them to Tempo.
+# See VERSIONS.md for version tracking.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: otel-collector-config
   namespace: monitoring
 data:
+  # OTel Collector configuration file (mounted to /etc/otel-collector-config.yaml in deployment)
   otel-collector-config.yaml: |
+    # Extensions: Optional functionality like health checks and authentication
+    # Extensions: Optional functionality like health checks and authentication
     extensions:
+      # Health check extension: HTTP endpoint for liveness/readiness probes (port 13133)
       health_check:
         endpoint: 0.0.0.0:13133
+      # pprof extension: Performance profiling endpoint (port 1777)
       pprof:
         endpoint: 0.0.0.0:1777
+      # zpages extension: Debugging pages for trace inspection (port 55679)
       zpages:
         endpoint: 0.0.0.0:55679
+      # Basic Auth extension: Authentication for Tempo export (credentials from Secret)
       # Basic Auth for OKE Tempo (credentials injected via env vars from Secret)
       basicauth/oke:
         client_auth:
@@ -65,11 +76,11 @@ data:
           - key: deployment.environment
             value: production
             action: upsert
-          # Add cluster identifier to all traces
+          # Add cluster identifier to all traces (for filtering in Grafana Tempo)
           # AKS Migration: Updated cluster label for AKS cluster
           - key: cluster
-            value: aks-canepro
-            action: upsert
+            value: aks-canepro  # Cluster identifier (filter by this in Grafana Tempo)
+            action: upsert  # Add or update this attribute on all traces
           - key: region
             value: remote
             action: upsert

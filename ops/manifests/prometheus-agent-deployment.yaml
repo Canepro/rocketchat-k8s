@@ -1,3 +1,7 @@
+# Prometheus Agent Deployment
+# Prometheus Agent is a lightweight version of Prometheus that scrapes metrics and forwards them to remote storage (Mimir/Grafana).
+# Unlike full Prometheus, it doesn't store metrics locally or run alerting rules - it just scrapes and forwards.
+# See VERSIONS.md for version tracking. Latest version: v3.8.1 (as of 2026-01-16)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,7 +10,7 @@ metadata:
   labels:
     app: prometheus-agent
 spec:
-  replicas: 1
+  replicas: 1  # Single replica is sufficient (not stateful)
   selector:
     matchLabels:
       app: prometheus-agent
@@ -15,20 +19,31 @@ spec:
       labels:
         app: prometheus-agent
       annotations:
+        # Config revision annotation: Update this when config changes to trigger pod restart
         canepro.me/prometheus-agent-config-rev: "2025-12-22-04"
     spec:
+      # Service account with RBAC permissions to discover pods/services/nodes (see prometheus-agent-rbac.yaml)
       serviceAccountName: prometheus-agent
       initContainers:
+      # Init container: Renders Prometheus config template with credentials before main container starts
+      # This avoids storing credentials in ConfigMap (credentials come from Secret)
       - name: config-init
-        image: alpine:3.19
+        # Alpine Linux with gettext package (provides envsubst command)
+        # Latest: alpine:3.20 (as of 2026-01-16) - See VERSIONS.md for updates
+        image: alpine:3.20
         command:
         - sh
         - -c
         - |
+          # Install gettext package (provides envsubst command for variable substitution)
           apk add --no-cache gettext >/dev/null 2>&1
+          # Substitute environment variables in config template and write final config
+          # This replaces ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD} with values from Secret
           envsubst '$GRAFANA_USERNAME $GRAFANA_PASSWORD' \
             < /etc/prometheus-template/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml
         env:
+        # Credentials from observability-credentials secret (injected as env vars)
+        # These are referenced in the config template as ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD}
         - name: GRAFANA_USERNAME
           valueFrom:
             secretKeyRef:
@@ -46,12 +61,20 @@ spec:
           name: config
       containers:
       - name: prometheus
-        image: prom/prometheus:v2.45.0
+        # Prometheus image version - See VERSIONS.md for latest version and update procedure
+        # Current: v3.8.1 (latest stable as of 2026-01-16)
+        # Note: v2.45.0 is outdated. Update to v3.8.1 or later.
+        image: prom/prometheus:v3.8.1
         args:
+          # Config file location (rendered by init container from template)
           - '--config.file=/etc/prometheus/prometheus.yml'
+          # Enable lifecycle API: Allows config reload via HTTP endpoint (for future use)
           - '--web.enable-lifecycle'
+          # Enable agent mode: Disables local TSDB storage, alerting, and rule evaluation
+          # Agent mode only scrapes and forwards metrics to remote_write endpoint
           - '--enable-feature=agent'
         ports:
+        # HTTP port for health checks, metrics, and web UI (if needed)
         - containerPort: 9090
           name: web
         volumeMounts:
