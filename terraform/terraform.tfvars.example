@@ -41,3 +41,8 @@ rocketchat_mongo_oplog_uri = "mongodb://admin:PASSWORD@mongodb-0.mongodb-svc.roc
 mongodb_admin_password = "CHANGE_ME"
 mongodb_rocketchat_password = "CHANGE_ME"
 mongodb_metrics_endpoint_password = "CHANGE_ME"
+
+# Observability credentials (replace with your actual Grafana/Mimir/Tempo/Loki credentials)
+# Used by Prometheus Agent, OTel Collector, and Promtail for authenticating to observability hub
+observability_username = "CHANGE_ME"  # Grafana username or instance ID
+observability_password = "CHANGE_ME"  # Grafana API key or password

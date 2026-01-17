@@ -145,3 +145,17 @@ variable "mongodb_metrics_endpoint_password" {
   type        = string
   sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
 }
+
+variable "observability_username" {
+  description = "Observability hub username for basic auth (Grafana/Mimir/Tempo/Loki) (sensitive - set in terraform.tfvars)"  # Username for basic auth to observability hub
+  type        = string
+  sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
+  # Example: Grafana Cloud instance ID or custom username
+}
+
+variable "observability_password" {
+  description = "Observability hub password for basic auth (Grafana/Mimir/Tempo/Loki) (sensitive - set in terraform.tfvars)"  # Password for basic auth to observability hub
+  type        = string
+  sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
+  # Example: Grafana Cloud API key or custom password
+}

@@ -17,6 +17,71 @@ To adjust the number of replicas for a specific service:
 3.  Modify the `replicas` field for the desired service (e.g., `account`, `presence`, `ddpStreamer`).
 4.  Commit and push to `master`.
 
+## 🔐 ArgoCD CLI Login and Application Management
+
+### Login to ArgoCD
+
+ArgoCD CLI is used to manage applications when auto-sync is disabled or for manual synchronization.
+
+**Server URL**: `https://argocd.canepro.me`
+
+**Login command**:
+```bash
+argocd login argocd.canepro.me --grpc-web
+```
+- The `--grpc-web` flag is required when ArgoCD is behind an ingress/proxy that breaks standard gRPC
+- You'll be prompted for username (default: `admin`) and password
+
+**Get initial admin password** (if needed):
+```bash
+# If ArgoCD is running on AKS cluster
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+
+# If ArgoCD is running on OKE hub cluster
+kubectl --context oke-cluster -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+```
+
+### List Applications
+
+```bash
+argocd app list
+```
+
+### Sync Applications
+
+**Sync a specific application**:
+```bash
+argocd app sync aks-rocketchat-ops
+argocd app sync aks-rocketchat-helm
+argocd app sync aks-rocketchat-secrets
+argocd app sync aks-rocketchat-external-secrets
+argocd app sync aks-rocketchat-mongodb-operator
+argocd app sync aks-traefik
+```
+
+**Sync with prune** (removes resources not in Git):
+```bash
+argocd app sync aks-rocketchat-ops --prune
+```
+
+**Force refresh and sync** (if ArgoCD isn't detecting Git changes):
+```bash
+argocd app refresh aks-rocketchat-ops
+argocd app sync aks-rocketchat-ops
+```
+
+### Check Application Status
+
+```bash
+argocd app get aks-rocketchat-ops
+```
+
+### Troubleshooting Login Issues
+
+- **Token expired**: Re-run `argocd login argocd.canepro.me --grpc-web`
+- **Connection refused**: Verify you can reach `https://argocd.canepro.me` and that ArgoCD is running
+- **gRPC errors**: Always use `--grpc-web` flag when ArgoCD is behind ingress/proxy
+
 ## 🛠️ Troubleshooting
 If pods are not running or healthy:
 1.  **Check ArgoCD UI**: Look for the "Degraded" status and click on the resource to see the "Events" or "Logs".
