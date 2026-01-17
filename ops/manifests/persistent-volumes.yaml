@@ -1,7 +1,13 @@
+# Legacy PersistentVolumes (Commented Out - AKS Migration)
+# This file contains legacy PersistentVolume definitions from the old cluster (k3s).
 # AKS Migration: PersistentVolumes commented out
 # AKS uses dynamic provisioning via StorageClass (managed-premium)
 # These PVs were for the old cluster with hostPath volumes bound to specific node
 # Uncomment for legacy cluster if needed
+# 
+# Note: AKS uses Azure managed-premium StorageClass for dynamic provisioning.
+# PVCs are defined in: mongo-pvc.yaml and rocketchat-uploads-pvc.yaml
+# See VERSIONS.md for storage configuration notes.
 
 # ---
 # apiVersion: v1

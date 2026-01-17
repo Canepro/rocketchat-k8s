@@ -1,25 +1,39 @@
+# Kustomize Configuration: Rocket.Chat Operations Infrastructure
+# This kustomization.yaml defines all operational infrastructure resources for the AKS Rocket.Chat deployment.
+# It's deployed via ArgoCD Application (aks-rocketchat-ops) which watches this directory.
+# Resources are organized by function: NATS, monitoring, observability, storage, maintenance.
+# See VERSIONS.md for version tracking of all components managed by this kustomization.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
 resources:
-  - manifests/rocketchat-nats-connection.yaml
-  - manifests/rocketchat-nats.yaml
+  # NATS: Message queue for Rocket.Chat microservices
+  - manifests/rocketchat-nats-connection.yaml  # NATS connection string Secret (for microservices)
+  - manifests/rocketchat-nats.yaml  # NATS StatefulSet, Services, and sidecars (see VERSIONS.md for versions)
 
-  - manifests/rocketchat-servicemonitors.yaml
-  - manifests/podmonitor-crd.yaml
+  # Monitoring: Prometheus ServiceMonitors for metrics scraping
+  - manifests/rocketchat-servicemonitors.yaml  # ServiceMonitors for Rocket.Chat, MongoDB, and NATS metrics
+  - manifests/podmonitor-crd.yaml  # PodMonitor CRD definition (for Prometheus Operator compatibility)
 
-  - manifests/prometheus-agent-configmap.yaml
-  - manifests/prometheus-agent-deployment.yaml
-  - manifests/prometheus-agent-rbac.yaml
+  # Prometheus Agent: Metrics collection and forwarding to Mimir/Grafana
+  - manifests/prometheus-agent-configmap.yaml  # Prometheus Agent configuration (remote_write, scrape configs)
+  - manifests/prometheus-agent-deployment.yaml  # Prometheus Agent deployment (see VERSIONS.md for version)
+  - manifests/prometheus-agent-rbac.yaml  # RBAC permissions for pod/service discovery and scraping
 
-  - manifests/otel-collector-configmap.yaml
-  - manifests/otel-collector-deployment.yaml
-  - manifests/otel-collector-service.yaml
-  - manifests/otel-tracegen-job.yaml
+  # OpenTelemetry Collector: Trace collection and forwarding to Tempo/Grafana
+  - manifests/otel-collector-configmap.yaml  # OTel Collector configuration (receivers, processors, exporters)
+  - manifests/otel-collector-deployment.yaml  # OTel Collector deployment (see VERSIONS.md for version)
+  - manifests/otel-collector-service.yaml  # OTel Collector service (OTLP, Jaeger, Zipkin endpoints)
+  - manifests/otel-tracegen-job.yaml  # Optional trace generation job (for testing trace pipeline)
 
+  # Loki log shipping (Promtail): Log collection and forwarding to Loki/Grafana
   # Loki log shipping (Promtail)
-  - manifests/promtail-configmap.yaml
-  - manifests/promtail-daemonset.yaml
-  - manifests/promtail-rbac.yaml
+  - manifests/promtail-configmap.yaml  # Promtail configuration (log scraping and Loki push)
+  - manifests/promtail-daemonset.yaml  # Promtail DaemonSet (see VERSIONS.md for version - deprecated after March 2026)
+  - manifests/promtail-rbac.yaml  # RBAC permissions for pod discovery and log file access
 
-  - manifests/persistent-volumes.yaml
-  - manifests/rocketchat-uploads-pvc.yaml
-  - manifests/maintenance-cleanup.yaml
-  - manifests/clusterissuer.yaml
+  # Storage: Persistent storage for Rocket.Chat uploads and MongoDB data
+  - manifests/persistent-volumes.yaml  # Legacy PVs (commented out - AKS uses dynamic provisioning)
+  - manifests/rocketchat-uploads-pvc.yaml  # Rocket.Chat file uploads PVC (Azure managed-premium)
+  - manifests/maintenance-cleanup.yaml  # Maintenance CronJob for image pruning (see VERSIONS.md for Alpine version)
+  - manifests/clusterissuer.yaml  # cert-manager ClusterIssuer for Let's Encrypt TLS certificates

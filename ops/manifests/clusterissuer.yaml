@@ -1,16 +1,26 @@
+# cert-manager ClusterIssuer: Let's Encrypt TLS Certificate Issuer
+# This ClusterIssuer configures cert-manager to issue TLS certificates from Let's Encrypt.
+# It uses HTTP-01 ACME challenge (via Traefik ingress) to validate domain ownership.
+# This ClusterIssuer is referenced by ingress resources via cert-manager.io/cluster-issuer annotation.
+# See VERSIONS.md for cert-manager version tracking (managed by ArgoCD).
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: production-cert-issuer
+  name: production-cert-issuer  # ClusterIssuer name (referenced in ingress annotations)
 spec:
   acme:
-    # The ACME server URL for Let's Encrypt production
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: mogah.vincent@hotmail.com
+    # ACME (Automated Certificate Management Environment) configuration for Let's Encrypt
+    # The ACME server URL for Let's Encrypt production (use staging for testing)
+    server: https://acme-v02.api.letsencrypt.org/directory  # Let's Encrypt production endpoint
+    email: mogah.vincent@hotmail.com  # Email for Let's Encrypt account (used for expiry notifications)
     privateKeySecretRef:
-      name: production-cert-issuer-account-key
+      # Secret name for ACME account private key (created automatically by cert-manager)
+      name: production-cert-issuer-account-key  # Secret name in cert-manager namespace
     solvers:
+      # ACME challenge solver: HTTP-01 challenge (recommended for ingress)
       - http01:
           ingress:
-            ingressClassName: traefik
+            # Use Traefik ingress controller for HTTP-01 challenge
+            # cert-manager will create temporary ingress resources for ACME validation
+            ingressClassName: traefik  # Must match Traefik IngressClass name
 

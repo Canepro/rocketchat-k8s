@@ -79,8 +79,8 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 | **Rocket.Chat Helm Chart** | `6.29.0` | `Check latest` | ⚠️ **Check latest** (test chart upgrades carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-helm.yaml` | [Rocket.Chat Helm Charts](https://github.com/RocketChat/charts) |
 | **Traefik Helm Chart** | `34.4.1` | `Check latest` | ⚠️ **Check latest** (ingress controller, test carefully) | `GrafanaLocal/argocd/applications/aks-traefik.yaml` | [Traefik Helm Chart](https://github.com/traefik/traefik-helm-chart) |
 | **MongoDB Operator Helm Chart** | `1.6.1` | `Check latest` | ⚠️ **Check latest** (database operator, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml` | [MongoDB Operator](https://github.com/mongodb/mongodb-kubernetes-operator) |
+| **External Secrets Operator Helm Chart** | `0.10.5` | `Check latest` | ⚠️ **Check latest** (secret management, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml` | [ESO Releases](https://github.com/external-secrets/external-secrets/releases) |
 | **cert-manager** | See ArgoCD App | `Check latest` | ⚠️ **Check latest** (TLS critical, test carefully) | ArgoCD managed | [cert-manager Releases](https://github.com/cert-manager/cert-manager/releases) |
-| **External Secrets Operator** | See ArgoCD App | `Check latest` | ⚠️ **Check latest** (secret management, test carefully) | ArgoCD managed | [ESO Releases](https://github.com/external-secrets/external-secrets/releases) |
 
 ---
 
@@ -148,9 +148,21 @@ kubectl logs -n monitoring -l app=prometheus-agent --tail=50
 
 ---
 
+## Terraform & Infrastructure Tools
+
+| Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
+|-----------|----------------|----------------|----------------|----------|---------------|
+| **Terraform** | `>= 1.0` | `Check latest` | ⚠️ **Check latest** (test Terraform upgrades carefully) | `terraform/main.tf` | [Terraform Releases](https://github.com/hashicorp/terraform/releases) |
+| **Azure Provider** | `~> 3.0` | `Check latest` | ⚠️ **Check latest** (test provider upgrades carefully) | `terraform/main.tf` | [Azure Provider Releases](https://github.com/hashicorp/terraform-provider-azurerm/releases) |
+| **Kubernetes Version** | `latest` | `Check latest` | ⚠️ **Check latest** (AKS managed, test upgrades carefully) | `terraform/aks.tf` | [AKS Supported Versions](https://learn.microsoft.com/en-us/azure/aks/supported-kubernetes-versions) |
+
+---
+
 ## Version Compatibility Notes
 
-- **Prometheus Agent** `v2.45+` required for `--enable-feature=agent` flag
-- **OTel Collector** versions are frequently updated; check compatibility with your observability hub
-- **Promtail** should be compatible with your Loki version at `observability.canepro.me`
-- **NATS Server** `2.10+` required for features used in this setup
+- **Prometheus Agent** `v3.8.1` (upgraded from v2.45.0) - `--enable-feature=agent` flag supported
+- **OTel Collector** `v0.142.0` (upgraded from v0.88.0) - check compatibility with your observability hub
+- **Promtail** `v3.6.0` (upgraded from v2.9.3) - should be compatible with your Loki version at `observability.canepro.me`
+- **NATS Server** `2.4-alpine` (can upgrade to 2.10.24) - major version jump, test carefully
+- **Terraform** `>= 1.0` - latest stable recommended for Azure provider compatibility
+- **Azure Provider** `~> 3.0` - check for provider v4.0 migration guide before upgrading

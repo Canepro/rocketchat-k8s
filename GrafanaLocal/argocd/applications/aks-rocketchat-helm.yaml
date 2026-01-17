@@ -1,48 +1,60 @@
+# ArgoCD Application: Rocket.Chat Helm Deployment
+# This ArgoCD Application deploys Rocket.Chat using the official Helm chart.
+# The chart is sourced from Rocket.Chat's Helm repository, and values come from Git (values.yaml).
+# See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 7.13.2
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: aks-rocketchat-helm
   namespace: argocd
   labels:
-    app: rocketchat
-    cluster: aks-canepro
+    app: rocketchat  # Application identifier in ArgoCD
+    cluster: aks-canepro  # Cluster identifier for filtering in ArgoCD
 spec:
-  project: default
+  project: default  # ArgoCD project (controls permissions and allowed resources)
   sources:
+    # Helm chart source: Official Rocket.Chat Helm chart repository
     # Helm chart from Rocket.Chat Helm repository
-    - repoURL: https://rocketchat.github.io/helm-charts
-      chart: rocketchat
-      targetRevision: 6.29.0
+    - repoURL: https://rocketchat.github.io/helm-charts  # Rocket.Chat Helm chart repository
+      chart: rocketchat  # Chart name
+      targetRevision: 6.29.0  # Chart version - See VERSIONS.md for latest version and upgrade status
       helm:
-        releaseName: rocketchat
+        releaseName: rocketchat  # Helm release name (used for resource naming)
         # Pull values.yaml from the git source below (same pattern as the working k8-canepro-rocketchat app)
+        # Values override default chart values and configure Rocket.Chat for this environment
         valueFiles:
-          - $values/values.yaml
+          - $values/values.yaml  # Reference to values.yaml from Git source below
+    # Values source: Rocket.Chat configuration from Git repository
     # Values from Git repository (referenced by $values/* above)
-    - ref: values
-      repoURL: https://github.com/Canepro/rocketchat-k8s.git
-      targetRevision: aks-migration
+    - ref: values  # Reference name (used by $values in valueFiles above)
+      repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
+      targetRevision: aks-migration  # Branch/tag containing values.yaml (change to 'main' after merge)
   destination:
-    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443
-    namespace: rocketchat
+    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    namespace: rocketchat  # Target namespace for Rocket.Chat deployment
   # Ignore cert-manager's in-place edits to ingress for ACME challenges
+  # cert-manager adds temporary paths to the ingress during TLS certificate validation.
+  # These paths are removed after validation, but ArgoCD would try to revert them.
+  # This setting tells ArgoCD to ignore changes to the ingress paths.
   ignoreDifferences:
     - group: networking.k8s.io
       kind: Ingress
-      name: rocketchat-rocketchat
+      name: rocketchat-rocketchat  # Ingress name (matches Helm release name)
       jsonPointers:
-        - /spec/rules/0/http/paths
+        - /spec/rules/0/http/paths  # Path array that cert-manager modifies
   syncPolicy:
+    # Automated sync: Automatically sync when Git changes are detected
     automated:
-      prune: true
-      selfHeal: true
+      prune: true  # Automatically delete resources removed from Git
+      selfHeal: true  # Automatically fix drift (revert manual changes to match Git)
     syncOptions:
-      - CreateNamespace=true
-      - PrunePropagationPolicy=foreground
-      - PruneLast=true
+      - CreateNamespace=true  # Automatically create namespace if it doesn't exist
+      - PrunePropagationPolicy=foreground  # Wait for dependent resources to be deleted first
+      - PruneLast=true  # Delete resources last (after creating new ones)
     retry:
-      limit: 5
+      # Retry configuration: Retry failed syncs with exponential backoff
+      limit: 5  # Maximum number of retry attempts
       backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
+        duration: 5s  # Initial retry delay
+        factor: 2  # Exponential backoff multiplier
+        maxDuration: 3m  # Maximum retry delay

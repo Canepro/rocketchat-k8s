@@ -1,43 +1,53 @@
+# Prometheus Operator CRDs: Custom Resource Definitions for Prometheus monitoring
+# These CRDs define PodMonitor and ServiceMonitor custom resources for Prometheus Operator.
+# Prometheus Agent uses these CRDs to discover and scrape metrics from Kubernetes resources.
+# See VERSIONS.md for Prometheus Operator version tracking (not directly deployed, used by Prometheus Agent).
+
+# PodMonitor CRD: Custom Resource Definition for Pod-level metrics scraping
+# PodMonitor allows Prometheus Agent to discover and scrape metrics from pods based on pod labels.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: podmonitors.monitoring.coreos.com
+  name: podmonitors.monitoring.coreos.com  # CRD name (for kubectl and API discovery)
 spec:
-  group: monitoring.coreos.com
+  group: monitoring.coreos.com  # API group (Prometheus Operator API group)
   names:
-    kind: PodMonitor
-    listKind: PodMonitorList
-    plural: podmonitors
-    singular: podmonitor
-  scope: Namespaced
+    kind: PodMonitor  # Resource kind (for kubectl and manifests)
+    listKind: PodMonitorList  # List kind (for kubectl get podmonitors)
+    plural: podmonitors  # Plural name (for API endpoints)
+    singular: podmonitor  # Singular name (for kubectl commands)
+  scope: Namespaced  # Resource scope (Namespaced = per-namespace, Cluster = cluster-wide)
   versions:
-    - name: v1
-      served: true
-      storage: true
+    - name: v1  # CRD version (v1 is the current stable version)
+      served: true  # Enable this version for API serving
+      storage: true  # Use this version for storage (must be true for one version)
       schema:
         openAPIV3Schema:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
+          type: object  # Schema type (object for custom resources)
+          x-kubernetes-preserve-unknown-fields: true  # Allow unknown fields (for flexibility)
 
 ---
+# ServiceMonitor CRD: Custom Resource Definition for Service-level metrics scraping
+# ServiceMonitor allows Prometheus Agent to discover and scrape metrics from services based on service labels.
+# See ops/manifests/rocketchat-servicemonitors.yaml for example ServiceMonitor definitions.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: servicemonitors.monitoring.coreos.com
+  name: servicemonitors.monitoring.coreos.com  # CRD name (for kubectl and API discovery)
 spec:
-  group: monitoring.coreos.com
+  group: monitoring.coreos.com  # API group (Prometheus Operator API group)
   names:
-    kind: ServiceMonitor
-    listKind: ServiceMonitorList
-    plural: servicemonitors
-    singular: servicemonitor
-  scope: Namespaced
+    kind: ServiceMonitor  # Resource kind (for kubectl and manifests)
+    listKind: ServiceMonitorList  # List kind (for kubectl get servicemonitors)
+    plural: servicemonitors  # Plural name (for API endpoints)
+    singular: servicemonitor  # Singular name (for kubectl commands)
+  scope: Namespaced  # Resource scope (Namespaced = per-namespace, Cluster = cluster-wide)
   versions:
-    - name: v1
-      served: true
-      storage: true
+    - name: v1  # CRD version (v1 is the current stable version)
+      served: true  # Enable this version for API serving
+      storage: true  # Use this version for storage (must be true for one version)
       schema:
         openAPIV3Schema:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
+          type: object  # Schema type (object for custom resources)
+          x-kubernetes-preserve-unknown-fields: true  # Allow unknown fields (for flexibility)
 
