@@ -20,7 +20,7 @@ spec:
         app: otel-collector
       annotations:
         # Config revision annotation: Update this when config changes to trigger pod restart
-        canepro.me/otel-collector-config-rev: "2025-12-23-01"
+        canepro.me/otel-collector-config-rev: "2026-01-18-01"
     spec:
       containers:
         - name: otel-collector

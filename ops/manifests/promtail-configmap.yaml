@@ -72,26 +72,23 @@ data:
             target_label: cluster
             replacement: aks-canepro  # Identifies logs from this AKS cluster
           - action: replace
+            target_label: environment
+            replacement: production  # Environment label for filtering
+          - action: replace
             target_label: domain
             replacement: k8.canepro.me  # Domain this cluster serves
 
           # Tell Promtail where to find log files on the node's filesystem
-          # Kubelet stores logs at: /var/log/pods/<namespace>_<pod-name>_<uid>/<container-name>/<instance>.log
-          # Example: /var/log/pods/rocketchat_rocketchat-abc123_def456-789/rocketchat/0.log
-          # AKS uses containerd, which follows this exact path format
-          # For portability across distros/runtimes, match the pod directory using the pod UID.
-          # On AKS, the directory name includes the UID, so `*<uid>*` is sufficient:
-          #   /var/log/pods/*<uid>*/<container-name>/<instance>.log
+          # Kubelet symlinks container logs at:
+          #   /var/log/containers/<pod>_<namespace>_<container>-<container-id>.log
+          # Use the container log symlinks for consistent CRI parsing.
           - action: replace
             source_labels:
-              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_name
+              - __meta_kubernetes_namespace
               - __meta_kubernetes_pod_container_name
-            separator: /
+            separator: _
             target_label: __path__  # Special label that tells Promtail which file to read
-            # Path format: /var/log/pods/*<uid>*/<container-name>/*.log
-            # $1 = pod UID / container name (joined)
-            # This relies on the default regex (.*) capturing the joined string.
-            # So $1 becomes "uid/container".
-            # Result: /var/log/pods/*uid/container/*.log
-            replacement: /var/log/pods/*$1/*.log
+            # Path format: /var/log/containers/*<pod>_<namespace>_<container>-*.log
+            replacement: /var/log/containers/*$1-*.log
 
