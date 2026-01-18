@@ -76,6 +76,9 @@ data:
           - key: deployment.environment
             value: production
             action: upsert
+          - key: k8s.cluster.name
+            value: aks-canepro
+            action: upsert
           # Add cluster identifier to all traces (for filtering in Grafana Tempo)
           # AKS Migration: Updated cluster label for AKS cluster
           - key: cluster
@@ -91,9 +94,10 @@ data:
 
       # OKE Central Hub Tempo (Secure HTTP)
       # Using OTLP/HTTP is more reliable through Ingress than gRPC
-      # otlphttp exporter automatically appends /v1/traces, so endpoint should be base URL
+      # Explicit traces_endpoint ensures the hub path is correct
       otlphttp/oke:
         endpoint: https://observability.canepro.me
+        traces_endpoint: https://observability.canepro.me/v1/traces
         tls:
           insecure: false
         auth:

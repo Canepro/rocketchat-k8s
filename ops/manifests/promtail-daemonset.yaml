@@ -17,6 +17,8 @@ spec:
     metadata:
       labels:
         app: promtail
+      annotations:
+        canepro.me/promtail-config-rev: "2026-01-18-01"
     spec:
       # Service account with RBAC permissions to discover pods and read node filesystem
       serviceAccountName: promtail
