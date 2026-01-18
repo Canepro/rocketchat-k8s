@@ -22,6 +22,7 @@ rules:
   resources:
   - nodes        # Read node information (for node metrics scraping)
   - nodes/proxy  # Access node proxy endpoints (for kubelet metrics)
+  - nodes/metrics  # Access node metrics endpoint (for API server proxy scraping)
   - services     # Discover services (for service-based metrics scraping)
   - endpoints    # Discover endpoints (for service-based metrics scraping)
   - pods         # Discover pods (main purpose: find pods with prometheus.io/scrape annotations)

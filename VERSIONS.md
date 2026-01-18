@@ -2,7 +2,7 @@
 
 This document tracks all software versions used in the AKS Rocket.Chat deployment. Update this file when upgrading any component.
 
-**Last Updated**: 2026-01-16
+**Last Updated**: 2026-01-18
 
 ## Upgrade Status Legend
 
@@ -49,6 +49,8 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 | **Prometheus Agent** | `v3.8.1` | `v3.8.1` | ✅ **Up to date** (2026-01-16) | `ops/manifests/prometheus-agent-deployment.yaml` | [Prometheus Releases](https://github.com/prometheus/prometheus/releases) |
 | **OpenTelemetry Collector** | `v0.142.0` | `v0.142.0` | ✅ **Up to date** (2026-01-16) | `ops/manifests/otel-collector-deployment.yaml` | [OTel Collector Releases](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases) |
 | **Promtail** | `v3.6.0` | `v3.6.0` | ✅ **Up to date** (2026-01-16) ⚠️ **Deprecated** | `ops/manifests/promtail-daemonset.yaml` | [Promtail Releases](https://github.com/grafana/promtail/releases) |
+| **kube-state-metrics** | `v2.17.0` | `v2.17.0` | ✅ **Up to date** (2026-01-18) | `ops/manifests/kube-state-metrics.yaml` | [kube-state-metrics Releases](https://github.com/kubernetes/kube-state-metrics/releases) |
+| **node-exporter** | `v1.10.2` | `v1.10.2` | ✅ **Up to date** (2026-01-18) | `ops/manifests/node-exporter.yaml` | [node_exporter Releases](https://github.com/prometheus/node_exporter/releases) |
 | **Alpine (Init Container)** | `3.20` | `3.20` | ✅ **Up to date** (2026-01-16) | `ops/manifests/prometheus-agent-deployment.yaml` | [Alpine Docker Hub](https://hub.docker.com/_/alpine) |
 | **Alpine (Maintenance)** | `3.19` | `3.20` | ⚠️ **Can upgrade** | `ops/manifests/maintenance-cleanup.yaml` | [Alpine Docker Hub](https://hub.docker.com/_/alpine) |
 | **TelemetryGen** | `sha256:d9243...` | `latest` | ⚠️ **Pinned** (good for reproducibility) | `ops/manifests/otel-tracegen-job.yaml` | [OTel TelemetryGen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) |
