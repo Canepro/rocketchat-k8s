@@ -47,6 +47,12 @@ data:
 
         # Relabel configs: Transform Kubernetes metadata into Loki labels
         relabel_configs:
+          # DaemonSet pattern: only tail logs for pods scheduled on this node
+          # (NODE_NAME is injected via env var in promtail-daemonset.yaml; requires -config.expand-env=true)
+          - action: keep
+            source_labels: [__meta_kubernetes_pod_node_name]
+            regex: ${NODE_NAME}
+
           # Core identity labels: Essential for filtering logs in Loki
           - action: replace
             source_labels: [__meta_kubernetes_namespace]
@@ -79,17 +85,14 @@ data:
             replacement: k8.canepro.me  # Domain this cluster serves
 
           # Tell Promtail where to find log files on the node's filesystem
-          # Kubelet symlinks container logs at:
-          #   /var/log/containers/<pod>_<namespace>_<container>-<container-id>.log
-          # Use the container log symlinks for consistent CRI parsing.
+          # Kubelet stores logs at: /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log
+          # Use pod UID + container name to build the path (standard promtail pattern)
           - action: replace
             source_labels:
-              - __meta_kubernetes_pod_name
-              - __meta_kubernetes_namespace
+              - __meta_kubernetes_pod_uid
               - __meta_kubernetes_pod_container_name
-            separator: _
-            regex: (.*)
+            separator: /
             target_label: __path__  # Special label that tells Promtail which file to read
-            # Path format: /var/log/containers/<pod>_<namespace>_<container>-*.log
-            replacement: /var/log/containers/$1-*.log
+            # Path format: /var/log/pods/*<uid>/<container>/*.log
+            replacement: /var/log/pods/*$1/*.log
 

@@ -44,6 +44,10 @@ spec:
           env:
             # Reuse the existing observability basic auth secret (same as Prometheus Agent / OTel Collector)
             # These env vars are referenced in the ConfigMap as ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD}
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: GRAFANA_USERNAME
               valueFrom:
                 secretKeyRef:
