@@ -33,66 +33,26 @@ data:
 
     # Scrape configurations: Define what logs to collect and how to label them
     scrape_configs:
-      # This job discovers all Kubernetes pods and collects their logs
+      # Tail CRI log symlinks directly (one promtail per node).
+      # This avoids Kubernetes SD ↔ node-local filesystem mismatches and ensures promtail becomes Ready.
       - job_name: kubernetes-pods
-        # Pipeline stages: Process logs before sending to Loki
+        static_configs:
+          - targets: [localhost]
+            labels:
+              __path__: /var/log/containers/*.log
+              cluster: aks-canepro
+              environment: production
+              domain: k8.canepro.me
+
         pipeline_stages:
-          # AKS uses containerd/CRI (Container Runtime Interface) format for logs.
-          # This stage decodes the CRI log format into readable text.
           - cri: {}
-
-        # Kubernetes service discovery: Automatically discover pods in the cluster
-        kubernetes_sd_configs:
-          - role: pod  # Discover pods (can also be 'service' or 'node')
-
-        # Relabel configs: Transform Kubernetes metadata into Loki labels
-        relabel_configs:
-          # DaemonSet pattern: only tail logs for pods scheduled on this node
-          # (NODE_NAME is injected via env var in promtail-daemonset.yaml; requires -config.expand-env=true)
-          - action: keep
-            source_labels: [__meta_kubernetes_pod_node_name]
-            regex: ${NODE_NAME}
-
-          # Core identity labels: Essential for filtering logs in Loki
-          - action: replace
-            source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace  # Example: "rocketchat", "monitoring"
-          - action: replace
-            source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod  # Example: "rocketchat-rocketchat-abc123"
-          - action: replace
-            source_labels: [__meta_kubernetes_pod_container_name]
-            target_label: container  # Example: "rocketchat"
-          - action: replace
-            source_labels: [__meta_kubernetes_pod_node_name]
-            target_label: node  # Which AKS node the pod is running on
-
-          # Map pod labels into Loki labels (be mindful: high-cardinality labels can be expensive)
-          # This copies all pod labels (like app=rocketchat) into Loki labels for filtering
-          - action: labelmap
-            regex: __meta_kubernetes_pod_label_(.+)
-
-          # Static labels for cluster identification (matches metrics/traces labeling)
-          # These labels help filter logs from this specific cluster in the central Loki
-          - action: replace
-            target_label: cluster
-            replacement: aks-canepro  # Identifies logs from this AKS cluster
-          - action: replace
-            target_label: environment
-            replacement: production  # Environment label for filtering
-          - action: replace
-            target_label: domain
-            replacement: k8.canepro.me  # Domain this cluster serves
-
-          # Tell Promtail where to find log files on the node's filesystem
-          # Kubelet stores logs at: /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log
-          # Use pod UID + container name to build the path (standard promtail pattern)
-          - action: replace
-            source_labels:
-              - __meta_kubernetes_pod_uid
-              - __meta_kubernetes_pod_container_name
-            separator: /
-            target_label: __path__  # Special label that tells Promtail which file to read
-            # Path format: /var/log/pods/*<uid>/<container>/*.log
-            replacement: /var/log/pods/*$1/*.log
+          # Extract namespace/pod/container from the log filename:
+          # /var/log/containers/<pod>_<namespace>_<container>-<container-id>.log
+          - regex:
+              source: filename
+              expression: '^/var/log/containers/(?P<pod>[^_]+)_(?P<namespace>[^_]+)_(?P<container>.+)-[0-9a-f]{8,}\\.log$'
+          - labels:
+              namespace:
+              pod:
+              container:
 
