@@ -88,7 +88,8 @@ data:
               - __meta_kubernetes_namespace
               - __meta_kubernetes_pod_container_name
             separator: _
+            regex: (.*)
             target_label: __path__  # Special label that tells Promtail which file to read
-            # Path format: /var/log/containers/*<pod>_<namespace>_<container>-*.log
-            replacement: /var/log/containers/*$1-*.log
+            # Path format: /var/log/containers/<pod>_<namespace>_<container>-*.log
+            replacement: /var/log/containers/$1-*.log
 

@@ -89,8 +89,9 @@ data:
             action: upsert
 
     exporters:
-      logging:
-        loglevel: info
+      # Debug exporter: logs trace/metric data for debugging (replaces deprecated 'logging' exporter)
+      debug:
+        verbosity: basic
 
       # OKE Central Hub Tempo (Secure HTTP)
       # Using OTLP/HTTP is more reliable through Ingress than gRPC
@@ -112,15 +113,14 @@ data:
       # Expose detailed internal metrics so span counters appear (otelcol_*spans*)
       telemetry:
         metrics:
-          address: 0.0.0.0:8888
           level: detailed
       pipelines:
         traces:
           receivers: [otlp, jaeger, zipkin]
           processors: [memory_limiter, batch, resource]
-          exporters: [otlphttp/oke, logging]
+          exporters: [otlphttp/oke, debug]
         metrics:
           receivers: [prometheus]
           processors: [memory_limiter, batch]
-          exporters: [prometheus, logging]
+          exporters: [prometheus, debug]
 
