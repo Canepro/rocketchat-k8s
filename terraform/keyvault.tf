@@ -170,3 +170,42 @@ resource "azurerm_key_vault_secret" "observability_password" {
     Purpose = "ObservabilityCredentials"  # Purpose tag (for resource organization)
   })
 }
+
+# Jenkins credentials: Admin username for Jenkins login
+# This credential is used by Jenkins controller for admin authentication.
+resource "azurerm_key_vault_secret" "jenkins_admin_username" {
+  name         = "jenkins-admin-username"  # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value        = var.jenkins_admin_username  # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id = azurerm_key_vault.rocketchat.id  # Key Vault resource ID (from Key Vault resource above)
+  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer]  # Wait for RBAC role assignment (required for RBAC mode)
+
+  tags = merge(var.tags, {
+    Purpose = "JenkinsCredentials"  # Purpose tag (for resource organization)
+  })
+}
+
+# Jenkins credentials: Admin password for Jenkins login
+# This credential is used by Jenkins controller for admin authentication.
+resource "azurerm_key_vault_secret" "jenkins_admin_password" {
+  name         = "jenkins-admin-password"  # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value        = var.jenkins_admin_password  # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id = azurerm_key_vault.rocketchat.id  # Key Vault resource ID (from Key Vault resource above)
+  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer]  # Wait for RBAC role assignment (required for RBAC mode)
+
+  tags = merge(var.tags, {
+    Purpose = "JenkinsCredentials"  # Purpose tag (for resource organization)
+  })
+}
+
+# Jenkins credentials: GitHub personal access token for PR validation
+# This credential is used by Jenkins GitHub plugin for PR validation and webhook management.
+resource "azurerm_key_vault_secret" "jenkins_github_token" {
+  name         = "jenkins-github-token"  # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value        = var.jenkins_github_token  # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id = azurerm_key_vault.rocketchat.id  # Key Vault resource ID (from Key Vault resource above)
+  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer]  # Wait for RBAC role assignment (required for RBAC mode)
+
+  tags = merge(var.tags, {
+    Purpose = "JenkinsCredentials"  # Purpose tag (for resource organization)
+  })
+}

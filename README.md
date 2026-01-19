@@ -42,6 +42,24 @@ We should avoid manual `kubectl create secret ...` for anything that must persis
 
 See `OPERATIONS.md` and `MIGRATION_STATUS.md`.
 
+## 🤖 CI/CD with Jenkins (Optional)
+
+Jenkins is configured for CI validation (PR checks, linting, policy validation):
+
+- **Access**: `https://jenkins.canepro.me`
+- **Role**: CI validation only (no applies by default)
+- **Agents**: Dynamic Kubernetes pods (terraform, helm, default)
+- **Secrets**: Managed via External Secrets Operator + Azure Key Vault
+
+**What Jenkins validates**:
+- ✅ PR validation (lint, policy checks)
+- ✅ `terraform fmt -check`, `terraform validate`, `terraform plan`
+- ✅ `helm template` + `kubeconform` for manifest validation
+- ✅ YAML linting (`yamllint`)
+- ✅ Policy checks (OPA/Conftest)
+
+**Deployment**: See [JENKINS_DEPLOYMENT.md](JENKINS_DEPLOYMENT.md) for complete deployment guide.
+
 ## 📊 Health Dashboard
 Monitor the real-time status of your stack here:
 [https://argocd.canepro.me](https://argocd.canepro.me)

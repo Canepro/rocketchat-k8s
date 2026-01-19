@@ -1,0 +1,47 @@
+# ArgoCD Application: Jenkins CI/CD
+# This ArgoCD Application deploys Jenkins using the official Jenkins Helm chart.
+# Jenkins is configured for CI validation (PR checks, linting, policy validation).
+# See jenkins-values.yaml for configuration. Current: Jenkins chart 5.7.15
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aks-jenkins
+  namespace: argocd
+  labels:
+    app: jenkins  # Application identifier in ArgoCD
+    cluster: aks-canepro  # Cluster identifier for filtering in ArgoCD
+spec:
+  project: default  # ArgoCD project (controls permissions and allowed resources)
+  sources:
+    # Helm chart source: Official Jenkins Helm chart repository
+    - repoURL: https://charts.jenkins.io  # Jenkins Helm chart repository
+      chart: jenkins  # Chart name
+      targetRevision: 5.8.110  # Chart version - See VERSIONS.md for latest version (updated 2026-01-19)
+      helm:
+        releaseName: jenkins  # Helm release name (used for resource naming)
+        # Pull jenkins-values.yaml from the git source below
+        valueFiles:
+          - $values/jenkins-values.yaml  # Reference to jenkins-values.yaml from Git source below
+    # Values source: Jenkins configuration from Git repository
+    - ref: values  # Reference name (used by $values in valueFiles above)
+      repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
+      targetRevision: aks-migration  # Branch/tag containing jenkins-values.yaml
+  destination:
+    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    namespace: jenkins  # Target namespace for Jenkins deployment
+  syncPolicy:
+    # Automated sync: Automatically sync when Git changes are detected
+    automated:
+      prune: true  # Automatically delete resources removed from Git
+      selfHeal: true  # Automatically fix drift (revert manual changes to match Git)
+    syncOptions:
+      - CreateNamespace=true  # Automatically create namespace if it doesn't exist
+      - PrunePropagationPolicy=foreground  # Wait for dependent resources to be deleted first
+      - PruneLast=true  # Delete resources last (after creating new ones)
+    retry:
+      # Retry configuration: Retry failed syncs with exponential backoff
+      limit: 5  # Maximum number of retry attempts
+      backoff:
+        duration: 5s  # Initial retry delay
+        factor: 2  # Exponential backoff multiplier
+        maxDuration: 3m  # Maximum retry delay

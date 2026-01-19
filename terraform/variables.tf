@@ -159,3 +159,26 @@ variable "observability_password" {
   sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
   # Example: Grafana Cloud API key or custom password
 }
+
+# Jenkins Credentials: Admin username and password for Jenkins login
+variable "jenkins_admin_username" {
+  description = "Jenkins admin username (sensitive - set in terraform.tfvars)"  # Admin username for Jenkins login
+  type        = string
+  sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
+  default     = "admin"  # Default admin username (can be overridden in terraform.tfvars)
+}
+
+variable "jenkins_admin_password" {
+  description = "Jenkins admin password (sensitive - set in terraform.tfvars)"  # Admin password for Jenkins login
+  type        = string
+  sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
+  # Must be set in terraform.tfvars (no default for security)
+}
+
+variable "jenkins_github_token" {
+  description = "GitHub personal access token for Jenkins PR validation (sensitive - set in terraform.tfvars)"  # GitHub token for PR validation
+  type        = string
+  sensitive   = true  # Mark as sensitive (value hidden in Terraform output)
+  # Must be set in terraform.tfvars (no default for security)
+  # Token scopes: repo (full control), admin:repo_hook (webhook management)
+}
