@@ -57,6 +57,14 @@ resource "azurerm_automation_runbook" "stop_aks" {
     # System-Assigned Managed Identity is automatically available in Automation Account
     Connect-AzAccount -Identity
 
+    # Set the subscription context explicitly
+    $SubscriptionId = (Get-AzContext).Subscription.Id
+    if (-not $SubscriptionId) {
+        Write-Error "Failed to get subscription context"
+        exit 1
+    }
+    Set-AzContext -SubscriptionId $SubscriptionId
+
     Write-Output "Stopping AKS cluster $ClusterName in resource group $ResourceGroupName..."
     Stop-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName  # Stop AKS cluster
     Write-Output "AKS cluster stopped successfully."
@@ -91,6 +99,14 @@ resource "azurerm_automation_runbook" "start_aks" {
     # Connect using Managed Identity
     # System-Assigned Managed Identity is automatically available in Automation Account
     Connect-AzAccount -Identity
+
+    # Set the subscription context explicitly
+    $SubscriptionId = (Get-AzContext).Subscription.Id
+    if (-not $SubscriptionId) {
+        Write-Error "Failed to get subscription context"
+        exit 1
+    }
+    Set-AzContext -SubscriptionId $SubscriptionId
 
     Write-Output "Starting AKS cluster $ClusterName in resource group $ResourceGroupName..."
     Start-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName  # Start AKS cluster
