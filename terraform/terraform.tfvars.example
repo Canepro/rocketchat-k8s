@@ -46,3 +46,9 @@ mongodb_metrics_endpoint_password = "CHANGE_ME"
 # Used by Prometheus Agent, OTel Collector, and Promtail for authenticating to observability hub
 observability_username = "CHANGE_ME"  # Grafana username or instance ID
 observability_password = "CHANGE_ME"  # Grafana API key or password
+
+# Jenkins credentials (replace with your actual values)
+# Used by Jenkins controller for admin authentication and GitHub integration
+jenkins_admin_username = "admin"                      # Jenkins admin username (default: admin)
+jenkins_admin_password = "CHANGE_ME_STRONG_PASSWORD"  # Jenkins admin password (use a strong password)
+jenkins_github_token = "ghp_CHANGE_ME"                # GitHub Personal Access Token (scopes: repo, admin:repo_hook)

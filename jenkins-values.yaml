@@ -1,0 +1,259 @@
+# Jenkins Helm Values for AKS
+# This file contains Helm values for Jenkins CI/CD deployment via ArgoCD.
+# Jenkins is configured for CI validation: PR checks, linting, policy validation.
+# Chart: jenkins/jenkins 5.8.110 - See VERSIONS.md for version tracking.
+# Best practices: Latest LTS, JDK 21, security hardened, properly sized.
+
+# Controller configuration: Jenkins controller (master) pod
+controller:
+  # Image configuration
+  image:
+    registry: docker.io
+    repository: jenkins/jenkins
+    tag: "2.516.3-lts-jdk21"  # Latest LTS version with Java 21 (updated 2026-01-19)
+  
+  # Admin credentials: Loaded from Kubernetes Secret (managed by External Secrets Operator)
+  admin:
+    existingSecret: "jenkins-admin"  # Secret name (created by ExternalSecret)
+    userKey: username  # Secret key for admin username
+    passwordKey: password  # Secret key for admin password
+  
+  # Resource limits: Appropriate for Standard_D4as_v5 (4 vCPU, 16GB RAM)
+  resources:
+    requests:
+      cpu: "500m"  # CPU request (minimum CPU allocation)
+      memory: "1Gi"  # Memory request (minimum memory allocation)
+    limits:
+      cpu: "2000m"  # CPU limit (maximum CPU allocation)
+      memory: "4Gi"  # Memory limit (maximum memory allocation)
+  
+  # Java VM options: Optimize for container environment and security
+  # Best practice: Headless mode, explicit GC settings, security flags
+  javaOpts: >-
+    -Xms1024m -Xmx3072m
+    -XX:+UseG1GC
+    -XX:MaxRAMPercentage=75.0
+    -Djava.awt.headless=true
+    -Djenkins.install.runSetupWizard=false
+    -Dhudson.security.csrf.GlobalCrumbIssuerConfiguration.DISABLE_CSRF_PROTECTION=false
+  
+  # Jenkins configuration as code (JCasC): Configure Jenkins via YAML
+  JCasC:
+    defaultConfig: true  # Enable default JCasC configuration
+    configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: |
+            🚀 Jenkins CI Server
+            
+            Role: CI Validation Only (by default)
+            - ✅ PR validation (lint, policy checks)
+            - ✅ Terraform checks (fmt, validate, plan)
+            - ✅ Helm template validation (kubeconform)
+            - ✅ YAML linting (yamllint)
+            - ✅ Policy checks (OPA/Conftest)
+            - ❌ NO terraform apply (Cloud Shell only)
+            - ❌ NO kubectl apply (ArgoCD deploys)
+            
+            General-purpose CI server for all projects on this cluster.
+            To enable applies: Update RBAC + JCasC configuration
+      
+      # RBAC configuration: Read-only by default, easily expandable
+      rbac-strategy: |
+        jenkins:
+          securityRealm:
+            local:
+              allowsSignup: false
+          authorizationStrategy:
+            loggedInUsersCanDoAnything:
+              allowAnonymousRead: false
+      
+      # GitHub configuration: PR validation integration
+      github-config: |
+        unclassified:
+          gitHubPluginConfig:
+            configs:
+              - name: "GitHub"
+                apiUrl: "https://api.github.com"
+                credentialsId: "github-token"  # Credential ID (matches External Secret)
+                manageHooks: true
+  
+  # Ingress configuration: Traefik with TLS
+  ingress:
+    enabled: true  # Enable ingress for external access
+    ingressClassName: traefik  # Use Traefik ingress controller
+    hostName: jenkins.canepro.me  # Jenkins hostname (general-purpose CI server)
+    annotations:
+      # Traefik-specific annotations
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure  # HTTPS only
+      traefik.ingress.kubernetes.io/router.tls: "true"  # Enable TLS
+      # cert-manager annotations for automatic TLS certificate
+      cert-manager.io/cluster-issuer: letsencrypt-prod  # ClusterIssuer name (from ops/manifests/clusterissuer.yaml)
+    tls:
+      - secretName: jenkins-tls  # TLS secret name (created by cert-manager)
+        hosts:
+          - jenkins.canepro.me  # Hostname for TLS certificate
+  
+  # Service account: Use for Azure Workload Identity integration
+  serviceAccount:
+    create: true  # Create service account
+    name: jenkins  # Service account name
+    annotations:
+      # Azure Workload Identity annotations (for Key Vault access, Azure CLI)
+      azure.workload.identity/client-id: ""  # TODO: Add ESO UAMI client ID if Jenkins needs Azure access
+      azure.workload.identity/tenant-id: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"  # Azure tenant ID
+  
+  # Additional plugins: Install plugins for CI validation
+  # Best practice: Essential plugins only, use :latest for auto-updates
+  installPlugins:
+    # Version Control (essential)
+    - git:latest
+    - github:latest
+    - github-branch-source:latest
+    - git-client:latest
+    # Build tools
+    - pipeline-stage-view:latest
+    - workflow-aggregator:latest
+    - pipeline-github-lib:latest
+    - pipeline-utility-steps:latest
+    # Kubernetes integration (essential for dynamic agents)
+    - kubernetes:latest
+    - kubernetes-credentials-provider:latest
+    - kubernetes-client-api:latest
+    # Utilities
+    - configuration-as-code:latest
+    - job-dsl:latest
+    - ansicolor:latest
+    - timestamper:latest
+    - ws-cleanup:latest
+    - build-timeout:latest
+    # Security (best practice)
+    - matrix-auth:latest
+    - credentials-binding:latest
+    - authorize-project:latest
+    - role-strategy:latest
+    # Monitoring
+    - prometheus:latest
+    - metrics:latest
+    # UI improvements
+    - dark-theme:latest
+    - blueocean:latest
+  
+  # Prometheus metrics: Enable metrics endpoint for Prometheus scraping
+  prometheus:
+    enabled: true  # Enable Prometheus metrics
+    serviceMonitorNamespace: jenkins  # ServiceMonitor namespace
+    serviceMonitor:
+      enabled: true  # Create ServiceMonitor for Prometheus Agent
+  
+  # CSRF protection: Enable for security (best practice)
+  csrf:
+    defaultCrumbIssuer:
+      enabled: true  # Enable CSRF protection (security best practice)
+      proxyCompatability: true  # Enable proxy compatibility (required for Traefik)
+  
+  # Security: Additional hardening (best practices)
+  # Disable script console in production, restrict build strategies
+  numExecutors: 0  # No builds on controller (use agents only - best practice)
+  
+  # Health probes: Proper liveness/readiness configuration
+  healthProbes: true
+  healthProbesLivenessTimeout: 5
+  healthProbesReadinessTimeout: 5
+  healthProbeLivenessPeriodSeconds: 10
+  healthProbeReadinessPeriodSeconds: 10
+  healthProbeLivenessFailureThreshold: 5
+  healthProbeReadinessFailureThreshold: 3
+  
+  # Lifecycle hooks: Graceful shutdown (best practice)
+  lifecycle:
+    preStop:
+      exec:
+        command:
+          - sh
+          - -c
+          - sleep 10  # Allow time for connections to drain
+
+# Persistence configuration: Persistent volume for Jenkins home
+persistence:
+  enabled: true  # Enable persistent storage
+  storageClass: "default"  # Use default storage class (Azure Disk)
+  size: 20Gi  # Volume size (job history, configs, plugins)
+  accessMode: ReadWriteOnce  # Access mode (single node)
+
+# Agent configuration: Jenkins agents (executors) for running jobs
+agent:
+  enabled: true  # Enable dynamic agent provisioning
+  # Use Kubernetes plugin to spin up agents as pods
+  podName: "jenkins-agent"
+  customJenkinsLabels: "kubernetes"  # Label for Kubernetes agents
+  
+  # Agent pod template: Default agent configuration
+  podTemplates:
+    # Default agent: Basic Ubuntu agent for general CI tasks
+    default: |
+      - name: default
+        label: default
+        nodeUsageMode: NORMAL
+        containers:
+          - name: jnlp
+            image: jenkins/inbound-agent:latest
+            alwaysPullImage: true
+            workingDir: /home/jenkins/agent
+            ttyEnabled: true
+            resourceRequestCpu: "200m"
+            resourceRequestMemory: "256Mi"
+            resourceLimitCpu: "1000m"
+            resourceLimitMemory: "2Gi"
+    
+    # Terraform agent: Agent with Terraform, Azure CLI installed
+    terraform: |
+      - name: terraform
+        label: terraform
+        nodeUsageMode: EXCLUSIVE
+        containers:
+          - name: terraform
+            image: hashicorp/terraform:latest
+            command: "/bin/sh -c"
+            args: "cat"
+            ttyEnabled: true
+            resourceRequestCpu: "200m"
+            resourceRequestMemory: "256Mi"
+            resourceLimitCpu: "1000m"
+            resourceLimitMemory: "1Gi"
+    
+    # Helm agent: Agent with kubectl, helm, kubeconform installed
+    helm: |
+      - name: helm
+        label: helm
+        nodeUsageMode: EXCLUSIVE
+        containers:
+          - name: helm
+            image: alpine/helm:latest
+            command: "/bin/sh -c"
+            args: "cat"
+            ttyEnabled: true
+            resourceRequestCpu: "200m"
+            resourceRequestMemory: "256Mi"
+            resourceLimitCpu: "1000m"
+            resourceLimitMemory: "1Gi"
+
+# RBAC configuration: Kubernetes RBAC for Jenkins service account
+rbac:
+  create: true  # Create RBAC resources
+  readSecrets: true  # Allow reading secrets (for credentials)
+
+# Network policy: Optional network isolation (disabled by default)
+networkPolicy:
+  enabled: false  # Disable network policy (allow all traffic)
+
+# Backup configuration: Optional backup CronJob (disabled by default)
+backup:
+  enabled: false  # Disable automatic backups (manual backups via ops/scripts/)
+
+# Prometheus monitoring: ServiceMonitor for Prometheus Agent
+serviceMonitor:
+  enabled: true  # Create ServiceMonitor for Prometheus Agent
+  interval: 30s  # Scrape interval
+  labels:
+    app: jenkins  # Label for Prometheus Agent ServiceMonitor selector

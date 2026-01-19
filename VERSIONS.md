@@ -2,7 +2,7 @@
 
 This document tracks all software versions used in the AKS Rocket.Chat deployment. Update this file when upgrading any component.
 
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-01-19
 
 ## Upgrade Status Legend
 
@@ -83,6 +83,22 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 | **MongoDB Operator Helm Chart** | `1.6.1` | `Check latest` | ⚠️ **Check latest** (database operator, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml` | [MongoDB Operator](https://github.com/mongodb/mongodb-kubernetes-operator) |
 | **External Secrets Operator Helm Chart** | `0.10.5` | `Check latest` | ⚠️ **Check latest** (secret management, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml` | [ESO Releases](https://github.com/external-secrets/external-secrets/releases) |
 | **cert-manager** | See ArgoCD App | `Check latest` | ⚠️ **Check latest** (TLS critical, test carefully) | ArgoCD managed | [cert-manager Releases](https://github.com/cert-manager/cert-manager/releases) |
+
+---
+
+## CI/CD Stack
+
+| Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
+|-----------|----------------|----------------|----------------|----------|---------------|
+| **Jenkins Helm Chart** | `5.8.110` | `5.8.110` | ✅ **Up to date** (2026-01-19) | `GrafanaLocal/argocd/applications/aks-jenkins.yaml` | [Jenkins Helm Charts](https://github.com/jenkinsci/helm-charts/releases) |
+| **Jenkins LTS** | `2.516.3-lts-jdk21` | `2.516.3-lts` | ✅ **Up to date** (2026-01-19) | `jenkins-values.yaml` | [Jenkins Releases](https://www.jenkins.io/changelog-stable/) |
+
+**Jenkins Role**: CI validation only (PR checks, linting, policy validation)
+- ✅ Configured with latest LTS + Java 21 (best practice)
+- ✅ Security hardened (CSRF, no controller executors, RBAC)
+- ✅ Dynamic Kubernetes agents (terraform, helm, default)
+- ✅ Prometheus metrics enabled
+- ⚠️ To enable applies: Update RBAC + JCasC configuration
 
 ---
 
