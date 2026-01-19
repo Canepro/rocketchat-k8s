@@ -36,6 +36,5 @@ resources:
 
   # Storage: Persistent storage for Rocket.Chat uploads and MongoDB data
   - manifests/persistent-volumes.yaml  # Legacy PVs (commented out - AKS uses dynamic provisioning)
-  - manifests/rocketchat-uploads-pvc.yaml  # Rocket.Chat file uploads PVC (Azure managed-premium)
   - manifests/maintenance-cleanup.yaml  # Maintenance CronJob for image pruning (see VERSIONS.md for Alpine version)
   - manifests/clusterissuer.yaml  # cert-manager ClusterIssuer for Let's Encrypt TLS certificates
