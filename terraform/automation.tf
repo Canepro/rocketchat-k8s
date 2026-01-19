@@ -53,20 +53,24 @@ resource "azurerm_automation_runbook" "stop_aks" {
         [string]$ClusterName  # Cluster name (passed from Job Schedule)
     )
 
-    # Connect using Managed Identity
-    # System-Assigned Managed Identity is automatically available in Automation Account
-    Connect-AzAccount -Identity
+    # Use the current subscription id from Terraform runner
+    $SubscriptionId = "${data.azurerm_client_config.current.subscription_id}"
 
-    # Set the subscription context explicitly
-    $SubscriptionId = (Get-AzContext).Subscription.Id
-    if (-not $SubscriptionId) {
-        Write-Error "Failed to get subscription context"
-        exit 1
+    Write-Output "Authenticating to Azure with System-Assigned Managed Identity..."
+    try {
+        Import-Module Az.Accounts -ErrorAction Stop
+        Import-Module Az.Aks -ErrorAction Stop
+
+        Connect-AzAccount -Identity -ErrorAction Stop | Out-Null
+        Set-AzContext -SubscriptionId $SubscriptionId -ErrorAction Stop | Out-Null
     }
-    Set-AzContext -SubscriptionId $SubscriptionId
+    catch {
+        Write-Error ("Auth/context failed: " + $_.Exception.Message)
+        throw
+    }
 
     Write-Output "Stopping AKS cluster $ClusterName in resource group $ResourceGroupName..."
-    Stop-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName  # Stop AKS cluster
+    Stop-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName -ErrorAction Stop  # Stop AKS cluster
     Write-Output "AKS cluster stopped successfully."
   POWERSHELL
 
@@ -96,20 +100,24 @@ resource "azurerm_automation_runbook" "start_aks" {
         [string]$ClusterName  # Cluster name (passed from Job Schedule)
     )
 
-    # Connect using Managed Identity
-    # System-Assigned Managed Identity is automatically available in Automation Account
-    Connect-AzAccount -Identity
+    # Use the current subscription id from Terraform runner
+    $SubscriptionId = "${data.azurerm_client_config.current.subscription_id}"
 
-    # Set the subscription context explicitly
-    $SubscriptionId = (Get-AzContext).Subscription.Id
-    if (-not $SubscriptionId) {
-        Write-Error "Failed to get subscription context"
-        exit 1
+    Write-Output "Authenticating to Azure with System-Assigned Managed Identity..."
+    try {
+        Import-Module Az.Accounts -ErrorAction Stop
+        Import-Module Az.Aks -ErrorAction Stop
+
+        Connect-AzAccount -Identity -ErrorAction Stop | Out-Null
+        Set-AzContext -SubscriptionId $SubscriptionId -ErrorAction Stop | Out-Null
     }
-    Set-AzContext -SubscriptionId $SubscriptionId
+    catch {
+        Write-Error ("Auth/context failed: " + $_.Exception.Message)
+        throw
+    }
 
     Write-Output "Starting AKS cluster $ClusterName in resource group $ResourceGroupName..."
-    Start-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName  # Start AKS cluster
+    Start-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName -ErrorAction Stop  # Start AKS cluster
     Write-Output "AKS cluster started successfully."
   POWERSHELL
 
