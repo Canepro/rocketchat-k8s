@@ -79,7 +79,7 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 
 | Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
 |-----------|----------------|----------------|----------------|----------|---------------|
-| **Rocket.Chat Application** | `7.13.2` | `Check latest` | ⚠️ **Check latest** (production app, test before upgrade) | `values.yaml` | [Rocket.Chat Releases](https://github.com/RocketChat/Rocket.Chat/releases) |
+| **Rocket.Chat Application** | `8.0.1` | `8.0.1` | ✅ **Up to date** (2026-01-20) | `values.yaml` | [Rocket.Chat Releases](https://github.com/RocketChat/Rocket.Chat/releases) |
 | **Rocket.Chat Helm Chart** | `6.29.0` | `Check latest` | ⚠️ **Check latest** (test chart upgrades carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-helm.yaml` | [Rocket.Chat Helm Charts](https://github.com/RocketChat/charts) |
 | **Traefik Helm Chart** | `34.4.1` | `Check latest` | ⚠️ **Check latest** (ingress controller, test carefully) | `GrafanaLocal/argocd/applications/aks-traefik.yaml` | [Traefik Helm Chart](https://github.com/traefik/traefik-helm-chart) |
 | **MongoDB Operator Helm Chart** | `1.6.1` | `Check latest` | ⚠️ **Check latest** (database operator, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml` | [MongoDB Operator](https://github.com/mongodb/mongodb-kubernetes-operator) |

@@ -3,14 +3,14 @@
 # These values override the default Rocket.Chat Helm chart values.
 # Chart: rocketchat/rocketchat 6.29.0 - See VERSIONS.md for latest version and upgrade status.
 # Goal: match current runtime behavior while moving to Helm+values GitOps.
-# See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 7.13.2
+# See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 8.0.1
 
 # Rocket.Chat container image configuration
 image:
   repository: registry.rocket.chat/rocketchat/rocket.chat  # Official Rocket.Chat image registry
   # Pin to the currently running version for the migration. Upgrade later by changing ONLY this value.
   # See VERSIONS.md for latest version and upgrade status
-  tag: "7.13.2"  # Rocket.Chat application version - Check latest at https://github.com/RocketChat/Rocket.Chat/releases
+  tag: "8.0.1"  # Rocket.Chat application version - Check latest at https://github.com/RocketChat/Rocket.Chat/releases
   pullPolicy: IfNotPresent  # Image pull policy (pull if not present locally)
 
 # Host configuration for Rocket.Chat (used to set ROOT_URL and for ingress)
