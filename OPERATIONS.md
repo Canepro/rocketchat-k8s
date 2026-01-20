@@ -284,7 +284,7 @@ az identity federated-credential create \
    - Replace `REPLACE_WITH_TENANT_ID` with `TENANT_ID` from Terraform output
    - Replace `REPLACE_WITH_KEYVAULT_NAME` with `KEYVAULT_NAME` from Terraform output
 
-3. **Commit and push** to `aks-migration` branch
+3. **Commit and push** to `master` branch
 
 ##### Step 5: Sync ArgoCD applications
 
