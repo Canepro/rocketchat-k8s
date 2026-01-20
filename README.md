@@ -15,10 +15,10 @@ The Rocket.Chat microservices stack is deployed on an AKS cluster (`aks-canepro`
 To upgrade the Rocket.Chat version:
 1.  Edit `values.yaml`.
 2.  Change `image.tag` to the desired version.
-3.  Commit and push to your branch.
+3.  Commit and push to the `master` branch.
 
 ```bash
-git push origin aks-migration
+git push origin master
 ```
 ArgoCD will automatically detect the changes and perform a rolling update.
 
