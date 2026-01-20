@@ -88,7 +88,7 @@ controller:
       traefik.ingress.kubernetes.io/router.entrypoints: websecure  # HTTPS only
       traefik.ingress.kubernetes.io/router.tls: "true"  # Enable TLS
       # cert-manager annotations for automatic TLS certificate
-      cert-manager.io/cluster-issuer: letsencrypt-prod  # ClusterIssuer name (from ops/manifests/clusterissuer.yaml)
+      cert-manager.io/cluster-issuer: production-cert-issuer  # ClusterIssuer name (from ops/manifests/clusterissuer.yaml)
     tls:
       - secretName: jenkins-tls  # TLS secret name (created by cert-manager)
         hosts:
