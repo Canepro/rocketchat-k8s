@@ -28,7 +28,7 @@ spec:
     # Values from Git repository (referenced by $values/* above)
     - ref: values  # Reference name (used by $values in valueFiles above)
       repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
-      targetRevision: aks-migration  # Branch/tag containing values.yaml (change to 'main' after merge)
+      targetRevision: master  # Branch/tag containing values.yaml
   destination:
     server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
     namespace: rocketchat  # Target namespace for Rocket.Chat deployment
