@@ -64,8 +64,16 @@ Jenkins is configured for CI validation (PR checks, linting, policy validation):
 Monitor the real-time status of your stack here:
 [https://argocd.canepro.me](https://argocd.canepro.me)
 
-## 🧹 Maintenance
-The workspace includes an automated weekly maintenance job (`k3s-image-prune`) that runs every Sunday at 3:00 AM to prevent disk pressure issues by clearing unused container images.
+## 🧹 Maintenance & Monitoring
+
+The workspace includes automated maintenance jobs:
+- **Image Prune**: Weekly cleanup of unused images (Sunday 03:00 UTC)
+- **Stale Pod Cleanup**: Daily cleanup after cluster restart (09:00 UTC)
+
+**Monitor maintenance jobs** via Grafana dashboard:
+- Dashboard: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
+- Guide: [`ops/MAINTENANCE_MONITORING.md`](ops/MAINTENANCE_MONITORING.md)
+- Operations: See [`OPERATIONS.md`](OPERATIONS.md) for manual operations
 
 ## 🧪 Tracing Validation (Tempo)
 To validate tracing end-to-end (tracegen → OTel Collector → Tempo), see `OPERATIONS.md` → **"Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)"**.

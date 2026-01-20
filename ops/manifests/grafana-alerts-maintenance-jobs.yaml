@@ -1,0 +1,161 @@
+# Grafana Alert Rules for Maintenance Jobs
+# These alert rules can be imported into Grafana to monitor maintenance CronJob health
+# 
+# To import:
+# 1. Open Grafana → Alerting → Alert rules
+# 2. Click "New alert rule" and use these queries/conditions
+# 3. Or use Grafana Provisioning to automatically deploy these alerts
+#
+# Note: Adjust thresholds and notification channels based on your requirements
+
+apiVersion: 1
+groups:
+  - name: maintenance_jobs
+    interval: 5m
+    rules:
+      # Alert if stale pod cleanup hasn't run in > 25 hours (should run daily at 9am)
+      - alert: StalePodCleanupNotRunning
+        expr: |
+          time() - kube_cronjob_status_last_schedule_time{
+            namespace="monitoring",
+            cronjob="aks-stale-pod-cleanup"
+          } > 90000
+        for: 5m
+        labels:
+          severity: warning
+          component: maintenance
+          cluster: aks-canepro
+        annotations:
+          summary: "Stale pod cleanup job hasn't run in > 25 hours"
+          description: |
+            The aks-stale-pod-cleanup CronJob should run daily at 09:00 UTC but hasn't run in over 25 hours.
+            This may indicate the CronJob is suspended or there's a scheduling issue.
+            
+            Current time since last run: {{ $value | humanizeDuration }}
+            Expected schedule: Daily at 09:00 UTC
+            
+            Actions:
+            1. Check CronJob status: kubectl get cronjob aks-stale-pod-cleanup -n monitoring
+            2. Check recent jobs: kubectl get jobs -n monitoring | grep stale-pod-cleanup
+            3. Review OPERATIONS.md for manual cleanup commands
+
+      # Alert if image prune hasn't run in > 8 days (should run weekly on Sunday)
+      - alert: ImagePruneNotRunning
+        expr: |
+          time() - kube_cronjob_status_last_schedule_time{
+            namespace="monitoring",
+            cronjob="k3s-image-prune"
+          } > 691200
+        for: 5m
+        labels:
+          severity: warning
+          component: maintenance
+          cluster: aks-canepro
+        annotations:
+          summary: "Image prune job hasn't run in > 8 days"
+          description: |
+            The k3s-image-prune CronJob should run weekly (Sunday 03:00 UTC) but hasn't run in over 8 days.
+            This may lead to disk space issues if unused images accumulate.
+            
+            Current time since last run: {{ $value | humanizeDuration }}
+            Expected schedule: Weekly on Sunday at 03:00 UTC
+            
+            Actions:
+            1. Check CronJob status: kubectl get cronjob k3s-image-prune -n monitoring
+            2. Check disk space: kubectl exec -n monitoring deploy/prometheus-agent -- df -h
+            3. Manually trigger: kubectl create job --from=cronjob/k3s-image-prune manual-prune-$(date +%s) -n monitoring
+
+      # Alert if any maintenance job has failed
+      - alert: MaintenanceJobFailed
+        expr: |
+          kube_job_status_failed{
+            namespace="monitoring",
+            job_name=~"(k3s-image-prune|aks-stale-pod-cleanup).*"
+          } > 0
+        for: 2m
+        labels:
+          severity: warning
+          component: maintenance
+          cluster: aks-canepro
+        annotations:
+          summary: "Maintenance job {{ $labels.job_name }} failed"
+          description: |
+            A maintenance job has failed and will not retry automatically.
+            
+            Job: {{ $labels.job_name }}
+            Namespace: {{ $labels.namespace }}
+            
+            Actions:
+            1. Check job logs: kubectl logs -n monitoring job/{{ $labels.job_name }}
+            2. Check job status: kubectl describe job {{ $labels.job_name }} -n monitoring
+            3. Review OPERATIONS.md for manual recovery steps
+            4. Consider running the job manually after investigating the failure
+
+      # Alert if maintenance job is taking too long (> 10 minutes)
+      - alert: MaintenanceJobRunningLong
+        expr: |
+          (
+            time() - kube_job_status_start_time{
+              namespace="monitoring",
+              job_name=~"(k3s-image-prune|aks-stale-pod-cleanup).*"
+            }
+          ) > 600
+          and
+          kube_job_status_active{
+            namespace="monitoring",
+            job_name=~"(k3s-image-prune|aks-stale-pod-cleanup).*"
+          } > 0
+        for: 5m
+        labels:
+          severity: info
+          component: maintenance
+          cluster: aks-canepro
+        annotations:
+          summary: "Maintenance job {{ $labels.job_name }} running for > 10 minutes"
+          description: |
+            A maintenance job is taking longer than expected to complete.
+            This may indicate a performance issue or stuck process.
+            
+            Job: {{ $labels.job_name }}
+            Running for: {{ $value | humanizeDuration }}
+            
+            Typical durations:
+            - aks-stale-pod-cleanup: 10-30 seconds
+            - k3s-image-prune: 30-120 seconds
+            
+            Actions:
+            1. Check job logs: kubectl logs -n monitoring -l job-name={{ $labels.job_name }} --tail=50
+            2. Check pod status: kubectl get pods -n monitoring -l job-name={{ $labels.job_name }}
+            3. If stuck, consider canceling: kubectl delete job {{ $labels.job_name }} -n monitoring
+
+      # Alert if there are many stale pods (cleanup job might not be working)
+      - alert: ManyStalePods
+        expr: |
+          (
+            count(kube_pod_status_phase{phase="Succeeded"}) or vector(0)
+          ) + (
+            count(kube_pod_status_phase{phase="Failed"}) or vector(0)
+          ) + (
+            count(kube_pod_status_phase{phase="Unknown"}) or vector(0)
+          ) > 20
+        for: 30m
+        labels:
+          severity: warning
+          component: maintenance
+          cluster: aks-canepro
+        annotations:
+          summary: "More than 20 stale pods detected in the cluster"
+          description: |
+            There are {{ $value }} pods in terminal states (Succeeded/Failed/Unknown).
+            The aks-stale-pod-cleanup job should be cleaning these automatically.
+            
+            Possible causes:
+            - Cleanup job is not running (check alert: StalePodCleanupNotRunning)
+            - Cleanup job is failing (check alert: MaintenanceJobFailed)
+            - High pod churn rate exceeding cleanup frequency
+            
+            Actions:
+            1. Check stale pods: kubectl get pods -A --field-selector=status.phase=Succeeded,status.phase=Failed,status.phase=Unknown
+            2. Check cleanup job status: kubectl get cronjob aks-stale-pod-cleanup -n monitoring
+            3. Manually cleanup: kubectl delete pods -A --field-selector=status.phase=Succeeded
+            4. Review recent job logs: kubectl logs -n monitoring -l app=stale-pod-cleanup --tail=100
