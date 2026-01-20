@@ -1,9 +1,9 @@
 # RocketChat GitOps Repository
 
-This repository contains the declarative GitOps configuration for the entire Rocket.Chat stack, managed by ArgoCD on the OKE Hub.
+This repository contains the declarative GitOps configuration for the entire Rocket.Chat stack, managed by ArgoCD.
 
 ## 🗺️ Architecture
-The Rocket.Chat microservices stack is deployed on a K3s Spoke cluster and managed centrally from an ArgoCD instance using a **Split-App Pattern**:
+The Rocket.Chat microservices stack is deployed on an AKS cluster (`aks-canepro`) and managed via ArgoCD using a **Split-App Pattern**:
 
 1.  **Rocket.Chat App (Helm)**: Manages the application stack (monolith + microservices) via the official Helm chart + `values.yaml`.
 2.  **Ops App (Kustomize)**: Manages infrastructure glue (storage, monitoring, maintenance jobs) via `ops/`.
@@ -15,12 +15,14 @@ The Rocket.Chat microservices stack is deployed on a K3s Spoke cluster and manag
 To upgrade the Rocket.Chat version:
 1.  Edit `values.yaml`.
 2.  Change `image.tag` to the desired version.
-3.  Commit and push to `master`.
+3.  Commit and push to your branch.
 
 ```bash
-git push origin master
+git push origin aks-migration
 ```
 ArgoCD will automatically detect the changes and perform a rolling update.
+
+**Note**: For major version upgrades (e.g., 7.x → 8.x), check [OPERATIONS.md](OPERATIONS.md) for upgrade prerequisites and breaking changes.
 
 ## 🗄️ MongoDB (Recommended: external via official MongoDB Operator)
 
@@ -71,9 +73,10 @@ The workspace includes automated maintenance jobs:
 - **Stale Pod Cleanup**: Daily cleanup after cluster restart (09:00 UTC)
 
 **Monitor maintenance jobs** via Grafana dashboard:
-- Dashboard: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
-- Guide: [`ops/MAINTENANCE_MONITORING.md`](ops/MAINTENANCE_MONITORING.md)
-- Operations: See [`OPERATIONS.md`](OPERATIONS.md) for manual operations
+- **Grafana URL**: `https://grafana.canepro.me`
+- **Dashboard JSON**: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
+- **Monitoring Guide**: [`ops/MAINTENANCE_MONITORING.md`](ops/MAINTENANCE_MONITORING.md)
+- **Manual Operations**: [`OPERATIONS.md`](OPERATIONS.md)
 
 ## 🧪 Tracing Validation (Tempo)
 To validate tracing end-to-end (tracegen → OTel Collector → Tempo), see `OPERATIONS.md` → **"Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)"**.
