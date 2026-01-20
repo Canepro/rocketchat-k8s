@@ -2,7 +2,7 @@
 
 This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azure_aks_-_complete_with_observability_1ffff811.plan.md`.
 
-## Current State (as of 2026‑01‑19)
+## Current State (as of 2026‑01‑20)
 
 - **AKS cluster**: running (auto-start/stop configured: 8:30 AM - 11:00 PM weekdays), Terraform plan clean.
 - **ArgoCD apps (AKS)**:
@@ -88,6 +88,15 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - **Pending / not recorded** in repo yet:
   - export/import procedures, validation checklist completion, post-cutover monitoring.
 
+## Completed Tasks (2026-01-20)
+
+- [x] **Automated maintenance jobs deployed** (2026-01-20):
+  - `aks-stale-pod-cleanup` CronJob: Daily cleanup of orphaned pods after cluster restart (09:00 UTC)
+  - Grafana monitoring dashboard imported (`grafana-dashboard-maintenance-jobs.json`)
+  - Alert rules created (`grafana-alerts-maintenance-jobs.yaml`)
+  - Documentation: `ops/MAINTENANCE_MONITORING.md`, `SETUP_SUMMARY.md`
+  - **Status**: ✅ Deployed and tested successfully
+
 ## Completed Tasks (2026-01-19)
 
 - [x] Terraform plan clean (0 changes)
@@ -157,12 +166,13 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 
 ### Minimum Requirements Before Merge
 
-- [x] **DNS cutover stable** (✅ Done - 2026-01-16)
+- [x] **DNS cutover stable** (✅ Done - 2026-01-16) - **Day 4**
 - [x] **TLS certificate valid** (✅ Done - 2026-01-16)
-- [ ] **All pods healthy** for at least 48 hours
+- [x] **All pods healthy** for at least 48 hours (✅ 4+ days running)
+- [x] **Automated maintenance** (✅ Done - 2026-01-20) - Pod cleanup + monitoring
 - [ ] **No critical errors** in RocketChat logs
 - [ ] **User acceptance**: No major user-reported issues
-- [ ] **Observability verified**: Metrics/traces flowing to Grafana (optional but recommended)
+- [ ] **Observability verified**: Metrics flowing to Grafana (metrics ✅, traces pending)
 - [ ] **Data integrity confirmed**: All data accessible, no corruption
 
 ### Merge Process
