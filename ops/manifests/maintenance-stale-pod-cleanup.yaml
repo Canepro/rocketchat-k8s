@@ -27,9 +27,9 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: cleanup
-              # Using kubectl image to avoid installing tools
+              # Using official kubectl image from Kubernetes registry
               # See VERSIONS.md for version tracking
-              image: bitnami/kubectl:1.31
+              image: registry.k8s.io/kubectl:v1.31.4
               command:
                 - /bin/sh
                 - -c

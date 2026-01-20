@@ -53,7 +53,7 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 | **node-exporter** | `v1.10.2` | `v1.10.2` | ✅ **Up to date** (2026-01-18) | `ops/manifests/node-exporter.yaml` | [node_exporter Releases](https://github.com/prometheus/node_exporter/releases) |
 | **Alpine (Init Container)** | `3.20` | `3.20` | ✅ **Up to date** (2026-01-16) | `ops/manifests/prometheus-agent-deployment.yaml` | [Alpine Docker Hub](https://hub.docker.com/_/alpine) |
 | **Alpine (Maintenance)** | `3.19` | `3.20` | ⚠️ **Can upgrade** | `ops/manifests/maintenance-cleanup.yaml` | [Alpine Docker Hub](https://hub.docker.com/_/alpine) |
-| **kubectl (Maintenance)** | `1.31` | `1.31.x` | ✅ **Up to date** (2026-01-20) | `ops/manifests/maintenance-stale-pod-cleanup.yaml` | [Bitnami kubectl](https://hub.docker.com/r/bitnami/kubectl) |
+| **kubectl (Maintenance)** | `v1.31.4` | `v1.31.x` | ✅ **Up to date** (2026-01-20) | `ops/manifests/maintenance-stale-pod-cleanup.yaml` | [Kubernetes kubectl](https://kubernetes.io/docs/reference/kubectl/) |
 | **TelemetryGen** | `sha256:d9243...` | `latest` | ⚠️ **Pinned** (good for reproducibility) | `ops/manifests/otel-tracegen-job.yaml` | [OTel TelemetryGen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) |
 
 **Note on TelemetryGen**: Uses digest for reproducibility. Update by checking latest image digest at the OTel Collector Contrib repo.
