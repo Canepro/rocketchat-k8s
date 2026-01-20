@@ -2,15 +2,16 @@
 
 This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azure_aks_-_complete_with_observability_1ffff811.plan.md`.
 
-## Current State (as of 2026‑01‑16)
+## Current State (as of 2026‑01‑19)
 
-- **AKS cluster**: running, Terraform plan clean (0 changes).
+- **AKS cluster**: running (auto-start/stop configured: 8:30 AM - 11:00 PM weekdays), Terraform plan clean.
 - **ArgoCD apps (AKS)**:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
   - `aks-rocketchat-mongodb-operator`: MongoDB Community Operator (Helm) deployed.
   - `aks-rocketchat-external-secrets`: ESO Helm chart.
   - `aks-rocketchat-secrets`: ClusterSecretStore + ExternalSecrets.
+  - `aks-jenkins`: ⏳ **Ready to deploy** (ArgoCD app + secrets configured, deployment pending cluster start).
 - **MongoDB**:
   - **Operator-managed MongoDB** is **Running** (`mongodb-0`, 2/2 containers).
   - **Legacy Bitnami MongoDB** has been **removed** (StatefulSet, services, configmaps, secrets deleted 2026-01-16).
@@ -33,6 +34,11 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - `rocketchat-mongodb-admin-password`
 - `rocketchat-mongodb-rocketchat-password`
 - `rocketchat-mongodb-metrics-endpoint-password`
+- `rocketchat-observability-username`
+- `rocketchat-observability-password`
+- `jenkins-admin-username` ✅ **(2026-01-19)**
+- `jenkins-admin-password` ✅ **(2026-01-19)**
+- `jenkins-github-token` ✅ **(2026-01-19)**
 
 ## Plan Cross‑Check (High‑Level)
 
@@ -82,7 +88,7 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - **Pending / not recorded** in repo yet:
   - export/import procedures, validation checklist completion, post-cutover monitoring.
 
-## Completed Tasks (2026-01-16)
+## Completed Tasks (2026-01-19)
 
 - [x] Terraform plan clean (0 changes)
 - [x] ESO + AKV secrets GitOps working
@@ -95,6 +101,15 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 - [x] **Network Security Group configured** (subnet-level HTTP/HTTPS rules via Terraform)
 - [x] **Node pool upgraded** (`Standard_B2s` → `Standard_D4as_v5`) - Memory: 90-95% → 9-26%
 - [x] **Azure Automation configured** (scheduled start/stop: 8:30 AM start, 11:00 PM stop on weekdays)
+- [x] **Jenkins infrastructure ready** (2026-01-19):
+  - ArgoCD application manifest created (`aks-jenkins.yaml`)
+  - Helm values configured (`jenkins-values.yaml`) - Latest LTS 2.516.3 + JDK 21
+  - External Secrets configured (`externalsecret-jenkins.yaml`)
+  - Terraform variables added for Jenkins credentials
+  - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
+  - Deployment guide created (`JENKINS_DEPLOYMENT.md`)
+  - DNS A record configured (`jenkins.canepro.me`)
+  - **Status**: ⏳ Ready to deploy (pending cluster start tomorrow 8:30 AM)
 
 ## Completed Upgrades (2026-01-16)
 
@@ -108,12 +123,17 @@ This file tracks **where we are vs** `.cursor/plans/rocketchat_migration_to_azur
 
 ## Next Steps (Recommended Order)
 
-1. **Observability verification** ✅ **Setup Complete**: 
+1. **Jenkins CI deployment** ⏳ **Ready** (2026-01-19):
+   - Infrastructure complete (ArgoCD app, secrets, DNS, Helm values)
+   - **Action Required**: Apply ArgoCD application after cluster starts (8:30 AM)
+   - **Command**: `kubectl apply -f GrafanaLocal/argocd/applications/aks-jenkins.yaml`
+   - **Access**: `https://jenkins.canepro.me`
+   - **Guide**: See `JENKINS_DEPLOYMENT.md` for complete deployment and usage guide
+2. **Observability verification** ✅ **Setup Complete**: 
    - Verification guide created: `ops/manifests/observability-verification.md`
    - Verification script created: `ops/scripts/verify-observability.sh`
    - **Action Required**: Run verification steps and record results (see guide for details)
-2. **Loki logging setup**: Deploy Loki/Promtail to send logs to OKE hub (now have headroom).
-3. **Jenkins CI setup**: PR validation jobs (lint, policy checks, terraform plan) - headroom available.
+3. **Loki logging setup**: Deploy Loki/Promtail to send logs to OKE hub (now have headroom).
 4. **Continue monitoring**: Verify stability for 7-14 days before merging to `main`.
 
 ## Cutover to Main Branch
@@ -212,24 +232,12 @@ For issues encountered during DNS/TLS setup, see:
   - Verification commands and clean re-issuance procedures
   - Best practices learned
 
-## When to Introduce Jenkins (Guidance)
-
-Introduce Jenkins **after**:
-- The two ArgoCD apps are stable and
-- Secrets are managed via the chosen GitOps mechanism,
-
-so Jenkins can be used as **CI only** (PR validation + policy checks), not as a deploy tool.
-
-### Azure restriction (from the migration plan)
-
-- **Terraform applies are executed only from Azure Portal / Cloud Shell on your work machine** (environment restriction).
-- This means Jenkins should **not** run `terraform apply` in this setup.
-
-Recommended Jenkins jobs:
-- `helm template` + `kubeconform` (or `kubeval`) against rendered manifests
-- YAML linting (`yamllint`)
-- policy checks (OPA/Conftest) for forbidden patterns (e.g., raw Secrets in git)
-- optional: `argocd app diff` in "read-only" mode for preview
-- optional: Terraform checks (`terraform fmt -check`, `terraform validate`, `terraform plan`) as PR gates (no apply)
-
-Jenkins should **never** run `kubectl apply` to the cluster in normal operation; ArgoCD remains the deploy engine.
+For Jenkins deployment and troubleshooting, see:
+- **`JENKINS_DEPLOYMENT.md`**: Complete Jenkins deployment guide covering:
+  - Quick deployment steps (5 steps)
+  - Configuration and customization
+  - Creating CI jobs (Terraform, Helm, OPA/Conftest examples)
+  - Security best practices and hardening
+  - Monitoring with Prometheus
+  - Troubleshooting common issues
+  - Upgrade procedures

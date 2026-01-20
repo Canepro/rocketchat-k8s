@@ -10,7 +10,7 @@ controller:
   image:
     registry: docker.io
     repository: jenkins/jenkins
-    tag: "2.516.3-lts-jdk21"  # Latest LTS version with Java 21 (updated 2026-01-19)
+    tag: "2.528.3-lts-jdk21"  # Latest LTS version with Java 21 (updated 2026-01-19)
   
   # Admin credentials: Loaded from Kubernetes Secret (managed by External Secrets Operator)
   admin:
