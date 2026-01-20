@@ -92,7 +92,7 @@ kubectl get clusterrole stale-pod-cleanup
 
 ### Step 3: Import Grafana Dashboard
 
-1. Open Grafana: `https://observability.canepro.me`
+1. Open Grafana: `https://grafana.canepro.me`
 2. Navigate to **Dashboards** → **Import**
 3. Click **Upload JSON file**
 4. Select: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
@@ -132,7 +132,7 @@ After the cluster restarts tomorrow (2026-01-21 08:30), verify:
    ```
 
 4. **Check Grafana dashboard:**
-   - Open: `https://observability.canepro.me`
+   - Open: `https://grafana.canepro.me`
    - Go to: AKS Maintenance Jobs dashboard
    - Verify: "Time Since Last Scheduled Run" shows recent execution
 

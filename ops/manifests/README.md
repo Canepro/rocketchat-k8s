@@ -91,7 +91,7 @@ Monitors all maintenance CronJobs including:
 - Recent execution status
 
 **To import:**
-1. Open Grafana at `https://observability.canepro.me`
+1. Open Grafana at `https://grafana.canepro.me`
 2. Navigate to **Dashboards** → **Import**
 3. Upload the JSON file from this directory
 4. Select your Prometheus datasource

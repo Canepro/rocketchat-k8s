@@ -527,7 +527,7 @@ A Grafana dashboard is available to monitor all maintenance CronJobs in real-tim
 - Recent job execution status
 
 **To import the dashboard**:
-1. Open Grafana at `https://observability.canepro.me` (or your Grafana URL)
+1. Open Grafana at `https://grafana.canepro.me`
 2. Navigate to **Dashboards** → **Import**
 3. Click **Upload JSON file**
 4. Select `ops/manifests/grafana-dashboard-maintenance-jobs.json`

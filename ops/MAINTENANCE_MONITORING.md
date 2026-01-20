@@ -7,7 +7,7 @@ Quick reference for monitoring and managing AKS maintenance CronJobs.
 ### View Dashboard in Grafana
 
 1. **Import the dashboard:**
-   - Go to `https://observability.canepro.me`
+   - Go to `https://grafana.canepro.me`
    - Dashboards → Import → Upload JSON
    - Select: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
 
@@ -209,7 +209,7 @@ kubectl get pods -A --field-selector=status.phase=Succeeded
 
 ## 🔗 Quick Links
 
-- **Grafana Dashboard:** `https://observability.canepro.me`
+- **Grafana Dashboard:** `https://grafana.canepro.me`
 - **ArgoCD (GitOps):** `https://argocd.canepro.me` → `aks-rocketchat-ops`
 - **Dashboard JSON:** `ops/manifests/grafana-dashboard-maintenance-jobs.json`
 - **Alert Rules:** `ops/manifests/grafana-alerts-maintenance-jobs.yaml`
