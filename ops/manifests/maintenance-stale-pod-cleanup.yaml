@@ -27,14 +27,21 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: cleanup
-              # Using official kubectl image from Kubernetes registry
+              # Alpine Linux - same pattern as k3s-image-prune (proven to work)
               # See VERSIONS.md for version tracking
-              image: registry.k8s.io/kubectl:v1.31.4
+              image: alpine:3.19
               command:
                 - /bin/sh
                 - -c
                 - |
-                  set -eu
+                  set -eu  # Exit on error and undefined variables
+                  # Install kubectl
+                  echo "Installing kubectl..."
+                  apk add --no-cache curl >/dev/null
+                  curl -LO "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl" >/dev/null 2>&1
+                  chmod +x kubectl
+                  mv kubectl /usr/local/bin/
+                  
                   echo "[$(date -Iseconds)] Starting stale pod cleanup..."
                   
                   # Function to safely delete pods by phase
