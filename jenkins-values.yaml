@@ -247,10 +247,6 @@ rbac:
 networkPolicy:
   enabled: false  # Disable network policy (allow all traffic)
 
-# Backup configuration: Optional backup CronJob (disabled by default)
-backup:
-  enabled: false  # Disable automatic backups (manual backups via ops/scripts/)
-
 # Prometheus monitoring: ServiceMonitor for Prometheus Agent
 serviceMonitor:
   enabled: true  # Create ServiceMonitor for Prometheus Agent
