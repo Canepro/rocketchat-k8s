@@ -1,0 +1,107 @@
+# Maintenance CronJob: Stale Pod Cleanup
+# This CronJob removes orphaned pods after cluster auto-shutdown/restart cycles.
+# Target: aks-canepro (auto-stops 23:00, starts 8:30)
+# Schedule: Runs 30 minutes after cluster startup to clean orphaned pods
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aks-stale-pod-cleanup
+  namespace: monitoring
+  annotations:
+    canepro.me/description: "Cleans up Completed/Failed/Unknown pods left after cluster restarts"
+spec:
+  schedule: "0 9 * * *"  # 09:00 UTC daily (30min after 8:30 cluster start)
+  timeZone: "UTC"  # Explicit timezone for clarity
+  concurrencyPolicy: Forbid  # Don't run multiple instances simultaneously
+  successfulJobsHistoryLimit: 3  # Keep last 3 successful runs for audit
+  failedJobsHistoryLimit: 2  # Keep last 2 failed runs for troubleshooting
+  jobTemplate:
+    spec:
+      backoffLimit: 2  # Retry up to 2 times on failure
+      template:
+        metadata:
+          labels:
+            app: stale-pod-cleanup
+        spec:
+          serviceAccountName: stale-pod-cleanup  # Dedicated SA with delete permissions
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              # Using kubectl image to avoid installing tools
+              # See VERSIONS.md for version tracking
+              image: bitnami/kubectl:1.31
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  echo "[$(date -Iseconds)] Starting stale pod cleanup..."
+                  
+                  # Function to safely delete pods by phase
+                  cleanup_by_phase() {
+                    local phase=$1
+                    local description=$2
+                    
+                    echo "Checking for $description pods (status.phase=$phase)..."
+                    
+                    # Get count first
+                    count=$(kubectl get pods -A --field-selector=status.phase="$phase" --no-headers 2>/dev/null | wc -l || echo 0)
+                    
+                    if [ "$count" -gt 0 ]; then
+                      echo "Found $count $description pods. Cleaning up..."
+                      kubectl get pods -A --field-selector=status.phase="$phase" --no-headers || true
+                      kubectl delete pods -A --field-selector=status.phase="$phase" --wait=false || true
+                      echo "Deleted $count $description pods."
+                    else
+                      echo "No $description pods found."
+                    fi
+                    echo ""
+                  }
+                  
+                  # Clean up terminal state pods
+                  cleanup_by_phase "Succeeded" "Completed"
+                  cleanup_by_phase "Failed" "Failed/Error"
+                  cleanup_by_phase "Unknown" "ContainerStatusUnknown"
+                  
+                  echo "[$(date -Iseconds)] Stale pod cleanup complete."
+                  echo ""
+                  echo "Current pod status summary:"
+                  kubectl get pods -A --no-headers | awk '{print $4}' | sort | uniq -c || true
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "100m"
+---
+# ServiceAccount for stale pod cleanup
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stale-pod-cleanup
+  namespace: monitoring
+---
+# ClusterRole: Read all pods, delete pods in any namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stale-pod-cleanup
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+---
+# ClusterRoleBinding: Bind SA to ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stale-pod-cleanup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stale-pod-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: stale-pod-cleanup
+    namespace: monitoring

@@ -459,6 +459,8 @@ This ConfigMap contains a script (`user_set_role_clusterMonitor.sh`) that runs d
     ```
 
 ## 🧹 Maintenance
+
+### Image Pruning (Weekly)
 The `k3s-image-prune` CronJob runs every Sunday at 3:00 AM in the `monitoring` namespace to clear unused container images and prevent disk pressure issues.
 
 **Manual Run (e.g., if disk is full):**
@@ -471,6 +473,79 @@ kubectl -n monitoring create job --from=cronjob/k3s-image-prune manual-prune-$(d
 kubectl -n monitoring get jobs
 kubectl -n monitoring logs job/manual-prune-<timestamp>
 ```
+
+### Stale Pod Cleanup (Daily after Cluster Restart)
+The `aks-stale-pod-cleanup` CronJob runs daily at 9:00 AM UTC (30 minutes after cluster auto-start at 8:30) to remove orphaned pods left in terminal states after AKS cluster shutdown/restart cycles.
+
+**What it cleans:**
+- `Succeeded` pods (Completed jobs from before shutdown)
+- `Failed` pods (Error state pods)
+- `Unknown` pods (ContainerStatusUnknown from cluster shutdown)
+
+**Manual cleanup (immediate):**
+If you need to clean up stale pods right now:
+```bash
+# Delete all terminal state pods
+kubectl delete pods --field-selector=status.phase=Succeeded -A
+kubectl delete pods --field-selector=status.phase=Failed -A
+kubectl delete pods --field-selector=status.phase=Unknown -A
+
+# Or run the cleanup job manually
+kubectl -n monitoring create job --from=cronjob/aks-stale-pod-cleanup manual-cleanup-$(date +%s)
+```
+
+**Verify what will be cleaned:**
+```bash
+kubectl get pods -A --field-selector=status.phase=Succeeded
+kubectl get pods -A --field-selector=status.phase=Failed
+kubectl get pods -A --field-selector=status.phase=Unknown
+```
+
+**Check cleanup job logs:**
+```bash
+kubectl -n monitoring get jobs | grep stale-pod-cleanup
+kubectl -n monitoring logs job/aks-stale-pod-cleanup-<timestamp>
+```
+
+**Note**: This cleanup is safe because:
+- Completed pods are from finished jobs that succeeded
+- Failed pods are from jobs that already failed and won't recover
+- Unknown pods are orphaned containers from cluster shutdown
+- Running services have healthy new pods created after cluster restart
+
+### Monitoring Maintenance Jobs (Grafana Dashboard)
+
+A Grafana dashboard is available to monitor all maintenance CronJobs in real-time.
+
+**Dashboard Location**: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
+
+**What it shows**:
+- CronJob schedules and status
+- Time since last run and next scheduled run
+- Job success/failure history
+- Job duration trends
+- Recent job execution status
+
+**To import the dashboard**:
+1. Open Grafana at `https://observability.canepro.me` (or your Grafana URL)
+2. Navigate to **Dashboards** → **Import**
+3. Click **Upload JSON file**
+4. Select `ops/manifests/grafana-dashboard-maintenance-jobs.json`
+5. Select your Prometheus datasource
+6. Click **Import**
+
+**Dashboard panels include**:
+- **Maintenance CronJobs Overview**: All CronJobs with schedules
+- **Time Since Last Scheduled Run**: How long since each job ran (alerts if > 2 days)
+- **Next Scheduled Run**: When each job will run next
+- **Job Execution History**: Success/failure rate over time
+- **Job Duration**: How long each job takes to complete
+- **Recent Job Status**: Current status of recent job runs
+
+**Recommended alerts** (can be added via Grafana):
+- Alert if `aks-stale-pod-cleanup` hasn't run in > 25 hours
+- Alert if `k3s-image-prune` hasn't run in > 8 days
+- Alert if any maintenance job fails 2+ times in a row
 
 ## ⚠️ Known Quirks
 - **PV Naming**: The PVC `mongo-pvc` is currently bound to a PV named `prometheus-pv`. This is a legacy naming mismatch (Retain policy). Do not rename/delete without a migration plan.

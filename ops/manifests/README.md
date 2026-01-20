@@ -72,8 +72,39 @@ See `observability-verification.md` in this directory for:
 - Troubleshooting steps
 - Common issues and solutions
 
+## Grafana Dashboards
+
+Pre-built Grafana dashboards are available in this directory for monitoring various aspects of the cluster:
+
+### Available Dashboards
+
+#### AKS Maintenance Jobs (`grafana-dashboard-maintenance-jobs.json`)
+Monitors all maintenance CronJobs including:
+- `k3s-image-prune` (weekly image cleanup)
+- `aks-stale-pod-cleanup` (daily pod cleanup after cluster restart)
+
+**Panels include:**
+- CronJob schedules and status
+- Time since last run / next scheduled run
+- Job success/failure history
+- Job duration trends
+- Recent execution status
+
+**To import:**
+1. Open Grafana at `https://observability.canepro.me`
+2. Navigate to **Dashboards** → **Import**
+3. Upload the JSON file from this directory
+4. Select your Prometheus datasource
+5. Click **Import**
+
+**Recommended alerts:**
+- Alert if jobs haven't run on schedule (> expected interval)
+- Alert on job failures (2+ consecutive failures)
+- Alert on long job durations (> 5 minutes)
+
 ## Related Documentation
 
 - `VERSIONS.md` (root) - Version tracking and update procedures
 - `MIGRATION_STATUS.md` (root) - Overall migration status and observability verification
 - `observability-verification.md` (this directory) - Verification and troubleshooting guide
+- `OPERATIONS.md` (root) - Day-2 operations guide including maintenance jobs

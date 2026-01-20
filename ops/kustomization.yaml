@@ -36,5 +36,11 @@ resources:
 
   # Storage: Persistent storage for Rocket.Chat uploads and MongoDB data
   - manifests/persistent-volumes.yaml  # Legacy PVs (commented out - AKS uses dynamic provisioning)
-  - manifests/maintenance-cleanup.yaml  # Maintenance CronJob for image pruning (see VERSIONS.md for Alpine version)
+  
+  # Maintenance: Automated cleanup jobs
+  - manifests/maintenance-cleanup.yaml  # Image pruning CronJob (weekly, see VERSIONS.md for Alpine version)
+  - manifests/maintenance-stale-pod-cleanup.yaml  # Stale pod cleanup CronJob (daily after cluster restart)
+  # Note: Grafana dashboard available at manifests/grafana-dashboard-maintenance-jobs.json (import manually)
+  
+  # TLS: Certificate management
   - manifests/clusterissuer.yaml  # cert-manager ClusterIssuer for Let's Encrypt TLS certificates
