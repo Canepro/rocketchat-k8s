@@ -88,8 +88,9 @@ microservices:
     replicas: 1  # Presence microservice replicas (user online/offline status)
   ddpStreamer:
     replicas: 1  # DDP Streamer microservice replicas (real-time messaging)
-  streamHub:
-    replicas: 1  # Stream Hub microservice replicas (message routing)
+  # streamHub removed in Rocket.Chat 8.0.0 - no longer needed
+  # streamHub:
+  #   replicas: 1  # REMOVED: Stream Hub microservice (deprecated in 8.0.0)
 
 # MongoDB configuration: Disable chart-bundled MongoDB (use existing MongoDB Community Operator deployment)
 # IMPORTANT: do NOT deploy bundled MongoDB or NATS.
