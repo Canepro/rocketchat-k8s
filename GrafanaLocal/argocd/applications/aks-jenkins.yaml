@@ -25,7 +25,7 @@ spec:
     # Values source: Jenkins configuration from Git repository
     - ref: values  # Reference name (used by $values in valueFiles above)
       repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
-      targetRevision: aks-migration  # Branch/tag containing jenkins-values.yaml
+      targetRevision: master  # Branch/tag containing jenkins-values.yaml
   destination:
     server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
     namespace: jenkins  # Target namespace for Jenkins deployment

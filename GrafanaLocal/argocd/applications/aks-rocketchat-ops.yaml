@@ -14,7 +14,7 @@ spec:
   project: default  # ArgoCD project (controls permissions and allowed resources)
   source:
     repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
-    targetRevision: aks-migration  # Branch/tag to deploy (change to 'main' after merge)
+    targetRevision: master  # Branch/tag to deploy
     path: ops  # Path to kustomization.yaml (this directory contains all ops manifests)
     kustomize:
       # Kustomize will handle resources in multiple namespaces automatically
