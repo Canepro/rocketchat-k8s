@@ -81,7 +81,10 @@ controller:
       # Prometheus configuration: Disable disk usage collection (plugin not installed)
       prometheus-config: |
         unclassified:
-          prometheus:
+          # Prometheus plugin JCasC root is "prometheusConfiguration" (not "prometheus")
+          # If this key is wrong, Jenkins fails to boot with:
+          #   UnknownAttributesException: unclassified: ... : prometheus
+          prometheusConfiguration:
             path: "/prometheus"
             defaultNamespace: "default"
             jobAttributeName: "jenkins_job"
