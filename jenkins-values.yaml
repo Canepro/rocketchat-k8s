@@ -64,6 +64,14 @@ controller:
           securityRealm:
             local:
               allowsSignup: false
+              # Ensure the admin user actually exists.
+              # The Helm chart mounts the existingSecret keys into:
+              #   /run/secrets/additional/chart-admin-username
+              #   /run/secrets/additional/chart-admin-password
+              # JCasC can read file contents via ${readFile:/path}.
+              users:
+                - id: "${readFile:/run/secrets/additional/chart-admin-username}"
+                  password: "${readFile:/run/secrets/additional/chart-admin-password}"
           authorizationStrategy:
             loggedInUsersCanDoAnything:
               allowAnonymousRead: false
