@@ -30,10 +30,18 @@ These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatica
 ## Setup in Jenkins
 
 1. Create a **Multibranch Pipeline** job named `rocketchat-k8s`
-2. Configure GitHub branch source with `github-token` credential
-3. Set **Script Path** to `.jenkins/terraform-validation.Jenkinsfile` or `.jenkins/helm-validation.Jenkinsfile`
-4. Enable **Discover pull requests from origin**
-5. Save and trigger initial scan
+2. **Branch Sources** → **GitHub**:
+   - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
+   - **Credentials**: Select `github-token` from dropdown (required for PR status reporting)
+   - **Behaviours** (click "Add" to configure):
+     - **Discover branches**: Strategy = "Exclude branches that are also filed as PRs"
+     - **Discover pull requests from origin**: Strategy = "The current pull request revision"
+     - **Trust**: "From users with Admin or Write permission"
+3. **Build Configuration**:
+   - **Mode**: "by Jenkinsfile"
+   - **Script Path**: `.jenkins/terraform-validation.Jenkinsfile` (or `.jenkins/helm-validation.Jenkinsfile`)
+     - This is the path relative to the repository root
+4. **Save** → **Scan Multibranch Pipeline Now**
 
 ## GitHub Webhook
 
