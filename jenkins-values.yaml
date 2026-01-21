@@ -77,6 +77,20 @@ controller:
                 apiUrl: "https://api.github.com"
                 credentialsId: "github-token"  # Credential ID (matches External Secret)
                 manageHooks: true
+      
+      # Prometheus configuration: Disable disk usage collection (plugin not installed)
+      prometheus-config: |
+        unclassified:
+          prometheus:
+            path: "/prometheus"
+            defaultNamespace: "default"
+            jobAttributeName: "jenkins_job"
+            collectBuildStatus: true
+            collectTestResults: true
+            collectNodeStatus: true
+            collectMetrics: true
+            # Disable disk usage collection (CloudBees Disk Usage Simple plugin not installed)
+            collectDiskUsage: false
   
   # Ingress configuration: Traefik with TLS
   ingress:
