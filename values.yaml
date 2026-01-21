@@ -43,7 +43,7 @@ smtp:
   # Using the recovered password from smtp-credentials.
   # Note: These credentials are used by the Helm chart but not stored in git (chart generates secret)
   username: postmaster@canepro.me  # Mailgun SMTP username
-  password: "Genimi123456"  # Mailgun SMTP password (chart generates secret with this)
+  password: "CHANGE_ME_MAILGUN_SMTP_PASSWORD"  # Mailgun SMTP password (chart generates secret with this)
   host: smtp.mailgun.org  # Mailgun SMTP host
   port: 587  # SMTP port (TLS/STARTTLS)
 
