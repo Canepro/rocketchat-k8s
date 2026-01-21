@@ -220,18 +220,63 @@ chmod +x setup-jenkins-job.sh
 
 ## Troubleshooting
 
+### Windows Line Endings (CRLF) Error
+If you see `$'\r': command not found` errors, the script has Windows line endings.
+
+**Fix**:
+```bash
+# Option 1: Use dos2unix (if installed)
+dos2unix .jenkins/create-job.sh
+
+# Option 2: Use sed (works in WSL)
+sed -i 's/\r$//' .jenkins/create-job.sh
+
+# Option 3: Use tr
+tr -d '\r' < .jenkins/create-job.sh > .jenkins/create-job.sh.tmp && mv .jenkins/create-job.sh.tmp .jenkins/create-job.sh
+
+# Option 4: Run fix script
+bash .jenkins/fix-line-endings.sh
+```
+
+### 401 Unauthorized Error
+If you get 401 even with CSRF token, test authentication first:
+
+```bash
+# Run the test script
+bash .jenkins/test-auth.sh
+```
+
+**Common causes**:
+1. **CSRF token not parsed correctly**: Check if `CRUMB_FIELD` and `CRUMB_VALUE` are set
+   ```bash
+   echo "Field: $CRUMB_FIELD"
+   echo "Value: $CRUMB_VALUE"
+   ```
+2. **Password incorrect**: Verify password from secret
+   ```bash
+   kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d
+   ```
+3. **CSRF token expired**: Get a fresh token for each request
+
 ### Job Already Exists
 If the job already exists, delete it first:
 ```bash
+# Get CSRF token first
+CRUMB_JSON=$(curl -s -u "admin:$JENKINS_PASSWORD" "$JENKINS_URL/crumbIssuer/api/json")
+CRUMB_FIELD=$(echo "$CRUMB_JSON" | grep -o '"crumbRequestField":"[^"]*"' | cut -d'"' -f4)
+CRUMB_VALUE=$(echo "$CRUMB_JSON" | grep -o '"crumb":"[^"]*"' | cut -d'"' -f4)
+
+# Delete job
 curl -X POST \
-  -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -u "admin:$JENKINS_PASSWORD" \
+  -H "$CRUMB_FIELD:$CRUMB_VALUE" \
   "$JENKINS_URL/job/rocketchat-k8s/doDelete"
 ```
 
 ### Invalid Credentials
 Make sure you're using:
-- API Token (not password) for REST API calls, OR
-- Username + Password for basic auth
+- Username + Password for basic auth (works with CSRF token)
+- API Token can also be used, but still requires CSRF token
 
 Get API token: **Manage Jenkins** → **Users** → **Your User** → **Configure** → **API Token**
 
