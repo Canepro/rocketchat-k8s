@@ -13,40 +13,47 @@ If the Jenkins UI is not working for you, you can create Multibranch Pipeline jo
 ```bash
 # Set Jenkins URL and credentials
 export JENKINS_URL="https://jenkins.canepro.me"
-export JENKINS_USER="admin"
-export JENKINS_PASSWORD="HjgM0wjOYVlXmqEn"  # Get from: kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d
+export JENKINS_USER="$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.username}' | base64 -d)"
+export JENKINS_PASSWORD="$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d)"
 
 # Step 1: Get CSRF token (required when CSRF protection is enabled)
-CRUMB=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
-  "$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")
+# NOTE: Some Jenkins setups bind crumbs to the HTTP session, so we keep a cookie jar.
+COOKIE_JAR="$(mktemp -t jenkins-cookies.XXXXXX)"
 
-echo "CSRF Token: $CRUMB"
+CRUMB_JSON=$(curl -sS -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+  "$JENKINS_URL/crumbIssuer/api/json")
+
+CRUMB_FIELD=$(echo "$CRUMB_JSON" | grep -o '"crumbRequestField":"[^"]*"' | cut -d'"' -f4)
+CRUMB_VALUE=$(echo "$CRUMB_JSON" | grep -o '"crumb":"[^"]*"' | cut -d'"' -f4)
 
 # Step 2: Create the Multibranch Pipeline job from XML config
 curl -X POST \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
-  -H "$CRUMB" \
+  -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+  -H "$CRUMB_FIELD:$CRUMB_VALUE" \
   -H "Content-Type: application/xml" \
   --data-binary @.jenkins/job-config.xml \
   "$JENKINS_URL/createItem?name=rocketchat-k8s"
 
-# Step 3: Trigger initial scan
+# Step 3: Trigger initial indexing (Branch Indexing)
 curl -X POST \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
-  -H "$CRUMB" \
-  "$JENKINS_URL/job/rocketchat-k8s/scan"
+  -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+  -H "$CRUMB_FIELD:$CRUMB_VALUE" \
+  "$JENKINS_URL/job/rocketchat-k8s/build?delay=0sec"
 ```
 
 ### Verify Job Created
 
 ```bash
 # Check if job exists
-curl -u "$JENKINS_USER:$JENKINS_TOKEN" \
+curl -u "$JENKINS_USER:$JENKINS_PASSWORD" \
   "$JENKINS_URL/job/rocketchat-k8s/api/json"
 
-# Trigger initial scan
+# Trigger initial indexing
 curl -X POST \
-  -u "$JENKINS_USER:$JENKINS_TOKEN" \
+  -u "$JENKINS_USER:$JENKINS_PASSWORD" \
   "$JENKINS_URL/job/rocketchat-k8s/build?delay=0sec"
 ```
 
@@ -82,7 +89,7 @@ curl -X POST \
 curl -X POST \
   -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
   -H "$CRUMB" \
-  "$JENKINS_URL/job/rocketchat-k8s/scan"
+  "$JENKINS_URL/job/rocketchat-k8s/build?delay=0sec"
 ```
 
 ---

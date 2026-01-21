@@ -38,13 +38,13 @@ cp terraform.tfvars.example terraform.tfvars
 - `mongodb_rocketchat_password` - MongoDB rocketchat user password
 - `mongodb_metrics_endpoint_password` - MongoDB metrics password
 
-**Example:**
+**Example (placeholders — replace with your actual values):**
 ```hcl
-rocketchat_mongo_uri = "mongodb://rocketchat:rocketchatroot@mongodb-0.mongodb-svc.rocketchat.svc.cluster.local:27017/rocketchat?authSource=rocketchat&replicaSet=mongodb"
-rocketchat_mongo_oplog_uri = "mongodb://admin:rocketchatroot@mongodb-0.mongodb-svc.rocketchat.svc.cluster.local:27017/local?authSource=admin&replicaSet=mongodb"
-mongodb_admin_password = "rocketchatroot"
-mongodb_rocketchat_password = "rocketchatroot"
-mongodb_metrics_endpoint_password = "rocketchatroot"
+rocketchat_mongo_uri = "mongodb://rocketchat:CHANGE_ME@mongodb-0.mongodb-svc.rocketchat.svc.cluster.local:27017/rocketchat?authSource=rocketchat&replicaSet=mongodb"
+rocketchat_mongo_oplog_uri = "mongodb://admin:CHANGE_ME@mongodb-0.mongodb-svc.rocketchat.svc.cluster.local:27017/local?authSource=admin&replicaSet=mongodb"
+mongodb_admin_password = "CHANGE_ME"
+mongodb_rocketchat_password = "CHANGE_ME"
+mongodb_metrics_endpoint_password = "CHANGE_ME"
 ```
 
 **⚠️ CRITICAL:** `terraform.tfvars` is gitignored. Never commit it or push it to git.
