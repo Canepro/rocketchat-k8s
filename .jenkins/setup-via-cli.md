@@ -2,26 +2,39 @@
 
 If the Jenkins UI is not working for you, you can create Multibranch Pipeline jobs via CLI using several methods.
 
-## Method 1: Jenkins CLI (Recommended)
+## Method 1: Jenkins REST API with CSRF Token (Recommended)
 
 ### Prerequisites
-1. Install Jenkins CLI client (or use the one bundled with Jenkins)
-2. Get your Jenkins API token: **Manage Jenkins** → **Users** → **Your User** → **Configure** → **API Token** → **Add new token**
+1. Get your Jenkins admin password (from Key Vault secret)
+2. Jenkins has CSRF protection enabled, so we need to get a CSRF token first
 
-### Create Job via CLI
+### Create Job via CLI (with CSRF protection)
 
 ```bash
 # Set Jenkins URL and credentials
 export JENKINS_URL="https://jenkins.canepro.me"
 export JENKINS_USER="admin"
-export JENKINS_TOKEN="your-api-token-here"
+export JENKINS_PASSWORD="HjgM0wjOYVlXmqEn"  # Get from: kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d
 
-# Create the Multibranch Pipeline job from XML config
+# Step 1: Get CSRF token (required when CSRF protection is enabled)
+CRUMB=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  "$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")
+
+echo "CSRF Token: $CRUMB"
+
+# Step 2: Create the Multibranch Pipeline job from XML config
 curl -X POST \
-  -u "$JENKINS_USER:$JENKINS_TOKEN" \
+  -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -H "$CRUMB" \
   -H "Content-Type: application/xml" \
   --data-binary @.jenkins/job-config.xml \
   "$JENKINS_URL/createItem?name=rocketchat-k8s"
+
+# Step 3: Trigger initial scan
+curl -X POST \
+  -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -H "$CRUMB" \
+  "$JENKINS_URL/job/rocketchat-k8s/scan"
 ```
 
 ### Verify Job Created
@@ -39,26 +52,37 @@ curl -X POST \
 
 ---
 
-## Method 2: Jenkins REST API (Alternative)
+## Method 2: Using API Token (Alternative)
 
-### Create Job
+### Get API Token First
+1. Login to Jenkins UI: `https://jenkins.canepro.me`
+2. **Manage Jenkins** → **Users** → **admin** → **Configure**
+3. **API Token** section → **Add new token** → Copy the token
+
+### Create Job with API Token
 
 ```bash
-# Create job from XML configuration
+export JENKINS_URL="https://jenkins.canepro.me"
+export JENKINS_USER="admin"
+export JENKINS_API_TOKEN="your-api-token-here"
+
+# Get CSRF token
+CRUMB=$(curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+  "$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")
+
+# Create job
 curl -X POST \
-  -u "admin:YOUR_API_TOKEN" \
+  -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+  -H "$CRUMB" \
   -H "Content-Type: application/xml" \
   --data-binary @.jenkins/job-config.xml \
-  "https://jenkins.canepro.me/createItem?name=rocketchat-k8s"
-```
+  "$JENKINS_URL/createItem?name=rocketchat-k8s"
 
-### Trigger Scan
-
-```bash
-# Trigger branch scan
+# Trigger scan
 curl -X POST \
-  -u "admin:YOUR_API_TOKEN" \
-  "https://jenkins.canepro.me/job/rocketchat-k8s/scan"
+  -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+  -H "$CRUMB" \
+  "$JENKINS_URL/job/rocketchat-k8s/scan"
 ```
 
 ---
@@ -144,27 +168,44 @@ JENKINS_USER="${JENKINS_USER:-admin}"
 echo "Enter Jenkins admin password (or API token):"
 read -rs JENKINS_PASSWORD
 
+# Get CSRF token (required when CSRF protection is enabled)
+echo "Getting CSRF token..."
+CRUMB=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  "$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")
+
+if [ -z "$CRUMB" ] || [[ "$CRUMB" == *"Error"* ]]; then
+  echo "❌ Failed to get CSRF token. Check credentials."
+  exit 1
+fi
+
+echo "CSRF Token obtained: ${CRUMB%%:*}"  # Show only the field name, not the value
+
 # Create job
 echo "Creating job: $JOB_NAME"
-curl -X POST \
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -H "$CRUMB" \
   -H "Content-Type: application/xml" \
   --data-binary @"$CONFIG_FILE" \
-  "$JENKINS_URL/createItem?name=$JOB_NAME"
+  "$JENKINS_URL/createItem?name=$JOB_NAME")
 
-if [ $? -eq 0 ]; then
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+
+if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
   echo "✅ Job created successfully!"
   
   # Trigger scan
   echo "Triggering initial scan..."
   curl -X POST \
     -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    -H "$CRUMB" \
     "$JENKINS_URL/job/$JOB_NAME/scan"
   
   echo "✅ Initial scan triggered!"
   echo "Check job status at: $JENKINS_URL/job/$JOB_NAME"
 else
-  echo "❌ Failed to create job"
+  echo "❌ Failed to create job. HTTP Status: $HTTP_CODE"
+  echo "Response: $(echo "$RESPONSE" | head -n-1)"
   exit 1
 fi
 ```

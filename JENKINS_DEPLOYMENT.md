@@ -676,23 +676,32 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 **Option B: Via CLI** (if UI is not working - **Recommended**)
 See `.jenkins/setup-via-cli.md` for complete CLI setup instructions.
 
-**Quick CLI Method**:
+**Quick CLI Method** (with CSRF token):
 ```bash
 # Get Jenkins admin password
-kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d
+JENKINS_PASSWORD=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d)
+JENKINS_URL="https://jenkins.canepro.me"
+
+# Get CSRF token (required when CSRF protection is enabled)
+CRUMB=$(curl -s -u "admin:$JENKINS_PASSWORD" \
+  "$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")
 
 # Create job from XML config
 curl -X POST \
-  -u "admin:YOUR_PASSWORD" \
+  -u "admin:$JENKINS_PASSWORD" \
+  -H "$CRUMB" \
   -H "Content-Type: application/xml" \
   --data-binary @.jenkins/job-config.xml \
-  "https://jenkins.canepro.me/createItem?name=rocketchat-k8s"
+  "$JENKINS_URL/createItem?name=rocketchat-k8s"
 
 # Trigger initial scan
 curl -X POST \
-  -u "admin:YOUR_PASSWORD" \
-  "https://jenkins.canepro.me/job/rocketchat-k8s/scan"
+  -u "admin:$JENKINS_PASSWORD" \
+  -H "$CRUMB" \
+  "$JENKINS_URL/job/rocketchat-k8s/scan"
 ```
+
+**Note**: Jenkins has CSRF protection enabled (security best practice), so all API calls require a CSRF token. The token is obtained from `/crumbIssuer/api/xml` and must be included in the request headers.
 
 **Continue with UI configuration** (if using Option A):
    - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
