@@ -667,11 +667,17 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 **Action**:
 1. **Jenkins UI** → **New Item** → **Multibranch Pipeline**
 2. **Name**: `rocketchat-k8s`
-3. **Branch Sources** → **GitHub** → **Add** → **GitHub**
-4. Configure:
+3. **Branch Sources** section:
+   - Click **"Add source"** button (at the top of the Branch Sources section)
+   - Select **"GitHub"** from the dropdown menu
+   - This will add a GitHub branch source configuration section
+4. Configure the GitHub branch source:
    - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
    - **Credentials**: Select `github-token` from dropdown
-     - **Important**: Even though the UI may show "Credentials ok. Connected to..." with "- none -" selected, you **must** select `github-token` for PR status checks to work properly. Public repos can be scanned without credentials, but PR status reporting requires authentication.
+     - **Important**: 
+       - If `github-token` doesn't appear in the dropdown, it may already exist. Check **Manage Jenkins** → **Credentials** → **System** → **Global credentials (unrestricted)** to verify.
+       - If you see "This ID is already in use" error when trying to add it, the credential already exists - just select it from the dropdown instead of creating a new one.
+       - Even though the UI may show "Credentials ok. Connected to..." with "- none -" selected, you **must** select `github-token` for PR status checks to work properly. Public repos can be scanned without credentials, but PR status reporting requires authentication.
    - **Behaviours** (click "Add" to add behaviors):
      - ✅ **Discover branches**: Strategy = "Exclude branches that are also filed as PRs"
      - ✅ **Discover pull requests from origin**: Strategy = "The current pull request revision"
@@ -827,10 +833,14 @@ pipeline {
 1. Create `.jenkins/` directory in repository
 2. Add both Jenkinsfiles above
 3. Create Multibranch Pipeline job: `rocketchat-k8s`
-   - **Branch Sources** → **GitHub**:
+   - **Branch Sources** section:
+     - Click **"Add source"** button (at the top of Branch Sources section, NOT the "Add" next to Credentials)
+     - Select **"GitHub"** from the dropdown menu
+   - Configure the GitHub branch source:
      - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
-     - **Credentials**: Select `github-token` from dropdown (required for PR status reporting)
-     - **Behaviours** (click "Add"):
+     - **Credentials**: Select `github-token` from dropdown
+       - **Note**: If you see "This ID is already in use" error, the credential already exists - just select it from the dropdown instead of creating a new one
+     - **Behaviours** (click "Add" button in Behaviours section):
        - **Discover branches**: Strategy = "Exclude branches that are also filed as PRs"
        - **Discover pull requests from origin**: Strategy = "The current pull request revision"
        - **Trust**: "From users with Admin or Write permission"

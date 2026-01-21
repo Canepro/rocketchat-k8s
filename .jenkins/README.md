@@ -30,7 +30,10 @@ These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatica
 ## Setup in Jenkins
 
 1. Create a **Multibranch Pipeline** job named `rocketchat-k8s`
-2. **Branch Sources** → **GitHub**:
+2. **Branch Sources** section:
+   - Click **"Add source"** button (at the top of Branch Sources section)
+   - Select **"GitHub"** from the dropdown
+3. Configure the GitHub branch source:
    - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
    - **Credentials**: Select `github-token` from dropdown (required for PR status reporting)
    - **Behaviours** (click "Add" to configure):
