@@ -229,7 +229,7 @@ Azure Load Balancer (Public IP)
    ↓
 Traefik IngressController (NodePort/LoadBalancer)
    ↓
-├─ rocketchat.canepro.me → RocketChat Service (ClusterIP)
+├─ k8.canepro.me → RocketChat Service (ClusterIP)
 ├─ argocd.canepro.me → ArgoCD Server (ClusterIP)
 ├─ grafana.canepro.me → Grafana Service (ClusterIP)
 └─ jenkins.canepro.me → Jenkins Service (ClusterIP)
