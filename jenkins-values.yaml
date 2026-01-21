@@ -88,12 +88,14 @@ controller:
             path: "/prometheus"
             defaultNamespace: "default"
             jobAttributeName: "jenkins_job"
-            collectBuildStatus: true
-            collectTestResults: true
             collectNodeStatus: true
-            collectMetrics: true
+            # Prometheus plugin options vary by version; keep only keys supported by
+            # org.jenkinsci.plugins.prometheus.config.PrometheusConfiguration.
+            # (Unsupported keys will crash Jenkins on boot via JCasC.)
+            fetchTestResults: true
             # Disable disk usage collection (CloudBees Disk Usage Simple plugin not installed)
             collectDiskUsage: false
+            collectingMetricsPeriodInSeconds: 120
   
   # Ingress configuration: Traefik with TLS
   ingress:
