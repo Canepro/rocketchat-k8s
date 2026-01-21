@@ -664,7 +664,7 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 ### Step 5: Create Pipeline Job
 **Purpose**: Connect Jenkins to your repository.
 
-**Action**:
+**Option A: Via Jenkins UI** (if UI is working)
 1. **Jenkins UI** → **New Item** → **Multibranch Pipeline**
 2. **Name**: `rocketchat-k8s`
 3. **Branch Sources** section:
@@ -672,6 +672,29 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
    - Select **"GitHub"** from the dropdown menu
    - This will add a GitHub branch source configuration section
 4. Configure the GitHub branch source:
+
+**Option B: Via CLI** (if UI is not working - **Recommended**)
+See `.jenkins/setup-via-cli.md` for complete CLI setup instructions.
+
+**Quick CLI Method**:
+```bash
+# Get Jenkins admin password
+kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d
+
+# Create job from XML config
+curl -X POST \
+  -u "admin:YOUR_PASSWORD" \
+  -H "Content-Type: application/xml" \
+  --data-binary @.jenkins/job-config.xml \
+  "https://jenkins.canepro.me/createItem?name=rocketchat-k8s"
+
+# Trigger initial scan
+curl -X POST \
+  -u "admin:YOUR_PASSWORD" \
+  "https://jenkins.canepro.me/job/rocketchat-k8s/scan"
+```
+
+**Continue with UI configuration** (if using Option A):
    - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
    - **Credentials**: Select `github-token` from dropdown
      - **Important**: 
