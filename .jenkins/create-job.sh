@@ -1,8 +1,9 @@
 #!/bin/bash
 # Quick script to create Jenkins Multibranch Pipeline job via CLI
 # Handles CSRF token automatically
+# Note: This script must use Unix line endings (LF), not Windows (CRLF)
 
-set -e
+set -euo pipefail
 
 # Configuration
 JENKINS_URL="${JENKINS_URL:-https://jenkins.canepro.me}"
@@ -26,23 +27,36 @@ echo "Getting CSRF token..."
 CRUMB_JSON=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
   "$JENKINS_URL/crumbIssuer/api/json")
 
-if [ -z "$CRUMB_JSON" ] || [[ "$CRUMB_JSON" == *"Error"* ]] || [[ "$CRUMB_JSON" == *"401"* ]] || [[ "$CRUMB_JSON" == *"403"* ]]; then
+# Check if we got a valid response
+if [ -z "$CRUMB_JSON" ]; then
+  echo "❌ Empty response from CSRF token endpoint"
+  exit 1
+fi
+
+if echo "$CRUMB_JSON" | grep -q "Error\|401\|403"; then
   echo "❌ Failed to get CSRF token. Check credentials."
   echo "Response: $CRUMB_JSON"
   exit 1
 fi
 
 # Parse JSON response to extract crumb field and value
-CRUMB_FIELD=$(echo "$CRUMB_JSON" | grep -o '"crumbRequestField":"[^"]*"' | cut -d'"' -f4)
-CRUMB_VALUE=$(echo "$CRUMB_JSON" | grep -o '"crumb":"[^"]*"' | cut -d'"' -f4)
+# Using jq if available, otherwise grep
+if command -v jq &> /dev/null; then
+  CRUMB_FIELD=$(echo "$CRUMB_JSON" | jq -r '.crumbRequestField')
+  CRUMB_VALUE=$(echo "$CRUMB_JSON" | jq -r '.crumb')
+else
+  CRUMB_FIELD=$(echo "$CRUMB_JSON" | grep -o '"crumbRequestField":"[^"]*"' | cut -d'"' -f4)
+  CRUMB_VALUE=$(echo "$CRUMB_JSON" | grep -o '"crumb":"[^"]*"' | cut -d'"' -f4)
+fi
 
-if [ -z "$CRUMB_FIELD" ] || [ -z "$CRUMB_VALUE" ]; then
+if [ -z "$CRUMB_FIELD" ] || [ -z "$CRUMB_VALUE" ] || [ "$CRUMB_FIELD" = "null" ] || [ "$CRUMB_VALUE" = "null" ]; then
   echo "❌ Failed to parse CSRF token from JSON response"
   echo "Response: $CRUMB_JSON"
+  echo "Parsed field: '$CRUMB_FIELD', value: '${CRUMB_VALUE:0:10}...'"
   exit 1
 fi
 
-echo "✅ CSRF token obtained: $CRUMB_FIELD:****"
+echo "✅ CSRF token obtained: $CRUMB_FIELD:${CRUMB_VALUE:0:10}..."
 
 # Check if job already exists
 echo "Checking if job already exists..."
