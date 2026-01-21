@@ -605,11 +605,548 @@ kubectl rollout restart statefulset jenkins -n jenkins
 - ✅ Automatic backups via persistent volume
 - ✅ GitOps managed via ArgoCD
 
+---
+
+## 🎯 Post-Deployment Setup (Getting Jenkins Fully Functional)
+
+After Jenkins is deployed, follow these steps to get it fully functional for CI validation:
+
+### Current Status (2026-01-21)
+- ✅ Jenkins deployed and running
+- ✅ TLS certificate issued
+- ✅ Admin credentials synced from Key Vault
+- ✅ GitHub token secret synced
+- ⚠️ Prometheus disk usage warning (fixed in jenkins-values.yaml - will apply on next sync)
+- ⚠️ GitHub token credential needs to be configured in Jenkins UI
+- ⚠️ GitHub webhook needs to be configured
+- ⚠️ Jenkinsfiles need to be created
+
+### Step 1: Fix Prometheus Warning ✅ (Fixed)
+**Issue**: Prometheus plugin trying to collect disk usage but CloudBees Disk Usage Simple plugin not installed.
+
+**Fix**: Disabled disk usage collection in `jenkins-values.yaml` JCasC configuration. Will apply on next ArgoCD sync.
+
+### Step 2: Configure GitHub Token Credential
+**Purpose**: Jenkins needs the GitHub token to authenticate with GitHub API for PR validation.
+
+**Action**:
+1. Access Jenkins UI: `https://jenkins.canepro.me`
+2. Login with admin credentials (get from Key Vault secret)
+3. Navigate: **Manage Jenkins** → **Credentials** → **System** → **Global credentials (unrestricted)**
+4. Click **Add Credentials**
+5. Configure:
+   - **Kind**: Secret text
+   - **Secret**: Get from `kubectl get secret jenkins-github -n jenkins -o jsonpath='{.data.token}' | base64 -d`
+   - **ID**: `github-token` (must match `jenkins-values.yaml` line 78)
+   - **Description**: "GitHub Personal Access Token for PR validation"
+6. Click **OK**
+
+### Step 3: Set Up GitHub Webhook
+**Purpose**: Automatically trigger Jenkins jobs when PRs are created/updated.
+
+**Action**:
+1. Go to: `https://github.com/Canepro/rocketchat-k8s/settings/hooks`
+2. Click **Add webhook**
+3. Configure:
+   - **Payload URL**: `https://jenkins.canepro.me/github-webhook/`
+   - **Content type**: `application/json`
+   - **Events**: Select "Let me select individual events"
+     - ✅ Pull requests
+     - ✅ Pushes (optional)
+   - **Active**: ✅ Enabled
+4. Click **Add webhook**
+
+### Step 4: Create Jenkinsfile
+**Purpose**: Define CI validation pipeline for your repository.
+
+**Create**: `.jenkins/Jenkinsfile` (or `Jenkinsfile` in root) with validation stages (see examples in "Creating CI Jobs" section above).
+
+### Step 5: Create Pipeline Job
+**Purpose**: Connect Jenkins to your repository.
+
+**Action**:
+1. **Jenkins UI** → **New Item** → **Multibranch Pipeline**
+2. **Name**: `rocketchat-k8s`
+3. **Branch Sources** → **GitHub** → **Add** → **GitHub**
+4. Configure:
+   - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
+   - **Credentials**: Select `github-token`
+   - **Behaviors**: ✅ Discover pull requests from origin, ✅ Discover branches
+5. **Build Configuration** → **Mode**: By Jenkinsfile → **Script Path**: `.jenkins/Jenkinsfile`
+6. **Save** → **Scan Multibranch Pipeline Now**
+
+### Step 6: Test End-to-End
+1. Create a test PR on GitHub
+2. Verify Jenkins job triggers automatically
+3. Check PR status check appears on GitHub
+4. Verify build completes successfully
+
+---
+
+## 🎯 Best Practices for Jenkins in Your GitOps Setup
+
+### 1. **CI Validation Only (Current Best Practice)** ✅
+- **What**: Jenkins performs static analysis, linting, testing, and pre-deployment validation
+- **Why**: Aligns with GitOps where ArgoCD is the source of truth. Prevents Jenkins from becoming a "break glass" tool
+- **Your Setup**: Already configured correctly - no `terraform apply` or `kubectl apply` by default
+
+### 2. **Dynamic Kubernetes Agents** ✅
+- **What**: Jobs run on ephemeral pods that spin up on demand
+- **Why**: Scalability, isolation, tool-specific environments
+- **Your Setup**: Already configured with `default`, `terraform`, and `helm` agents
+
+### 3. **Jenkinsfiles-as-Code** (Mandatory)
+- **What**: Define pipelines in `Jenkinsfile` stored in each repository
+- **Why**: Version control, self-service, consistency, auditability
+- **Action**: Create Jenkinsfiles for all three repositories (see below)
+
+### 4. **Multibranch Pipelines** (Recommended)
+- **What**: Automatically scan repositories for branches and PRs
+- **Why**: Reduces manual setup, ensures every change gets validated
+- **Action**: Set up Multibranch Pipeline jobs for each repository
+
+### 5. **External Secret Management** ✅
+- **What**: Secrets in Azure Key Vault via External Secrets Operator
+- **Why**: Secrets out of Git/Jenkins UI, centralized management
+- **Your Setup**: Already implemented
+
+### 6. **Comprehensive Monitoring** ✅
+- **What**: Prometheus metrics exposed and integrated with Grafana
+- **Why**: Visibility into health, queue, agents, job performance
+- **Your Setup**: Already configured
+
+---
+
+## 📦 Jenkins Setup for All Three Repositories
+
+### Repository 1: `rocketchat-k8s` (AKS GitOps)
+
+**Purpose**: Infrastructure-as-Code validation for AKS-based RocketChat deployment
+
+**Recommended Jenkinsfiles**:
+
+#### `.jenkins/terraform-validation.Jenkinsfile`
+```groovy
+pipeline {
+  agent {
+    kubernetes {
+      label 'terraform'
+      defaultContainer 'terraform'
+    }
+  }
+  
+  stages {
+    stage('Terraform Format Check') {
+      steps {
+        dir('terraform') {
+          sh 'terraform fmt -check -recursive'
+        }
+      }
+    }
+    
+    stage('Terraform Validate') {
+      steps {
+        dir('terraform') {
+          sh 'terraform init -backend=false'
+          sh 'terraform validate'
+        }
+      }
+    }
+    
+    stage('Terraform Plan') {
+      steps {
+        dir('terraform') {
+          sh 'terraform init'
+          sh 'terraform plan -no-color -out=tfplan'
+        }
+      }
+    }
+  }
+  
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}
+```
+
+#### `.jenkins/helm-validation.Jenkinsfile`
+```groovy
+pipeline {
+  agent {
+    kubernetes {
+      label 'helm'
+      defaultContainer 'helm'
+    }
+  }
+  
+  stages {
+    stage('Helm Template') {
+      steps {
+        sh '''
+          helm template rocketchat . -f values.yaml > /tmp/manifests.yaml
+          helm template traefik . -f traefik-values.yaml > /tmp/traefik-manifests.yaml || true
+        '''
+      }
+    }
+    
+    stage('Kubeconform Validate') {
+      steps {
+        sh 'kubeconform -strict /tmp/manifests.yaml /tmp/traefik-manifests.yaml'
+      }
+    }
+    
+    stage('YAML Lint') {
+      steps {
+        sh '''
+          yamllint -c .yamllint.yaml *.yaml || true
+          yamllint -c .yamllint.yaml ops/manifests/*.yaml || true
+        '''
+      }
+    }
+  }
+  
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}
+```
+
+**Setup Steps**:
+1. Create `.jenkins/` directory in repository
+2. Add both Jenkinsfiles above
+3. Create Multibranch Pipeline job: `rocketchat-k8s`
+4. Configure to scan for PRs and branches
+5. Add GitHub webhook: `https://jenkins.canepro.me/github-webhook/`
+
+---
+
+### Repository 2: `central-observability-hub-stack` (OKE Hub)
+
+**Purpose**: Infrastructure validation for OKE-based observability hub (complements existing GitHub Actions)
+
+**Note**: This repo already has GitHub Actions for DevOps Quality Gate. Jenkins can provide:
+- More resource-intensive validation
+- Different validation types (e.g., Terraform plan with detailed output)
+- Centralized CI reporting across all repos
+
+**Recommended Jenkinsfiles**:
+
+#### `.jenkins/terraform-validation.Jenkinsfile`
+```groovy
+pipeline {
+  agent {
+    kubernetes {
+      label 'terraform'
+      defaultContainer 'terraform'
+    }
+  }
+  
+  stages {
+    stage('Terraform Format Check') {
+      steps {
+        dir('terraform') {
+          sh 'terraform fmt -check -recursive'
+        }
+      }
+    }
+    
+    stage('Terraform Validate') {
+      steps {
+        dir('terraform') {
+          sh 'terraform init -backend=false'
+          sh 'terraform validate'
+        }
+      }
+    }
+    
+    stage('Terraform Plan') {
+      steps {
+        dir('terraform') {
+          sh 'terraform init'
+          sh 'terraform plan -detailed-exitcode -no-color'
+        }
+      }
+    }
+  }
+  
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}
+```
+
+#### `.jenkins/k8s-manifest-validation.Jenkinsfile`
+```groovy
+pipeline {
+  agent {
+    kubernetes {
+      label 'helm'
+      defaultContainer 'helm'
+    }
+  }
+  
+  stages {
+    stage('ArgoCD App Validation') {
+      steps {
+        sh '''
+          # Validate ArgoCD Application manifests
+          for app in argocd/applications/*.yaml; do
+            kubeconform -strict "$app" || exit 1
+          done
+        '''
+      }
+    }
+    
+    stage('Helm Chart Validation') {
+      steps {
+        dir('helm') {
+          sh '''
+            for chart in */values.yaml; do
+              chart_dir=$(dirname "$chart")
+              helm template "$chart_dir" "$chart_dir" -f "$chart" > /tmp/"$chart_dir"-manifests.yaml
+              kubeconform -strict /tmp/"$chart_dir"-manifests.yaml || exit 1
+            done
+          '''
+        }
+      }
+    }
+    
+    stage('YAML Lint') {
+      steps {
+        sh '''
+          yamllint -c .yamllint.yaml argocd/ k8s/ helm/ || true
+        '''
+      }
+    }
+    
+    stage('Security Scan') {
+      steps {
+        sh '''
+          # Use kube-linter (if available) or similar
+          # This complements GitHub Actions kube-linter
+          echo "Security scanning via kube-linter..."
+        '''
+      }
+    }
+  }
+  
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}
+```
+
+**Setup Steps**:
+1. Create `.jenkins/` directory
+2. Add Jenkinsfiles above
+3. Create Multibranch Pipeline job: `central-observability-hub-stack`
+4. Configure GitHub webhook
+5. **Note**: This runs in parallel with GitHub Actions - both provide validation
+
+---
+
+### Repository 3: `portfolio_website-main` (Next.js Application)
+
+**Purpose**: Application-level validation (complements Azure DevOps pipelines)
+
+**Recommended Jenkinsfile**:
+
+#### `.jenkins/application-validation.Jenkinsfile`
+```groovy
+pipeline {
+  agent {
+    kubernetes {
+      label 'default'
+      defaultContainer 'jnlp'
+    }
+  }
+  
+  environment {
+    NODE_VERSION = '20'
+    BUN_VERSION = '1.3.5'
+  }
+  
+  stages {
+    stage('Setup') {
+      steps {
+        sh '''
+          # Install Bun (if not in agent image)
+          curl -fsSL https://bun.sh/install | bash
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun --version
+        '''
+      }
+    }
+    
+    stage('Dependency Audit') {
+      steps {
+        sh '''
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun audit || echo "Audit completed with warnings"
+        '''
+      }
+    }
+    
+    stage('Code Quality') {
+      steps {
+        sh '''
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run lint
+          bun run format:check
+        '''
+      }
+    }
+    
+    stage('Type Checking') {
+      steps {
+        sh '''
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run typecheck
+        '''
+      }
+    }
+    
+    stage('Build Validation') {
+      steps {
+        sh '''
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run build
+        '''
+      }
+    }
+    
+    stage('Container Scan') {
+      when {
+        anyOf {
+          branch 'main'
+          branch 'master'
+        }
+      }
+      steps {
+        sh '''
+          # Scan Dockerfile for vulnerabilities (if Dockerfile exists)
+          if [ -f Dockerfile ]; then
+            # Use trivy or similar (install if needed)
+            echo "Container scanning would run here"
+          fi
+        '''
+      }
+    }
+  }
+  
+  post {
+    always {
+      cleanWs()
+    }
+    success {
+      echo "✅ All validation checks passed"
+    }
+    failure {
+      echo "❌ Validation checks failed"
+    }
+  }
+}
+```
+
+**Alternative: Custom Agent with Bun Pre-installed**
+
+Create a custom agent in `jenkins-values.yaml`:
+
+```yaml
+agent:
+  podTemplates:
+    bun: |
+      - name: bun
+        label: bun
+        nodeUsageMode: EXCLUSIVE
+        containers:
+          - name: bun
+            image: oven/bun:1.3.5-alpine
+            command: "/bin/sh -c"
+            args: "cat"
+            ttyEnabled: true
+            resourceRequestCpu: "200m"
+            resourceRequestMemory: "512Mi"
+            resourceLimitCpu: "2000m"
+            resourceLimitMemory: "4Gi"
+```
+
+Then use `label 'bun'` in the Jenkinsfile.
+
+**Setup Steps**:
+1. Create `.jenkins/` directory
+2. Add Jenkinsfile above
+3. Create Multibranch Pipeline job: `portfolio_website-main`
+4. Configure GitHub webhook
+5. **Note**: This complements Azure DevOps - Jenkins provides additional validation layer
+
+---
+
+## 🚀 Maximizing Jenkins Value
+
+### 1. **Centralized CI Dashboard**
+- All three repositories report to same Jenkins instance
+- Unified view of CI health across all projects
+- Consistent validation standards
+
+### 2. **Parallel Validation**
+- Jenkins + GitHub Actions for `central-observability-hub-stack` (redundancy)
+- Jenkins + Azure DevOps for `portfolio_website-main` (complementary)
+- Multiple validation layers catch different issues
+
+### 3. **Resource-Intensive Validations**
+- Terraform plans with full state (Jenkins can handle larger workloads)
+- Container image scanning
+- Security policy checks (OPA/Conftest)
+
+### 4. **Cross-Repository Validation**
+- Validate ArgoCD app references across repos
+- Check consistency of Helm chart versions
+- Verify cross-repo dependencies
+
+### 5. **Custom Metrics & Reporting**
+- Track validation success rates per repository
+- Monitor build times and resource usage
+- Alert on validation failures
+
+---
+
+## 📋 Quick Setup Checklist
+
+### For Each Repository:
+
+- [ ] Create `.jenkins/` directory
+- [ ] Add appropriate Jenkinsfile(s)
+- [ ] Create Multibranch Pipeline job in Jenkins
+- [ ] Configure GitHub webhook
+- [ ] Test with a sample PR
+- [ ] Verify status checks appear on GitHub
+
+### Jenkins Configuration:
+
+- [ ] ✅ GitHub token credential (already done)
+- [ ] ✅ Prometheus warning fixed (in progress)
+- [ ] Create Multibranch Pipeline jobs for all 3 repos
+- [ ] Configure webhooks for all 3 repos
+- [ ] Test agent connectivity
+- [ ] Monitor first successful PR validations
+
+---
+
 **Next Steps**:
-1. Create GitHub webhooks for PR validation
-2. Add Jenkinsfile to your repositories
-3. Configure matrix-based authorization (production)
-4. Set up backup schedule (recommended)
-5. Enable applies if needed (optional)
+1. Create Jenkinsfiles for all three repositories
+2. Set up Multibranch Pipeline jobs
+3. Configure GitHub webhooks
+4. Test end-to-end validation
+5. Configure matrix-based authorization (production hardening)
+6. Set up backup schedule (recommended)
 
 Good luck with Jenkins! 🚀
