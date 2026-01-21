@@ -670,9 +670,17 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 3. **Branch Sources** → **GitHub** → **Add** → **GitHub**
 4. Configure:
    - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
-   - **Credentials**: Select `github-token`
-   - **Behaviors**: ✅ Discover pull requests from origin, ✅ Discover branches
-5. **Build Configuration** → **Mode**: By Jenkinsfile → **Script Path**: `.jenkins/Jenkinsfile`
+   - **Credentials**: Select `github-token` from dropdown
+     - **Important**: Even though the UI may show "Credentials ok. Connected to..." with "- none -" selected, you **must** select `github-token` for PR status checks to work properly. Public repos can be scanned without credentials, but PR status reporting requires authentication.
+   - **Behaviours** (click "Add" to add behaviors):
+     - ✅ **Discover branches**: Strategy = "Exclude branches that are also filed as PRs"
+     - ✅ **Discover pull requests from origin**: Strategy = "The current pull request revision"
+     - ✅ **Discover pull requests from forks**: Strategy = "The current pull request revision" (optional)
+     - **Trust**: "From users with Admin or Write permission" (default)
+5. **Build Configuration**:
+   - **Mode**: "by Jenkinsfile"
+   - **Script Path**: `.jenkins/terraform-validation.Jenkinsfile` (or `.jenkins/helm-validation.Jenkinsfile`)
+     - Note: This is the path relative to repository root where your Jenkinsfile is located
 6. **Save** → **Scan Multibranch Pipeline Now**
 
 ### Step 6: Test End-to-End
@@ -819,8 +827,17 @@ pipeline {
 1. Create `.jenkins/` directory in repository
 2. Add both Jenkinsfiles above
 3. Create Multibranch Pipeline job: `rocketchat-k8s`
-4. Configure to scan for PRs and branches
-5. Add GitHub webhook: `https://jenkins.canepro.me/github-webhook/`
+   - **Branch Sources** → **GitHub**:
+     - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
+     - **Credentials**: Select `github-token` from dropdown (required for PR status reporting)
+     - **Behaviours** (click "Add"):
+       - **Discover branches**: Strategy = "Exclude branches that are also filed as PRs"
+       - **Discover pull requests from origin**: Strategy = "The current pull request revision"
+       - **Trust**: "From users with Admin or Write permission"
+   - **Build Configuration**:
+     - **Mode**: "by Jenkinsfile"
+     - **Script Path**: `.jenkins/terraform-validation.Jenkinsfile` (or `.jenkins/helm-validation.Jenkinsfile`)
+4. Add GitHub webhook: `https://jenkins.canepro.me/github-webhook/`
 
 ---
 
@@ -948,7 +965,12 @@ pipeline {
 1. Create `.jenkins/` directory
 2. Add Jenkinsfiles above
 3. Create Multibranch Pipeline job: `central-observability-hub-stack`
-4. Configure GitHub webhook
+   - **Branch Sources** → **GitHub**:
+     - **Repository HTTPS URL**: `https://github.com/Canepro/central-observability-hub-stack`
+     - **Credentials**: Select `github-token`
+     - **Behaviours**: Add "Discover branches" and "Discover pull requests from origin"
+   - **Build Configuration** → **Script Path**: `.jenkins/terraform-validation.Jenkinsfile` (or `.jenkins/k8s-manifest-validation.Jenkinsfile`)
+4. Configure GitHub webhook: `https://jenkins.canepro.me/github-webhook/`
 5. **Note**: This runs in parallel with GitHub Actions - both provide validation
 
 ---
@@ -1085,7 +1107,12 @@ Then use `label 'bun'` in the Jenkinsfile.
 1. Create `.jenkins/` directory
 2. Add Jenkinsfile above
 3. Create Multibranch Pipeline job: `portfolio_website-main`
-4. Configure GitHub webhook
+   - **Branch Sources** → **GitHub**:
+     - **Repository HTTPS URL**: `https://github.com/Canepro/portfolio_website-main`
+     - **Credentials**: Select `github-token`
+     - **Behaviours**: Add "Discover branches" and "Discover pull requests from origin"
+   - **Build Configuration** → **Script Path**: `.jenkins/application-validation.Jenkinsfile`
+4. Configure GitHub webhook: `https://jenkins.canepro.me/github-webhook/`
 5. **Note**: This complements Azure DevOps - Jenkins provides additional validation layer
 
 ---
