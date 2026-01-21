@@ -1,0 +1,6 @@
+# Enforce LF for bash scripts (avoid $'\r' errors in WSL/Linux).
+*.sh text eol=lf
+
+# Jenkins pipeline scripts are executed in Linux containers.
+*.Jenkinsfile text eol=lf
+

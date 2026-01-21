@@ -9,22 +9,46 @@ set -euo pipefail
 JENKINS_URL="${JENKINS_URL:-https://jenkins.canepro.me}"
 JOB_NAME="${JOB_NAME:-rocketchat-k8s}"
 CONFIG_FILE="${CONFIG_FILE:-.jenkins/job-config.xml}"
-JENKINS_USER="${JENKINS_USER:-admin}"
+JENKINS_USER="${JENKINS_USER:-}"
 
-# Get Jenkins password from Kubernetes secret
-echo "Getting Jenkins admin password from Kubernetes secret..."
-JENKINS_PASSWORD=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+# Some Jenkins setups validate crumbs against the HTTP session.
+# Keep a cookie jar and reuse it for crumb + POST requests.
+COOKIE_JAR="$(mktemp -t jenkins-cookies.XXXXXX)"
+cleanup() {
+  rm -f "$COOKIE_JAR" 2>/dev/null || true
+}
+trap cleanup EXIT
 
-if [ -z "$JENKINS_PASSWORD" ]; then
-  echo "❌ Failed to get Jenkins password from Kubernetes secret"
-  echo "Please provide password manually:"
-  read -rs JENKINS_PASSWORD
+# Get Jenkins credentials from Kubernetes secret (unless provided via env)
+echo "Getting Jenkins admin credentials from Kubernetes secret..."
+if [ -z "${JENKINS_USER}" ]; then
+  JENKINS_USER=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.username}' 2>/dev/null | base64 -d || true)
+fi
+
+JENKINS_PASSWORD="${JENKINS_PASSWORD:-}"
+if [ -z "${JENKINS_PASSWORD}" ]; then
+  JENKINS_PASSWORD=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)
+fi
+
+if [ -z "${JENKINS_USER}" ] || [ -z "${JENKINS_PASSWORD}" ]; then
+  echo "❌ Failed to get Jenkins credentials from Kubernetes secret"
+  if [ -z "${JENKINS_USER}" ]; then
+    echo "Please provide username manually:"
+    read -r JENKINS_USER
+  fi
+  if [ -z "${JENKINS_PASSWORD}" ]; then
+    echo "Please provide password (or API token) manually:"
+    read -rs JENKINS_PASSWORD
+    echo ""
+  fi
 fi
 
 # Get CSRF token (required when CSRF protection is enabled)
 echo "Getting CSRF token..."
 # Use JSON endpoint for more reliable parsing
-CRUMB_JSON=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+CRUMB_JSON=$(curl -sS -L \
+  -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
   "$JENKINS_URL/crumbIssuer/api/json")
 
 # Check if we got a valid response
@@ -62,6 +86,7 @@ echo "✅ CSRF token obtained: $CRUMB_FIELD:${CRUMB_VALUE:0:10}..."
 echo "Checking if job already exists..."
 EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
   -H "$CRUMB_FIELD:$CRUMB_VALUE" \
   "$JENKINS_URL/job/$JOB_NAME/api/json")
 
@@ -69,6 +94,7 @@ if [ "$EXISTS" = "200" ]; then
   echo "⚠️  Job '$JOB_NAME' already exists. Deleting it first..."
   curl -X POST \
     -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -H "$CRUMB_FIELD:$CRUMB_VALUE" \
     "$JENKINS_URL/job/$JOB_NAME/doDelete"
   echo "✅ Old job deleted"
@@ -84,8 +110,9 @@ echo "Using config file: $CONFIG_FILE ($(wc -c < "$CONFIG_FILE") bytes)"
 
 # Create job
 echo "Creating job: $JOB_NAME"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+RESPONSE=$(curl -sS -L -w "\n%{http_code}" -X POST \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+  -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
   -H "$CRUMB_FIELD:$CRUMB_VALUE" \
   -H "Content-Type: application/xml" \
   --data-binary @"$CONFIG_FILE" \
@@ -97,23 +124,25 @@ RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
   echo "✅ Job created successfully!"
   
-  # Trigger scan
-  echo "Triggering initial scan..."
-  SCAN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  # Trigger initial multibranch indexing
+  # (Some Jenkins instances don't expose /scan; /build?delay=0sec triggers Branch Indexing.)
+  echo "Triggering initial indexing..."
+  INDEX_RESPONSE=$(curl -sS -L -w "\n%{http_code}" -X POST \
     -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -H "$CRUMB_FIELD:$CRUMB_VALUE" \
-    "$JENKINS_URL/job/$JOB_NAME/scan")
+    "$JENKINS_URL/job/$JOB_NAME/build?delay=0sec")
   
-  SCAN_CODE=$(echo "$SCAN_RESPONSE" | tail -n1)
+  INDEX_CODE=$(echo "$INDEX_RESPONSE" | tail -n1)
   
-  if [ "$SCAN_CODE" = "200" ] || [ "$SCAN_CODE" = "201" ]; then
-    echo "✅ Initial scan triggered!"
+  if [ "$INDEX_CODE" = "200" ] || [ "$INDEX_CODE" = "201" ] || [ "$INDEX_CODE" = "302" ]; then
+    echo "✅ Initial indexing triggered!"
     echo ""
     echo "Job URL: $JENKINS_URL/job/$JOB_NAME"
     echo "Check job status in Jenkins UI or wait a few moments for the scan to complete."
   else
-    echo "⚠️  Scan trigger returned HTTP $SCAN_CODE (job was created but scan may have failed)"
-    echo "Response: $(echo "$SCAN_RESPONSE" | head -n-1)"
+    echo "⚠️  Index trigger returned HTTP $INDEX_CODE (job was created but indexing may have failed)"
+    echo "Response: $(echo "$INDEX_RESPONSE" | head -n-1)"
   fi
 else
   echo "❌ Failed to create job. HTTP Status: $HTTP_CODE"

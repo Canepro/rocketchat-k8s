@@ -9,7 +9,7 @@ This guide covers deploying a general-purpose Jenkins CI server on AKS for CI va
 ## 📋 Overview
 
 ### Jenkins Configuration
-- **Version**: Jenkins LTS 2.516.3 with Java 21
+- **Version**: Jenkins LTS 2.528.3 with Java 21
 - **Helm Chart**: 5.8.110 (latest)
 - **Purpose**: General-purpose CI server for all projects on the cluster
 - **Role**: CI validation only (no applies by default)
@@ -113,14 +113,20 @@ kubectl logs -n cert-manager -l app=cert-manager
 ### Step 5: Access Jenkins
 
 ```bash
-# Get admin password (from Key Vault via External Secret)
+# Get admin credentials (from Key Vault via External Secret)
+kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.username}' | base64 -d
+echo
 kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d
 
 # Open browser to: https://jenkins.canepro.me
 # Login with:
-#   Username: admin (or your custom username)
+#   Username: <username from above>
 #   Password: <password from above>
 ```
+
+**Note on “changed” credentials**:
+- Credentials are sourced from **Azure Key Vault** via **External Secrets Operator (ESO)** and materialized into `secret/jenkins-admin`.
+- Jenkins is configured via JCasC to **create the admin user** from those secret values at boot (so the UI login always matches what `kubectl get secret jenkins-admin ...` returns).
 
 ---
 

@@ -46,9 +46,30 @@ These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatica
      - This is the path relative to the repository root
 4. **Save** → **Scan Multibranch Pipeline Now**
 
+### CLI setup (when UI is painful)
+Use the repo script which handles CSRF + session cookies:
+
+```bash
+# Recommended to run via port-forward to avoid ingress/TLS issues while debugging:
+kubectl -n jenkins port-forward pod/jenkins-0 8080:8080
+export JENKINS_URL="http://127.0.0.1:8080"
+
+bash .jenkins/create-job.sh
+```
+
 ## GitHub Webhook
 
 Configure webhook in repository settings:
 - **URL**: `https://jenkins.canepro.me/github-webhook/`
 - **Events**: Pull requests, Pushes
 - **Content type**: `application/json`
+
+## Jenkins UI login
+
+Jenkins admin credentials are stored in Azure Key Vault and synced into Kubernetes via External Secrets Operator.
+To retrieve the current credentials:
+
+```bash
+kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.username}' | base64 -d; echo
+kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d; echo
+```
