@@ -1,0 +1,49 @@
+# ArgoCD App of Apps Pattern
+# This root application watches the applications/ directory and automatically creates
+# all ArgoCD applications defined in that directory.
+# 
+# Benefits:
+# - No manual kubectl apply needed
+# - All apps managed declaratively in Git
+# - New apps auto-discovered when committed
+# - Full GitOps compliance
+#
+# Usage:
+# 1. Apply this once: kubectl apply -f GrafanaLocal/argocd/applications/app-of-apps.yaml
+# 2. Commit new app manifests to GrafanaLocal/argocd/applications/
+# 3. ArgoCD automatically creates them
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps
+  namespace: argocd
+  labels:
+    app: app-of-apps
+    cluster: aks-canepro
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Canepro/rocketchat-k8s.git
+    targetRevision: master
+    path: GrafanaLocal/argocd/applications
+    # Directory type: ArgoCD will discover all Application manifests in this directory
+    directory:
+      recurse: false  # Only look in applications/, not subdirectories
+      jsonnet: {}
+  destination:
+    server: https://kubernetes.default.svc  # Same cluster (ArgoCD's cluster)
+    namespace: argocd  # Applications are created in argocd namespace
+  syncPolicy:
+    automated:
+      prune: true  # Delete apps removed from Git
+      selfHeal: true  # Fix manual changes
+    syncOptions:
+      - CreateNamespace=false  # Namespace already exists
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

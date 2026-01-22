@@ -4,6 +4,11 @@ This guide covers deploying a general-purpose Jenkins CI server on AKS for CI va
 
 **Last Updated**: 2026-01-19
 
+> **📖 New to Jenkins?** Read [JENKINS_STRATEGY.md](JENKINS_STRATEGY.md) first to understand:
+> - What Jenkins does and why it's valuable
+> - How it fits into your GitOps workflow
+> - How to maximize it across all your repositories and clusters
+
 ---
 
 ## 📋 Overview
@@ -73,8 +78,23 @@ terraform apply  # Create secrets
 
 ### Step 2: Apply ArgoCD Application
 
+**Option A: App of Apps Pattern (Recommended - One-time setup)**
+
 ```bash
-# Apply Jenkins ArgoCD application
+# Apply the App of Apps root application (watches applications/ directory)
+kubectl apply -f GrafanaLocal/argocd/applications/app-of-apps.yaml
+
+# Verify it's syncing
+kubectl get application -n argocd app-of-apps
+
+# All apps in GrafanaLocal/argocd/applications/ will be auto-created
+# No need to manually apply individual apps anymore!
+```
+
+**Option B: Manual Apply (One-time per app)**
+
+```bash
+# Apply Jenkins ArgoCD application directly
 kubectl apply -f GrafanaLocal/argocd/applications/aks-jenkins.yaml
 
 # Verify ArgoCD picked it up
@@ -84,6 +104,8 @@ kubectl get application -n argocd aks-jenkins
 # NAME          SYNC STATUS   HEALTH STATUS
 # aks-jenkins   Synced        Healthy
 ```
+
+**Note**: With App of Apps, you only need to apply `app-of-apps.yaml` once. After that, committing new app manifests to `GrafanaLocal/argocd/applications/` automatically creates them in ArgoCD.
 
 ### Step 3: Monitor Deployment
 
