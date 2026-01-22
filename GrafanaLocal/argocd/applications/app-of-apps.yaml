@@ -34,6 +34,7 @@ spec:
     server: https://kubernetes.default.svc  # Same cluster (ArgoCD's cluster)
     namespace: argocd  # Applications are created in argocd namespace
   # Ignore self-drift: app-of-apps manages itself from this file; status/operation change at runtime
+  # Also ignore source.directory field ordering differences (ArgoCD may reorder these fields)
   ignoreDifferences:
     - group: argoproj.io
       kind: Application
@@ -42,6 +43,7 @@ spec:
       jsonPointers:
         - /status
         - /operation
+        - /spec/source/directory
   syncPolicy:
     automated:
       prune: true  # Delete apps removed from Git
