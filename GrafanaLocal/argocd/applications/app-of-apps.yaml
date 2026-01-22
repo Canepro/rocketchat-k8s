@@ -1,9 +1,9 @@
 # ArgoCD App of Apps Pattern
 # This root application watches the applications/ directory and automatically creates
 # all ArgoCD applications defined in that directory.
-# 
+#
 # Benefits:
-# - No manual kubectl apply needed
+# - No manual kubectl apply needed for child apps
 # - All apps managed declaratively in Git
 # - New apps auto-discovered when committed
 # - Full GitOps compliance
@@ -33,6 +33,15 @@ spec:
   destination:
     server: https://kubernetes.default.svc  # Same cluster (ArgoCD's cluster)
     namespace: argocd  # Applications are created in argocd namespace
+  # Ignore self-drift: app-of-apps manages itself from this file; status/operation change at runtime
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      name: app-of-apps
+      namespace: argocd
+      jsonPointers:
+        - /status
+        - /operation
   syncPolicy:
     automated:
       prune: true  # Delete apps removed from Git
