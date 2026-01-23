@@ -25,6 +25,21 @@ pipeline {
     stage('Setup') {
       steps {
         sh '''
+          # Install unzip (required by bun installer)
+          # Update package list and install unzip if not already present
+          if ! command -v unzip &> /dev/null; then
+            if command -v apt-get &> /dev/null; then
+              apt-get update && apt-get install -y unzip
+            elif command -v yum &> /dev/null; then
+              yum install -y unzip
+            elif command -v apk &> /dev/null; then
+              apk add --no-cache unzip
+            else
+              echo "ERROR: Cannot install unzip - package manager not found"
+              exit 1
+            fi
+          fi
+          
           # Install Bun using official installer
           curl -fsSL https://bun.sh/install | bash
           # Add Bun to PATH for this session

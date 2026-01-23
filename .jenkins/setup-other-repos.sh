@@ -134,7 +134,7 @@ EOF
       echo "   ✅ Portfolio website files created"
       ;;
       
-    central-observability-hub-stack)
+    GrafanaLocal)
       echo "   Creating observability hub Jenkinsfiles..."
       # Copy actual Jenkinsfiles
       cp "$SCRIPT_DIR/central-observability-hub-stack-terraform-validation.Jenkinsfile" \
@@ -143,10 +143,11 @@ EOF
          "$JENKINS_DIR/k8s-manifest-validation.Jenkinsfile"
       
       # Create job config for Terraform validation
+      # Note: Local directory is GrafanaLocal, but GitHub repo is central-observability-hub-stack
       cat > "$JENKINS_DIR/job-config.xml" <<'EOF'
 <?xml version='1.1' encoding='UTF-8'?>
 <org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject plugin="workflow-multibranch@2.27">
-  <description>CI validation pipeline for central-observability-hub-stack repository</description>
+  <description>CI validation pipeline for central-observability-hub-stack repository (GrafanaLocal)</description>
   <properties>
     <org.jenkinsci.plugins.pipeline.modeldefinition.config.FolderConfig plugin="pipeline-model-definition@2.2118">
       <dockerLabel></dockerLabel>
@@ -271,7 +272,7 @@ EOF
 # Setup each repo
 echo "Setting up repositories..."
 setup_repo "portfolio_website-main"
-setup_repo "central-observability-hub-stack"
+setup_repo "GrafanaLocal"
 
 echo ""
 echo "✅ All repositories set up!"
