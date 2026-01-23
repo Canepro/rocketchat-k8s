@@ -45,6 +45,34 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         dir('terraform') {
+          // Install Azure CLI (required for Azure backend authentication)
+          sh '''
+            if ! command -v az &> /dev/null; then
+              echo "Installing Azure CLI..."
+              curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+            fi
+          '''
+          
+          // Authenticate to Azure (supports multiple methods)
+          sh '''
+            if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
+              echo "Authenticating with Service Principal..."
+              az login --service-principal \
+                --username "$AZURE_CLIENT_ID" \
+                --password "$AZURE_CLIENT_SECRET" \
+                --tenant "$AZURE_TENANT_ID" || true
+            elif [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_FEDERATED_TOKEN_FILE" ]; then
+              echo "Authenticating with Workload Identity..."
+              az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
+                --service-principal \
+                --username "$AZURE_CLIENT_ID" \
+                --tenant "$AZURE_TENANT_ID" || true
+            else
+              echo "Attempting Managed Identity authentication..."
+              az login --identity || echo "Managed Identity authentication failed - backend may use existing credentials"
+            fi
+          '''
+          
           // Initialize with backend configuration (needed for plan to work with state)
           // Backend config matches the setup in terraform/README.md
           sh '''
