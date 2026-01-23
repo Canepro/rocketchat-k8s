@@ -114,7 +114,8 @@ For each multibranch pipeline (portfolio_website-main, GrafanaLocal, etc.):
 If still not working, check Jenkins logs:
 
 ```bash
-kubectl logs -n jenkins deployment/jenkins --tail=100 | grep -i github
+# Jenkins runs as a StatefulSet in this cluster
+kubectl logs -n jenkins statefulset/jenkins --tail=100 | grep -i github
 ```
 
 Look for errors about credential authentication or API rate limits.
