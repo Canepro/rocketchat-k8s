@@ -42,49 +42,22 @@ pipeline {
     // Stage 3: Plan Generation
     // Generates an execution plan to detect potential issues
     // This is read-only - no changes are applied (CI validation only)
+    // NOTE: Using -backend=false because:
+    //   - CI validation doesn't require state comparison
+    //   - Azure CLI not available in minimal Terraform container
+    //   - User can only use Azure Cloud Shell (not local CLI)
+    //   - Actual applies happen via Cloud Shell, not Jenkins
     stage('Terraform Plan') {
       steps {
         dir('terraform') {
-          // Install Azure CLI (required for Azure backend authentication)
-          sh '''
-            if ! command -v az &> /dev/null; then
-              echo "Installing Azure CLI..."
-              curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-            fi
-          '''
-          
-          // Authenticate to Azure (supports multiple methods)
-          sh '''
-            if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
-              echo "Authenticating with Service Principal..."
-              az login --service-principal \
-                --username "$AZURE_CLIENT_ID" \
-                --password "$AZURE_CLIENT_SECRET" \
-                --tenant "$AZURE_TENANT_ID" || true
-            elif [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_FEDERATED_TOKEN_FILE" ]; then
-              echo "Authenticating with Workload Identity..."
-              az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
-                --service-principal \
-                --username "$AZURE_CLIENT_ID" \
-                --tenant "$AZURE_TENANT_ID" || true
-            else
-              echo "Attempting Managed Identity authentication..."
-              az login --identity || echo "Managed Identity authentication failed - backend may use existing credentials"
-            fi
-          '''
-          
-          // Initialize with backend configuration (needed for plan to work with state)
-          // Backend config matches the setup in terraform/README.md
-          sh '''
-            terraform init \
-              -backend-config="resource_group_name=rg-terraform-state" \
-              -backend-config="storage_account_name=tfcaneprostate1" \
-              -backend-config="container_name=tfstate" \
-              -backend-config="key=aks.terraform.tfstate"
-          '''
+          // Initialize without backend (CI validation doesn't need state)
+          // This validates configuration syntax and generates a plan
+          // without comparing against existing state
+          sh 'terraform init -backend=false'
           // Generate plan without color output (better for CI logs)
-          // -out=tfplan: save plan for potential later use (not applied by Jenkins)
-          sh 'terraform plan -no-color -out=tfplan'
+          // This will show what would be created/changed (without state comparison)
+          // For full state-aware planning, use Azure Cloud Shell as per project guidelines
+          sh 'terraform plan -no-color'
         }
       }
     }
