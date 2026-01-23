@@ -12,8 +12,8 @@ terraform {
   required_providers {
     # Azure Resource Manager provider: Manages Azure resources
     azurerm = {
-      source  = "hashicorp/azurerm"  # Official Azure provider
-      version = "~> 3.0"  # Azure provider version constraint (3.x.x)
+      source  = "hashicorp/azurerm" # Official Azure provider
+      version = "~> 3.0"            # Azure provider version constraint (3.x.x)
       # See VERSIONS.md for latest Azure provider version and upgrade status
     }
   }
@@ -58,12 +58,12 @@ provider "azurerm" {
 # This resource group contains all resources for the AKS Rocket.Chat deployment.
 # Resource Group
 resource "azurerm_resource_group" "main" {
-  name     = var.resource_group_name  # Resource group name (from variables.tf, default: "rg-canepro-aks")
-  location = var.location  # Azure region (from variables.tf, default: "uksouth")
+  name     = var.resource_group_name # Resource group name (from variables.tf, default: "rg-canepro-aks")
+  location = var.location            # Azure region (from variables.tf, default: "uksouth")
 
   tags = {
-    Environment = "production"  # Environment tag (for resource organization)
+    Environment = "production" # Environment tag (for resource organization)
     ManagedBy   = "Terraform"  # Managed by tag (indicates infrastructure as code)
-    Project     = "RocketChat"  # Project tag (for cost allocation)
+    Project     = "RocketChat" # Project tag (for cost allocation)
   }
 }
