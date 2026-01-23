@@ -45,8 +45,15 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         dir('terraform') {
-          // Initialize with backend (needed for plan to work with state)
-          sh 'terraform init'
+          // Initialize with backend configuration (needed for plan to work with state)
+          // Backend config matches the setup in terraform/README.md
+          sh '''
+            terraform init \
+              -backend-config="resource_group_name=rg-terraform-state" \
+              -backend-config="storage_account_name=tfcaneprostate1" \
+              -backend-config="container_name=tfstate" \
+              -backend-config="key=aks.terraform.tfstate"
+          '''
           // Generate plan without color output (better for CI logs)
           // -out=tfplan: save plan for potential later use (not applied by Jenkins)
           sh 'terraform plan -no-color -out=tfplan'
