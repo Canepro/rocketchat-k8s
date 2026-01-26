@@ -35,15 +35,14 @@ resource "azurerm_key_vault" "rocketchat" {
 
   # Network access: public by default (can be restricted via network_acls if needed)
   # Network access controls which IPs/VNets can access Key Vault
-  # Network access: public by default (can be restricted via network_acls if needed)
   network_acls {
     default_action = var.key_vault_network_default_action # Default action (from variables.tf, default: "Allow")
     bypass         = "AzureServices"                      # Bypass network rules for Azure services (required for AKS)
   }
 
-  # Enable RBAC mode (recommended over access policies)
+  # RBAC mode is now the default for new Key Vaults (enable_rbac_authorization is deprecated)
   # RBAC mode uses Azure RBAC for Key Vault access (more secure and flexible than access policies)
-  enable_rbac_authorization = true # Enable RBAC mode (recommended for security)
+  # The Key Vault will use RBAC mode by default, and role assignments below configure access
 
   tags = merge(var.tags, {
     Purpose = "RocketChatSecrets" # Purpose tag (for resource organization)
