@@ -4,6 +4,7 @@
 # Chart: rocketchat/rocketchat 6.29.0 - See VERSIONS.md for latest version and upgrade status.
 # Goal: match current runtime behavior while moving to Helm+values GitOps.
 # See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 8.0.1
+# Test PR: This is a test change to verify Jenkins PR validation workflow
 
 # Rocket.Chat container image configuration
 image:
