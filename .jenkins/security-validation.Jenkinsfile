@@ -326,9 +326,38 @@ spec:
                 "GITHUB_REPO=${env.GITHUB_REPO}"
               ]) {
                 sh '''
+                  set +e
+                  ISSUE_TITLE="🚨 Security: Critical vulnerabilities detected (automated)"
+
+                  # De-dupe: if an open issue with same title exists, do nothing.
+                  ISSUE_LIST_JSON=$(curl -fsSL \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=security,critical,automated&per_page=100" \
+                    || echo '[]')
+
+                  ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+                  ISSUE_URL=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
+
+                  if [ -n "${ISSUE_NUMBER}" ]; then
+                    echo "Existing open issue #${ISSUE_NUMBER} found; adding comment instead of creating duplicate."
+                    cat > issue-comment.json << EOF
+                    {
+                      "body": "## New security scan results\\n\\nBuild: ${BUILD_URL}\\n\\n**Findings:**\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\nArtifacts: ${BUILD_URL}artifact/\\n\\n(De-dupe enabled: this comment updates an existing open issue.)"
+                    }
+EOF
+                    curl -X POST \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/issues/${ISSUE_NUMBER}/comments" \
+                      -d @issue-comment.json >/dev/null 2>&1 || true
+                    echo "Updated existing issue: ${ISSUE_URL}"
+                    exit 0
+                  fi
+
                   cat > issue-body.json << EOF
                   {
-                    "title": "🚨 Security: Critical vulnerabilities detected in infrastructure code",
+                    "title": "${ISSUE_TITLE}",
                     "body": "## Security Scan Results\\n\\n**Risk Level:** CRITICAL\\n\\n**Findings:**\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\n## Action Required\\n\\nPlease review the security scan results and address critical vulnerabilities immediately.\\n\\n## Scan Artifacts\\n\\n- tfsec results: See Jenkins build artifacts\\n- checkov results: See Jenkins build artifacts\\n- trivy results: See Jenkins build artifacts\\n\\n## Next Steps\\n\\n1. Review all critical findings\\n2. Create remediation PRs for each critical issue\\n3. Update security policies if needed\\n\\n---\\n*This issue was automatically created by Jenkins security validation pipeline.*",
                     "labels": ["security", "critical", "automated"]
                   }
@@ -338,8 +367,9 @@ spec:
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${GITHUB_REPO}/issues" \
-                    -d @issue-body.json
-                ''' || true
+                    -d @issue-body.json || true
+                  exit 0
+                '''
               }
             } else {
               // Create PR with automated fixes for non-critical findings
@@ -352,6 +382,35 @@ spec:
                 "GITHUB_REPO=${env.GITHUB_REPO}"
               ]) {
                 sh '''
+                  set +e
+                  PR_TITLE="🔒 Security: Automated remediation (automated)"
+
+                  # De-dupe: if an open PR with same title exists, do nothing.
+                  PR_LIST_JSON=$(curl -fsSL \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/pulls?state=open&per_page=100" \
+                    || echo '[]')
+
+                  PR_NUMBER=$(echo "$PR_LIST_JSON" | jq -r --arg t "$PR_TITLE" '[.[] | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+                  PR_URL=$(echo "$PR_LIST_JSON" | jq -r --arg t "$PR_TITLE" '[.[] | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
+
+                  if [ -n "${PR_NUMBER}" ]; then
+                    echo "Existing open PR #${PR_NUMBER} found; adding comment instead of creating duplicate."
+                    cat > pr-comment.json << EOF
+                    {
+                      "body": "## New security scan results\\n\\nBuild: ${BUILD_URL}\\n\\n**Findings:**\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\nArtifacts: ${BUILD_URL}artifact/\\n\\n(De-dupe enabled: this comment updates an existing open PR.)"
+                    }
+EOF
+                    curl -X POST \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/issues/${PR_NUMBER}/comments" \
+                      -d @pr-comment.json >/dev/null 2>&1 || true
+                    echo "Updated existing PR: ${PR_URL}"
+                    exit 0
+                  fi
+
                   # Create a branch for security fixes
                   BRANCH_NAME="security/automated-fixes-$(date +%Y%m%d-%H%M%S)"
                   git config user.name "Jenkins Security Bot"
@@ -359,7 +418,9 @@ spec:
                   git checkout -b ${BRANCH_NAME}
 
                   # Ensure authenticated remote for push
-                  git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" || true
+                  set +x
+                  git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" 2>/dev/null || true
+                  set -x
                   
                   # Create a security fixes file (placeholder - actual fixes would be applied here)
                   cat > SECURITY_FIXES.md << EOF
@@ -396,7 +457,7 @@ spec:
                   # Create PR
                   cat > pr-body.json << EOF
                   {
-                    "title": "🔒 Security: Automated fixes for high-priority findings",
+                    "title": "${PR_TITLE}",
                     "head": "${BRANCH_NAME}",
                     "base": "master",
                     "body": "## Automated Security Fixes\\n\\nThis PR addresses **${HIGH_COUNT} high-priority** security findings detected by automated scans.\\n\\n### Findings Summary\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\n### Changes\\n\\nThis PR includes automated fixes for high-priority security issues. Please review all changes carefully.\\n\\n### Review Checklist\\n\\n- [ ] Review all automated changes\\n- [ ] Verify fixes don't break functionality\\n- [ ] Test in staging if applicable\\n- [ ] Check for any manual fixes needed\\n\\n---\\n*This PR was automatically created by Jenkins security validation pipeline.*",
@@ -408,8 +469,10 @@ spec:
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${GITHUB_REPO}/pulls" \
-                    -d @pr-body.json
-                ''' || true
+                    -d @pr-body.json || true
+
+                  exit 0
+                '''
               }
             }
           }
