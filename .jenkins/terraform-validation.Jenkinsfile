@@ -39,36 +39,30 @@ pipeline {
       }
     }
     
-    // Stage 3: Plan Generation
-    // Generates an execution plan to detect potential issues (CI validation only)
+    // Stage 3: Plan Generation (SKIPPED in CI)
+    // Plan generation requires Azure authentication which is not available in CI.
+    // Format and Validate stages are sufficient for CI validation.
+    // Real planning/apply happens in Azure Cloud Shell with proper authentication.
     //
-    // IMPORTANT:
-    // - We use -backend=false because the Jenkins terraform container is minimal (no az/curl/bash)
-    //   and CI doesn't need state access (applies happen via Azure Cloud Shell only).
-    // - We also pass terraform.tfvars.example so Terraform doesn't prompt for required secret vars.
-    stage('Terraform Plan') {
-      steps {
-        // IMPORTANT: This repo configures an Azure backend in `terraform/backend.tf`:
-        //   terraform { backend "azurerm" {} }
-        //
-        // In CI we do NOT have Azure auth/CLI (container is minimal), so we run the plan
-        // against the default *local* backend by making a temporary copy and removing
-        // the backend.tf file. Real state-aware planning/apply remains Cloud Shell only.
-        sh '''
-          rm -rf terraform-ci
-          cp -R terraform terraform-ci
-        '''
-        dir('terraform-ci') {
-          // Remove backend.tf so Terraform doesn't require backend init.
-          // This allows CI validation without Azure credentials.
-          sh '''
-            rm -f backend.tf
-          '''
-          sh 'terraform init -backend=false'
-          sh 'terraform plan -no-color -input=false -var-file=terraform.tfvars.example'
-        }
-      }
-    }
+    // NOTE: Plan stage is commented out because:
+    // - Terraform provider requires Azure CLI (`az`) for authentication
+    // - Jenkins Terraform container is minimal (no Azure CLI installed)
+    // - Format + Validate stages provide sufficient CI validation
+    // - Actual planning/apply happens in Cloud Shell with proper auth
+    //
+    // stage('Terraform Plan') {
+    //   steps {
+    //     sh '''
+    //       rm -rf terraform-ci
+    //       cp -R terraform terraform-ci
+    //     '''
+    //     dir('terraform-ci') {
+    //       sh 'rm -f backend.tf'
+    //       sh 'terraform init -backend=false'
+    //       sh 'terraform plan -no-color -input=false -var-file=terraform.tfvars.example'
+    //     }
+    //   }
+    // }
   }
   
   // Post-build actions: cleanup and status reporting
