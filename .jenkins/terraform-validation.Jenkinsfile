@@ -48,21 +48,21 @@ pipeline {
     // - We also pass terraform.tfvars.example so Terraform doesn't prompt for required secret vars.
     stage('Terraform Plan') {
       steps {
-        // IMPORTANT: This repo configures an Azure backend in `terraform/main.tf`:
+        // IMPORTANT: This repo configures an Azure backend in `terraform/backend.tf`:
         //   terraform { backend "azurerm" {} }
         //
         // In CI we do NOT have Azure auth/CLI (container is minimal), so we run the plan
-        // against the default *local* backend by making a temporary copy and stripping
-        // the backend block. Real state-aware planning/apply remains Cloud Shell only.
+        // against the default *local* backend by making a temporary copy and removing
+        // the backend.tf file. Real state-aware planning/apply remains Cloud Shell only.
         sh '''
           rm -rf terraform-ci
           cp -R terraform terraform-ci
         '''
         dir('terraform-ci') {
-          // Remove the empty backend block so Terraform doesn't require backend init.
-          // BusyBox `sed` is available in the terraform image.
+          // Remove backend.tf so Terraform doesn't require backend init.
+          // This allows CI validation without Azure credentials.
           sh '''
-            sed -i '/backend "azurerm" {}/d' main.tf
+            rm -f backend.tf
           '''
           sh 'terraform init -backend=false'
           sh 'terraform plan -no-color -input=false -var-file=terraform.tfvars.example'
