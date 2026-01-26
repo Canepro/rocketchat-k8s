@@ -37,15 +37,18 @@ spec:
     stage('Install Tools') {
       steps {
         sh '''
-          apk add --no-cache curl jq git bash python3 py3-pip
-          
-          # Install GitHub CLI (gh) for easier API access
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null || true
-          
-          # Install yq for YAML parsing
-          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          chmod +x /usr/local/bin/yq || true
+          # Alpine-based agent: install tools via apk
+          apk add --no-cache curl jq git bash python3 py3-pip wget yq github-cli || \
+            apk add --no-cache curl jq git bash python3 py3-pip wget yq
+
+          # GitHub CLI is optional (pipeline uses curl for API calls); log if missing
+          command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
+
+          # Install yq for YAML parsing (apk 'yq' preferred; fallback binary if missing)
+          if ! command -v yq >/dev/null 2>&1; then
+            wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            chmod +x /usr/local/bin/yq || true
+          fi
         '''
       }
     }
