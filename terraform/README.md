@@ -6,6 +6,39 @@ This directory contains Terraform configuration for provisioning Azure infrastru
 
 **Per migration plan restrictions**, Terraform applies must be run **only from Azure Portal / Cloud Shell on your work machine**. Do not run Terraform from other machines or CI/CD pipelines.
 
+## 🚀 Quick Reference: Cloud Shell Setup
+
+**First time setup:**
+```bash
+cd ~/clouddrive
+git clone https://github.com/Canepro/rocketchat-k8s.git
+cd rocketchat-k8s/terraform
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+terraform init -reconfigure -backend-config=backend.hcl
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Update with your values
+```
+
+**Subsequent Cloud Shell sessions:**
+```bash
+cd ~/clouddrive/rocketchat-k8s/terraform
+git pull
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+terraform init -reconfigure -backend-config=backend.hcl
+```
+
+**See [`CLOUD_SHELL_QUICK_START.md`](CLOUD_SHELL_QUICK_START.md) for detailed guide.**
+
 ## Prerequisites
 
 - Azure CLI installed and authenticated (`az login`)
@@ -112,22 +145,27 @@ The `keyvault.tf` file includes `azurerm_key_vault_secret` resources that create
 - `rocketchat-mongodb-admin-password`
 - `rocketchat-mongodb-rocketchat-password`
 - `rocketchat-mongodb-metrics-endpoint-password`
+- `rocketchat-observability-username`
+- `rocketchat-observability-password`
+- `jenkins-admin-username`
+- `jenkins-admin-password`
+- `jenkins-github-token`
+
+### Secret Protection (ignore_changes)
+
+**Important:** All secret resources use `lifecycle { ignore_changes = [value] }` to prevent Terraform from overwriting secrets when `terraform.tfvars` has placeholder values.
+
+**What this means:**
+- ✅ Terraform creates the secret resources initially
+- ✅ Terraform won't update secret values if `terraform.tfvars` has placeholders (e.g., `"CHANGE_ME"`)
+- ✅ Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+- ✅ Prevents accidental overwrites of real secrets
+
+**To update a secret value:**
+1. Update it directly in Azure Key Vault (CLI/Portal)
+2. Or temporarily remove `ignore_changes`, update `terraform.tfvars` with real value, apply, then restore `ignore_changes`
 
 **Security Note:** Secret values are marked as `sensitive = true` in Terraform, so they won't appear in plan/apply output. However, they will be stored in Terraform state. Use a secure backend (Azure Storage) and ensure state access is restricted.
-
-### Alternative: Populate Secrets Manually (Future Reference)
-
-If you prefer **not** to store secret values in Terraform state, you can:
-1. Remove the `azurerm_key_vault_secret` resources from `keyvault.tf`
-2. Populate secrets manually via Cloud Shell after Terraform apply:
-
-```bash
-az keyvault secret set --vault-name "<key-vault-name>" \
-  --name "rocketchat-mongo-uri" --value "<connection-string>"
-# ... etc
-```
-
-This approach keeps secret values out of Terraform state entirely, but requires manual steps after infrastructure provisioning.
 
 ## State Management (Best Practices for Cloud Shell)
 
@@ -177,26 +215,65 @@ terraform init -reconfigure -backend-config=backend.hcl
 
 Since Cloud Shell sessions are ephemeral, you'll need to recreate `backend.hcl` each session. **Recommended workflow:**
 
-**Option A: Use the helper script (Recommended)**
+**Option A: Quick Setup (Recommended for Cloud Shell)**
 
 ```bash
-# 1. Clone repo (if not already cloned)
-git clone <your-repo-url>
+# 1. Clone repo to clouddrive (persists across sessions)
+cd ~/clouddrive
+git clone https://github.com/Canepro/rocketchat-k8s.git
 cd rocketchat-k8s/terraform
 
 # 2. Create backend.hcl (one-time per session)
-cp backend.hcl.example backend.hcl
-nano backend.hcl  # Update with your values
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
 
-# 3. Initialize
-./scripts/tf-init.sh
+# 3. Initialize Terraform
+terraform init -reconfigure -backend-config=backend.hcl
 
-# 4. Use Terraform normally
+# 4. Configure variables (first time only)
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Update with your values
+
+# 5. Use Terraform normally
 terraform plan
 terraform apply
 ```
 
-**Option B: Quick inline command (Alternative)**
+**For subsequent Cloud Shell sessions:**
+```bash
+cd ~/clouddrive/rocketchat-k8s/terraform
+git pull  # Update to latest
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+terraform init -reconfigure -backend-config=backend.hcl
+```
+
+**See [`CLOUD_SHELL_QUICK_START.md`](CLOUD_SHELL_QUICK_START.md) for complete step-by-step guide.**
+
+**Option B: Use helper script**
+
+```bash
+# 1. Create backend.hcl first
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+
+# 2. Use helper script
+./scripts/tf-init.sh
+```
+
+**Option C: Quick inline command (Alternative)**
 
 If you prefer not to use `backend.hcl`, you can use inline backend config:
 
@@ -208,7 +285,7 @@ terraform init -reconfigure \
   -backend-config="key=aks.terraform.tfstate"
 ```
 
-**Option C: Cloud Shell alias (Pro-Tip)**
+**Option D: Cloud Shell alias (Pro-Tip)**
 
 Create a persistent alias in Cloud Shell (survives sessions if you mount clouddrive):
 
@@ -241,6 +318,55 @@ tfinit
 3. **State contains secrets** - Terraform state may contain sensitive values from `terraform.tfvars`
 4. **Backend access** - Only authorized users should have access to the storage account container
 
+## Cost Optimization: Automated Cluster Scheduling
+
+The AKS cluster uses **Azure Automation** to automatically start and stop the cluster on a schedule, significantly reducing costs.
+
+### Current Schedule (2026-01-25)
+
+- **Start Time**: 16:00 (4 PM) on weekdays
+- **Stop Time**: 23:00 (11 PM) on weekdays
+- **Weekends**: Cluster stays off
+- **Runtime**: ~7 hours/day × 5 weekdays = ~35 hours/week = ~140 hours/month
+- **Estimated Monthly Cost**: ~£55-70 (within £90/month budget)
+
+### Configuration
+
+Schedule is managed via Terraform variables in `terraform.tfvars`:
+
+```hcl
+enable_auto_shutdown = true
+shutdown_timezone    = "Europe/London"
+shutdown_time        = "23:00"  # 11 PM stop
+startup_time         = "16:00"  # 4 PM start (evening-only schedule)
+```
+
+**Terraform Resources:**
+- `azurerm_automation_account` - Automation account for scheduling
+- `azurerm_automation_schedule` - Start and stop schedules (weekdays only)
+- `azurerm_automation_runbook` - PowerShell runbooks to start/stop AKS
+- `azurerm_automation_job_schedule` - Links schedules to runbooks
+
+### Manual Override
+
+If you need the cluster during off-hours:
+
+```bash
+# Start cluster manually
+az aks start --resource-group rg-canepro-aks --name aks-canepro
+
+# Stop cluster manually
+az aks stop --resource-group rg-canepro-aks --name aks-canepro
+```
+
+**Note:** Schedules use `lifecycle { ignore_changes = [start_time] }` to prevent Terraform from updating schedule times on every run. To update schedules, temporarily remove `ignore_changes`, update variables, apply, then restore `ignore_changes`.
+
+### Cost Savings
+
+- **Previous schedule** (08:30-23:00): ~72.5 hours/week = ~290 hours/month ≈ £200/month
+- **Current schedule** (16:00-23:00): ~35 hours/week = ~140 hours/month ≈ £55-70/month
+- **Savings**: ~52% reduction in runtime hours, saving ~£75-88/month
+
 ## Jenkins + Terraform (future)
 
 To keep GitOps principles intact:
@@ -266,7 +392,7 @@ az keyvault update --name "<key-vault-name>" --enable-purge-protection false
 - `main.tf` - Provider configuration, resource group
 - `backend.tf` - Backend configuration structure (committed)
 - `backend.hcl.example` - Backend config template (committed)
-- `backend.hcl` - Your backend config (gitignored, never commit)
+- `backend.hcl` - Your backend config (gitignored, never commit - recreate each Cloud Shell session)
 - `aks.tf` - AKS cluster configuration
 - `network.tf` - Networking configuration
 - `automation.tf` - Azure Automation for scheduled start/stop
@@ -276,6 +402,7 @@ az keyvault update --name "<key-vault-name>" --enable-purge-protection false
 - `terraform.tfvars.example` - Example variables (safe to commit)
 - `terraform.tfvars` - Your actual variables (gitignored, never commit)
 - `scripts/tf-init.sh` - Helper script for Cloud Shell initialization
+- `CLOUD_SHELL_QUICK_START.md` - Quick reference guide for Cloud Shell workflow
 
 ## Security Notes
 
