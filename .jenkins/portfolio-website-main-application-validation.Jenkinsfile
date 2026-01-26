@@ -50,7 +50,20 @@ pipeline {
       }
     }
     
-    // Stage 2: Dependency Security Audit
+    // Stage 2: Install Dependencies
+    // Install project dependencies before running validation checks
+    // Required for lint, typecheck, and build commands to work
+    stage('Install Dependencies') {
+      steps {
+        sh '''
+          export PATH="$HOME/.bun/bin:$PATH"
+          # Install project dependencies (Next.js, TypeScript, ESLint, etc.)
+          bun install
+        '''
+      }
+    }
+    
+    // Stage 3: Dependency Security Audit
     // Scans package.json dependencies for known vulnerabilities
     // Similar to npm audit or yarn audit, but for Bun
     stage('Dependency Audit') {
@@ -64,7 +77,7 @@ pipeline {
       }
     }
     
-    // Stage 3: Code Quality Checks
+    // Stage 4: Code Quality Checks
     // Runs ESLint (linting) and Prettier (formatting check)
     // Ensures code follows project style guidelines
     stage('Code Quality') {
@@ -79,7 +92,7 @@ pipeline {
       }
     }
     
-    // Stage 4: TypeScript Type Checking
+    // Stage 5: TypeScript Type Checking
     // Validates TypeScript types without building
     // Catches type errors early in the CI pipeline
     stage('Type Checking') {
@@ -92,7 +105,7 @@ pipeline {
       }
     }
     
-    // Stage 5: Build Validation
+    // Stage 6: Build Validation
     // Attempts to build the Next.js application
     // Ensures the app can compile successfully before deployment
     stage('Build Validation') {
@@ -106,7 +119,7 @@ pipeline {
       }
     }
     
-    // Stage 6: Container Image Security Scan
+    // Stage 7: Container Image Security Scan
     // Scans Dockerfile and container images for vulnerabilities
     // Only runs on main/master branches (production builds)
     stage('Container Scan') {
