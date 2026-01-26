@@ -20,12 +20,43 @@ Validates Helm charts and Kubernetes manifests:
 
 **Agent**: `helm` (Alpine Helm image with kubectl and kubeconform)
 
+### `version-check.Jenkinsfile`
+Automated version checking pipeline:
+- Checks for latest versions of all components
+- Compares with current versions in code
+- Creates PRs/issues for updates based on risk assessment
+- Automatically updates `VERSIONS.md` and code files
+
+**Agent**: `version-checker` (Alpine with version checking tools)
+**Schedule**: Daily at 2 AM
+
+### `security-validation.Jenkinsfile`
+Automated security validation pipeline:
+- Scans Terraform code (tfsec, checkov)
+- Scans container images (trivy)
+- Assesses risk levels
+- Creates PRs/issues for remediation
+
+**Agent**: `security` (Alpine with security scanning tools)
+**Schedule**: Daily at 3 AM
+
 ## Usage
+
+### CI Validation Pipelines (Multibranch)
 
 These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatically:
 - Discover branches and pull requests
 - Run validation on PRs
 - Report status back to GitHub
+
+### Automated Jobs (Scheduled)
+
+The version-check and security-validation pipelines run as scheduled jobs:
+- Run daily on master branch
+- Create PRs/issues automatically
+- Update code and documentation
+
+See `.jenkins/SETUP_AUTOMATED_JOBS.md` for setup instructions.
 
 ## Setup in Jenkins
 
