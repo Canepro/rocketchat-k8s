@@ -1,0 +1,14 @@
+# Terraform Backend Configuration Example
+# Copy this file to backend.hcl and update with your actual values
+# backend.hcl is gitignored and should never be committed
+
+resource_group_name  = "rg-terraform-state"  # Resource group containing the storage account
+storage_account_name = "tfcaneprostate1"     # Storage account name (must be globally unique)
+container_name       = "tfstate"             # Blob container name (for state files)
+key                  = "aks.terraform.tfstate"  # State file name (path within container)
+
+# Optional: Enable state encryption (recommended for production)
+# encryption = true
+
+# Optional: Use Azure Key Vault for state encryption key
+# key_vault_key_id = "/subscriptions/.../keys/terraform-state-key"

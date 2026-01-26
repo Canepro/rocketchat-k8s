@@ -126,8 +126,10 @@ controller:
     create: true  # Create service account
     name: jenkins  # Service account name
     annotations:
-      # Azure Workload Identity annotations (for Key Vault access, Azure CLI)
-      azure.workload.identity/client-id: ""  # TODO: Add ESO UAMI client ID if Jenkins needs Azure access
+      # Azure Workload Identity annotations (for Key Vault access, Azure Storage, Azure CLI)
+      # Uses the ESO (External Secrets Operator) User-Assigned Managed Identity
+      # This identity already has "Key Vault Secrets User" role and will be granted Storage Account access
+      azure.workload.identity/client-id: "fe3d3d95-fb61-4a42-8d82-ec0852486531"  # ESO UAMI client ID
       azure.workload.identity/tenant-id: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"  # Azure tenant ID
   
   # Additional plugins: Install plugins for CI validation

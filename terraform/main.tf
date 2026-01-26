@@ -18,26 +18,8 @@ terraform {
     }
   }
 
-  # Backend configuration for Azure Storage (Remote State)
-  # Remote state stores Terraform state in Azure Storage for:
-  # - State sharing across team members
-  # - State locking (prevents concurrent modifications)
-  # - State versioning and backup
-  #
-  # We intentionally keep this backend block empty and supply real values via:
-  #   terraform init -backend-config=backend.hcl
-  #
-  # This avoids committing environment-specific backend settings and works well in Azure Cloud Shell.
-  # See terraform/README.md for backend initialization commands.
-  backend "azurerm" {}
-
-  # Example backend config (DO NOT COMMIT REAL VALUES HERE):
-  # backend "azurerm" {
-  #   resource_group_name  = "rg-terraform-state"  # Resource group for storage account
-  #   storage_account_name = "tfcaneprostate1"  # Storage account name (must be globally unique)
-  #   container_name       = "tfstate"  # Blob container name (for state files)
-  #   key                  = "aks.terraform.tfstate"  # State file name (path within container)
-  # }
+  # Backend configuration moved to backend.tf
+  # See backend.tf and backend.hcl.example for configuration details
 }
 
 # Configure the Azure Provider
