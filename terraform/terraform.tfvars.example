@@ -18,10 +18,12 @@ vm_size             = "Standard_D4as_v5"  # 4 vCPU, 16GB RAM - recommended for R
 # Auto-shutdown for cost optimization
 # Cluster stops at shutdown_time, starts at startup_time on weekdays only
 # Stays OFF all weekend (Friday evening -> Monday morning)
+# Evening-only schedule: 16:00-23:00 (7 hours/day) saves ~£75-88/month vs 08:30-23:00
+# If cluster needed urgently during day, manually start: az aks start -g rg-canepro-aks -n aks-canepro
 enable_auto_shutdown = true
 shutdown_timezone    = "Europe/London"      # UK timezone (IANA format required by Azure Automation)
-shutdown_time        = "20:00"              # 8 PM stop
-startup_time         = "07:00"              # 7 AM start
+shutdown_time        = "23:00"              # 11 PM stop
+startup_time         = "16:00"              # 4 PM start (evening-only schedule for maximum cost savings)
 
 # Tags
 tags = {

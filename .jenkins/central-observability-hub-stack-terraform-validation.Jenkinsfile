@@ -80,40 +80,40 @@ pipeline {
                 def blobPath = env.AZURE_STORAGE_BLOB_PATH ?: 'terraform.tfvars'
                 def secretName = env.AZURE_STORAGE_KEY_SECRET_NAME ?: 'storage-account-key'
                 
-                // Install Azure CLI if not available (for terraform container)
-                sh '''
-                  # NOTE: Jenkins "terraform" container is hashicorp/terraform (Alpine, minimal).
-                  # It often lacks curl/bash, and using the Debian installer won't work anyway.
-                  # For CI we treat Azure download as best-effort and fall back if unavailable.
-                  if ! command -v az &> /dev/null; then
-                    echo "Azure CLI not found (expected in minimal terraform image). Skipping Azure download step."
-                    exit 127
-                  fi
-                '''
+                // Azure CLI is usually NOT present in the minimal terraform container.
+                // If it's not available, skip the download attempt and fall back to dummy TF_VARs.
+                def azStatus = sh(script: 'command -v az >/dev/null 2>&1', returnStatus: true)
+                if (azStatus != 0) {
+                  echo "ℹ️ Azure CLI not available in this agent; skipping terraform.tfvars download and using fallback vars."
+                  throw new RuntimeException("AZ_CLI_MISSING")
+                }
                 
-                // Authenticate to Azure (supports multiple methods)
-                // Priority: Workload Identity > Service Principal > Managed Identity
+                // Authenticate to Azure using Workload Identity (managed identity)
+                // The Jenkins service account is annotated with the ESO managed identity.
+                // Azure Workload Identity webhook injects AZURE_FEDERATED_TOKEN_FILE automatically.
                 sh '''
-                  # Try to authenticate using available method
-                  # Method 1: Workload Identity (if Jenkins service account is configured)
-                  # Method 2: Service Principal (if credentials are set)
-                  # Method 3: Managed Identity (if running on Azure VM)
+                  # Workload Identity authentication (preferred - no secrets needed)
+                  # The pod's service account annotation provides AZURE_CLIENT_ID and AZURE_TENANT_ID
+                  # The webhook injects AZURE_FEDERATED_TOKEN_FILE at /var/run/secrets/azure/tokens/azure-identity-token
                   
-                  if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
-                    echo "Authenticating with Service Principal..."
+                  if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_FEDERATED_TOKEN_FILE" ]; then
+                    echo "✅ Authenticating with Workload Identity (managed identity)..."
+                    az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
+                      --service-principal \
+                      --username "$AZURE_CLIENT_ID" \
+                      --tenant "$AZURE_TENANT_ID" || {
+                        echo "⚠️ Workload Identity authentication failed, trying Managed Identity..."
+                        az login --identity || echo "❌ All authentication methods failed"
+                      }
+                  elif [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ]; then
+                    echo "Authenticating with Service Principal (fallback)..."
                     az login --service-principal \
                       --username "$AZURE_CLIENT_ID" \
                       --password "$AZURE_CLIENT_SECRET" \
                       --tenant "$AZURE_TENANT_ID" || true
-                  elif [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_FEDERATED_TOKEN_FILE" ]; then
-                    echo "Authenticating with Workload Identity..."
-                    az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
-                      --service-principal \
-                      --username "$AZURE_CLIENT_ID" \
-                      --tenant "$AZURE_TENANT_ID" || true
                   else
-                    echo "Attempting Managed Identity authentication..."
-                    az login --identity || echo "Managed Identity authentication failed"
+                    echo "Attempting Managed Identity authentication (fallback)..."
+                    az login --identity || echo "❌ Managed Identity authentication failed"
                   fi
                 '''
                 

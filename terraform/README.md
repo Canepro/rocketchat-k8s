@@ -129,74 +129,117 @@ az keyvault secret set --vault-name "<key-vault-name>" \
 
 This approach keeps secret values out of Terraform state entirely, but requires manual steps after infrastructure provisioning.
 
-## State Management
+## State Management (Best Practices for Cloud Shell)
 
-**Recommended:** Use Azure Storage backend for Terraform state.
+**Recommended:** Use Azure Storage backend for Terraform state with `backend.hcl` configuration file.
 
-This repo includes an empty backend block in `terraform/main.tf`:
+### Backend Configuration Structure
 
-```hcl
-terraform {
-  backend "azurerm" {}
-}
-```
+This repo uses a **best practice pattern** for Cloud Shell:
 
-### Cloud Shell Initialization (Recommended)
+1. **`backend.tf`** - Defines backend structure (committed to git)
+2. **`backend.hcl.example`** - Template showing required values (committed to git)
+3. **`backend.hcl`** - Your actual backend config (gitignored, contains sensitive storage account details)
 
-Since Cloud Shell sessions are ephemeral, you need to re-initialize Terraform on each new session. Use this command:
+### Quick Start: First-Time Setup
+
+**Step 1:** Copy the example backend config:
 
 ```bash
-cd ~/rocketchat-k8s/terraform
+cd terraform
+cp backend.hcl.example backend.hcl
+```
 
-terraform init \
+**Step 2:** Edit `backend.hcl` with your actual storage account details:
+
+```bash
+nano backend.hcl
+# Update with your values:
+# - resource_group_name
+# - storage_account_name
+# - container_name
+# - key
+```
+
+**Step 3:** Initialize Terraform using the helper script:
+
+```bash
+./scripts/tf-init.sh
+```
+
+Or manually:
+
+```bash
+terraform init -reconfigure -backend-config=backend.hcl
+```
+
+### Cloud Shell Workflow (Ephemeral Sessions)
+
+Since Cloud Shell sessions are ephemeral, you'll need to recreate `backend.hcl` each session. **Recommended workflow:**
+
+**Option A: Use the helper script (Recommended)**
+
+```bash
+# 1. Clone repo (if not already cloned)
+git clone <your-repo-url>
+cd rocketchat-k8s/terraform
+
+# 2. Create backend.hcl (one-time per session)
+cp backend.hcl.example backend.hcl
+nano backend.hcl  # Update with your values
+
+# 3. Initialize
+./scripts/tf-init.sh
+
+# 4. Use Terraform normally
+terraform plan
+terraform apply
+```
+
+**Option B: Quick inline command (Alternative)**
+
+If you prefer not to use `backend.hcl`, you can use inline backend config:
+
+```bash
+terraform init -reconfigure \
   -backend-config="resource_group_name=rg-terraform-state" \
   -backend-config="storage_account_name=tfcaneprostate1" \
   -backend-config="container_name=tfstate" \
   -backend-config="key=aks.terraform.tfstate"
 ```
 
-**Pro-Tip:** Create an alias for quick access in Cloud Shell:
+**Option C: Cloud Shell alias (Pro-Tip)**
+
+Create a persistent alias in Cloud Shell (survives sessions if you mount clouddrive):
 
 ```bash
-# Add to ~/.bashrc
-nano ~/.bashrc
-
-# Add this line at the bottom:
-alias tfinit='cd ~/rocketchat-k8s/terraform && terraform init -backend-config="resource_group_name=rg-terraform-state" -backend-config="storage_account_name=tfcaneprostate1" -backend-config="container_name=tfstate" -backend-config="key=aks.terraform.tfstate"'
-
-# Reload your shell or source ~/.bashrc
+# Add to ~/.bashrc or ~/clouddrive/.bashrc
+echo 'alias tfinit="cd ~/clouddrive/rocketchat-k8s/terraform && cp backend.hcl.example backend.hcl && nano backend.hcl && terraform init -reconfigure -backend-config=backend.hcl"' >> ~/.bashrc
 source ~/.bashrc
 
 # Then just type:
 tfinit
 ```
 
-### Alternative: Using backend.hcl File
+### Benefits of This Approach
 
-You can also use a `backend.hcl` file (gitignored):
+✅ **Security**: Backend config (storage account details) never committed to git  
+✅ **Flexibility**: Easy to switch between environments  
+✅ **Best Practice**: Follows Terraform recommended patterns  
+✅ **Cloud Shell Friendly**: Works well with ephemeral sessions  
+✅ **State Persistence**: State stored in Azure Storage, survives Cloud Shell sessions  
+✅ **State Locking**: Prevents concurrent modifications  
+✅ **Versioning**: Azure Storage provides state file versioning and backup
 
-```bash
-cat > backend.hcl <<'EOF'
-resource_group_name  = "rg-terraform-state"
-storage_account_name = "tfcaneprostate1"
-container_name       = "tfstate"
-key                  = "aks.terraform.tfstate"
-EOF
+### Important Security Notes
 
-terraform init -reconfigure -backend-config=backend.hcl
-```
-
-**Note:** Since Cloud Shell sessions are ephemeral, you'll need to recreate this file each session, making the inline command approach more practical.
-
-### Benefits
-
-This ensures:
-- State is stored securely in Azure Storage
-- State persists across Cloud Shell sessions
-- State is versioned and backed up
-- State can be shared across team members with proper access
-
-**Important:** Even with backend, ensure state backend storage account has proper access controls.
+1. **Never commit `backend.hcl`** - It's gitignored for a reason (contains storage account details)
+2. **Secure storage account** - Ensure your state storage account has:
+   - Encryption at rest enabled (default)
+   - Access restricted to authorized users only
+   - Consider using Azure Key Vault for state encryption keys
+3. **State contains secrets** - Terraform state may contain sensitive values from `terraform.tfvars`
+4. **Backend access** - Only authorized users should have access to the storage account container
 
 ## Jenkins + Terraform (future)
 
@@ -221,13 +264,18 @@ az keyvault update --name "<key-vault-name>" --enable-purge-protection false
 ## Files
 
 - `main.tf` - Provider configuration, resource group
-- `aks.tf` - AKS cluster (if included)
-- `network.tf` - Networking (if included)
+- `backend.tf` - Backend configuration structure (committed)
+- `backend.hcl.example` - Backend config template (committed)
+- `backend.hcl` - Your backend config (gitignored, never commit)
+- `aks.tf` - AKS cluster configuration
+- `network.tf` - Networking configuration
+- `automation.tf` - Azure Automation for scheduled start/stop
 - `keyvault.tf` - Key Vault + UAMI + RBAC (for GitOps secrets)
 - `variables.tf` - Input variables
 - `outputs.tf` - Output values (Key Vault name, UAMI client ID, etc.)
 - `terraform.tfvars.example` - Example variables (safe to commit)
 - `terraform.tfvars` - Your actual variables (gitignored, never commit)
+- `scripts/tf-init.sh` - Helper script for Cloud Shell initialization
 
 ## Security Notes
 
