@@ -6,57 +6,95 @@ This guide provides a quick reference for using Terraform in Azure Cloud Shell (
 
 Every time you start a new Cloud Shell session, follow these steps:
 
-### Step 1: Clone/Update Repository
+### Step 1: Clone Repository to Cloud Drive (First Time Only)
+
+**Important:** Clone to `~/clouddrive` so it persists across Cloud Shell sessions.
 
 ```bash
-# If first time, clone the repo
-git clone <your-repo-url>
+cd ~/clouddrive
+git clone https://github.com/Canepro/rocketchat-k8s.git
 cd rocketchat-k8s/terraform
+```
 
-# OR if repo already exists in clouddrive
+**For subsequent sessions**, the repo is already in `~/clouddrive`:
+```bash
 cd ~/clouddrive/rocketchat-k8s/terraform
-git pull
+git pull  # Update to latest changes
 ```
 
 ### Step 2: Create Backend Configuration
 
+Create `backend.hcl` with your storage account details (gitignored, won't be committed):
+
 ```bash
-# Copy example to actual config (gitignored)
-cp backend.hcl.example backend.hcl
-
-# Edit with your storage account details
-nano backend.hcl
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
 ```
 
-**Update these values in `backend.hcl`:**
-```hcl
-resource_group_name  = "rg-terraform-state"  # Your resource group
-storage_account_name = "tfcaneprostate1"      # Your storage account
-container_name       = "tfstate"             # Container name
-key                  = "aks.terraform.tfstate"  # State file name
-```
+**Note:** `backend.hcl` is gitignored. You'll need to recreate it each Cloud Shell session (or store it in `~/clouddrive` separately and copy it).
 
 ### Step 3: Initialize Terraform
 
 ```bash
-# Use helper script (recommended)
-./scripts/tf-init.sh
-
-# OR manually
 terraform init -reconfigure -backend-config=backend.hcl
 ```
 
-### Step 4: Use Terraform
+This connects Terraform to your Azure Storage backend where state is stored.
+
+### Step 4: Configure Variables (First Time Only)
+
+```bash
+# Copy example to actual config (gitignored)
+cp terraform.tfvars.example terraform.tfvars
+
+# Edit with your actual values (secrets, schedule times, etc.)
+nano terraform.tfvars
+```
+
+**Important:** `terraform.tfvars` is gitignored and contains sensitive values. Never commit it.
+
+### Step 5: Use Terraform
 
 ```bash
 # Review changes
 terraform plan
 
-# Apply changes
+# Apply changes (if plan looks good)
 terraform apply
 
 # View outputs
 terraform output
+```
+
+## 🔄 Returning to Cloud Shell (Subsequent Sessions)
+
+If you've already set up the repo in `~/clouddrive`, you only need:
+
+```bash
+# 1. Navigate to terraform directory
+cd ~/clouddrive/rocketchat-k8s/terraform
+
+# 2. Pull latest changes (optional)
+git pull
+
+# 3. Recreate backend.hcl (required each session)
+cat <<EOF > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+
+# 4. Re-initialize Terraform
+terraform init -reconfigure -backend-config=backend.hcl
+
+# 5. Use Terraform
+terraform plan
+terraform apply
 ```
 
 ## 📋 Common Commands
@@ -110,7 +148,26 @@ git clone <your-repo-url>
 cd rocketchat-k8s/terraform
 ```
 
-### 2. Create a Persistent Alias
+### 2. Store Backend Config Template in Cloud Drive
+
+Since `backend.hcl` needs to be recreated each session, you can store a template in clouddrive:
+
+```bash
+# Create persistent template (one-time)
+cat > ~/clouddrive/terraform-backend.hcl <<'EOF'
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOF
+
+# Then each session, copy it:
+cd ~/clouddrive/rocketchat-k8s/terraform
+cp ~/clouddrive/terraform-backend.hcl backend.hcl
+terraform init -reconfigure -backend-config=backend.hcl
+```
+
+### 3. Create a Persistent Alias
 
 Add to `~/clouddrive/.bashrc` (survives sessions):
 
@@ -119,7 +176,13 @@ Add to `~/clouddrive/.bashrc` (survives sessions):
 cat >> ~/clouddrive/.bashrc <<'EOF'
 
 # Terraform shortcuts
-alias tfinit='cd ~/clouddrive/rocketchat-k8s/terraform && [ ! -f backend.hcl ] && cp backend.hcl.example backend.hcl && terraform init -reconfigure -backend-config=backend.hcl'
+alias tfinit='cd ~/clouddrive/rocketchat-k8s/terraform && cat <<EOFHCL > backend.hcl
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "tfcaneprostate1"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+EOFHCL
+terraform init -reconfigure -backend-config=backend.hcl'
 alias tfplan='cd ~/clouddrive/rocketchat-k8s/terraform && terraform plan'
 alias tfapply='cd ~/clouddrive/rocketchat-k8s/terraform && terraform apply'
 EOF
@@ -128,7 +191,7 @@ EOF
 source ~/clouddrive/.bashrc
 ```
 
-### 3. Store Backend Config in Cloud Drive
+Then you can just type `tfinit` to set up everything.
 
 Create `backend.hcl` in clouddrive for persistence:
 

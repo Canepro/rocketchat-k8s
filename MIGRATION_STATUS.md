@@ -14,7 +14,8 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Current State (as of 2026‑01‑20)
 
 - **Migration Status**: ✅ **COMPLETE** - Merged to `master` branch, all ArgoCD apps tracking `master`
-- **AKS cluster**: running (auto-start/stop configured: 8:30 AM - 11:00 PM weekdays), Terraform plan clean.
+- **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends), Terraform plan clean.
+- **Cost Optimization**: Evening-only schedule reduces monthly costs from ~£200 to ~£55-70 (within £90/month budget)
 - **ArgoCD apps (AKS)** - All tracking `master` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
@@ -37,6 +38,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - `ExternalSecret` resources define which secrets to sync
 - Secret values stored in Azure Key Vault (never in git)
 - Terraform provisions the Key Vault infrastructure
+- **Secret Protection** (2026-01-25): All Key Vault secret resources use `ignore_changes = [value]` to prevent Terraform from overwriting secrets when `terraform.tfvars` has placeholders
 
 ### Key Vault Secrets (managed by Terraform)
 - `rocketchat-mongo-uri`
@@ -104,7 +106,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
   - `aks-stale-pod-cleanup` CronJob: Daily cleanup of orphaned pods after cluster restart (09:00 UTC)
   - Grafana monitoring dashboard imported (`grafana-dashboard-maintenance-jobs.json`)
   - Alert rules created (`grafana-alerts-maintenance-jobs.yaml`)
-  - Documentation: `ops/MAINTENANCE_MONITORING.md`, `SETUP_SUMMARY.md`
+  - Documentation: `ops/MAINTENANCE_MONITORING.md`
   - **Status**: ✅ Deployed and tested successfully
 
 ## Completed Tasks (2026-01-19)
@@ -119,7 +121,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - [x] **TLS certificate issued** (Let's Encrypt, `READY: True`)
 - [x] **Network Security Group configured** (subnet-level HTTP/HTTPS rules via Terraform)
 - [x] **Node pool upgraded** (`Standard_B2s` → `Standard_D4as_v5`) - Memory: 90-95% → 9-26%
-- [x] **Azure Automation configured** (scheduled start/stop: 8:30 AM start, 11:00 PM stop on weekdays)
+- [x] **Azure Automation configured** (scheduled start/stop: 16:00 start, 23:00 stop on weekdays) - **Updated 2026-01-25** for cost optimization
 - [x] **Jenkins infrastructure ready** (2026-01-19):
   - ArgoCD application manifest created (`aks-jenkins.yaml`)
   - Helm values configured (`jenkins-values.yaml`) - Latest LTS 2.516.3 + JDK 21

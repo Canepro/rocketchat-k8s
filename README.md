@@ -66,6 +66,17 @@ Jenkins is configured for CI validation (PR checks, linting, policy validation):
 Monitor the real-time status of your stack here:
 [https://argocd.canepro.me](https://argocd.canepro.me)
 
+## 💰 Cost Optimization
+
+The AKS cluster uses **automated scheduling** to minimize costs:
+
+- **Schedule**: Weekdays 16:00-23:00 (7 hours/day), stays off weekends
+- **Monthly Runtime**: ~35 hours/week = ~140 hours/month
+- **Estimated Cost**: ~£55-70/month (within £90/month budget)
+- **Manual Override**: `az aks start --resource-group rg-canepro-aks --name aks-canepro`
+
+**Configuration**: Managed via Terraform (`terraform/automation.tf`) with Azure Automation schedules. See [`terraform/README.md`](terraform/README.md) for details.
+
 ## 🧹 Maintenance & Monitoring
 
 The workspace includes automated maintenance jobs:

@@ -240,7 +240,7 @@ Traefik IngressController (NodePort/LoadBalancer)
 ## 📚 Related Documentation
 
 - **Operations**: [OPERATIONS.md](OPERATIONS.md) - Day-2 operations, upgrades, troubleshooting
-- **Setup Summary**: [SETUP_SUMMARY.md](SETUP_SUMMARY.md) - Monitoring setup and dashboard details
+- **Maintenance Monitoring**: [ops/MAINTENANCE_MONITORING.md](ops/MAINTENANCE_MONITORING.md) - Monitoring setup and dashboard details
 - **Migration Status**: [MIGRATION_STATUS.md](MIGRATION_STATUS.md) - Current migration progress
 - **Troubleshooting**: [TROUBLESHOOTING_DNS_TLS.md](TROUBLESHOOTING_DNS_TLS.md) - DNS & TLS issues
 - **Jenkins Deployment**: [JENKINS_DEPLOYMENT.md](JENKINS_DEPLOYMENT.md) - CI/CD setup

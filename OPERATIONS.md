@@ -82,6 +82,64 @@ argocd app get aks-rocketchat-ops
 - **Connection refused**: Verify you can reach `https://argocd.canepro.me` and that ArgoCD is running
 - **gRPC errors**: Always use `--grpc-web` flag when ArgoCD is behind ingress/proxy
 
+## 💰 Cost Optimization: AKS Cluster Scheduling
+
+The AKS cluster uses **Azure Automation** to automatically start and stop on a schedule, significantly reducing costs.
+
+### Current Schedule (2026-01-25)
+
+- **Start Time**: 16:00 (4 PM) on weekdays
+- **Stop Time**: 23:00 (11 PM) on weekdays
+- **Weekends**: Cluster stays off
+- **Runtime**: ~7 hours/day × 5 weekdays = ~35 hours/week = ~140 hours/month
+- **Estimated Monthly Cost**: ~£55-70 (within £90/month budget)
+
+### Manual Cluster Control
+
+If you need the cluster during off-hours:
+
+```bash
+# Start cluster manually
+az aks start --resource-group rg-canepro-aks --name aks-canepro
+
+# Stop cluster manually
+az aks stop --resource-group rg-canepro-aks --name aks-canepro
+
+# Check cluster power state
+az aks show --name aks-canepro --resource-group rg-canepro-aks --query "powerState" --output table
+```
+
+### Updating the Schedule
+
+To change the schedule times:
+
+1. **Update `terraform.tfvars`** (in Cloud Shell):
+   ```bash
+   cd ~/rocketchat-k8s/terraform
+   nano terraform.tfvars
+   # Update: startup_time = "16:00" (or desired time)
+   # Update: shutdown_time = "23:00" (or desired time)
+   ```
+
+2. **Temporarily remove `ignore_changes`** in `terraform/automation.tf`:
+   - Comment out `ignore_changes = [start_time]` for the schedule you want to update
+
+3. **Apply the change**:
+   ```bash
+   terraform plan  # Verify changes
+   terraform apply
+   ```
+
+4. **Restore `ignore_changes`** after applying (to prevent future updates)
+
+**Note:** See [`terraform/README.md`](terraform/README.md) for detailed instructions and cost savings breakdown.
+
+### Cost Savings
+
+- **Previous schedule** (08:30-23:00): ~72.5 hours/week ≈ £200/month
+- **Current schedule** (16:00-23:00): ~35 hours/week ≈ £55-70/month
+- **Savings**: ~52% reduction, saving ~£75-88/month
+
 ## 🛠️ Troubleshooting
 If pods are not running or healthy:
 1.  **Check ArgoCD UI**: Look for the "Degraded" status and click on the resource to see the "Events" or "Logs".
@@ -94,6 +152,11 @@ If pods are not running or healthy:
 3.  **Disk Pressure**: If pods are "Evicted" or stuck in `ImagePullBackOff`, check disk space:
     ```bash
     df -h
+    ```
+4.  **Cluster Stopped**: If pods are not starting, check if the cluster is running:
+    ```bash
+    az aks show --name aks-canepro --resource-group rg-canepro-aks --query "powerState" --output table
+    # If "Stopped", start it manually or wait for scheduled start time
     ```
 
 ## 🗄️ MongoDB: Recommended Deployment (Official MongoDB Kubernetes Operator)
