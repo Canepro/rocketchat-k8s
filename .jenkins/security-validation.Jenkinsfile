@@ -50,19 +50,25 @@ spec:
       steps {
         sh '''
           # Install required tools
-          apk add --no-cache curl jq git bash
+          # Alpine-based agent: install dependencies via apk
+          apk add --no-cache \
+            bash ca-certificates curl git jq python3 py3-pip tar wget gzip coreutils || true
+
+          update-ca-certificates || true
           
           # Install tfsec (Terraform security scanner)
           curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
           
           # Install checkov (Infrastructure as Code security scanner)
-          pip3 install --quiet checkov || true
+          pip3 install --quiet --no-cache-dir checkov || true
           
           # Install trivy (Container image scanner)
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           
           # Install kube-score (Kubernetes manifest security scanner)
-          curl -sL https://github.com/zegl/kube-score/releases/latest/download/kube-score_linux_amd64.tar.gz | tar -xz -C /usr/local/bin/
+          mkdir -p /usr/local/bin
+          curl -sL https://github.com/zegl/kube-score/releases/latest/download/kube-score_linux_amd64.tar.gz | tar -xz -C /usr/local/bin/ || true
+          chmod +x /usr/local/bin/kube-score 2>/dev/null || true
           
           # Verify installations
           tfsec --version || echo "tfsec not installed"
@@ -227,85 +233,103 @@ spec:
           def riskLevel = riskReport.risk_level
           def critical = riskReport.critical
           def high = riskReport.high
+          def medium = riskReport.medium
+          def low = riskReport.low
           
           withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
             if (riskLevel == 'CRITICAL' || critical >= Integer.parseInt(env.CRITICAL_THRESHOLD)) {
               // Create GitHub Issue for critical findings
               echo "🚨 CRITICAL risk detected! Creating GitHub issue..."
-              sh '''
-                cat > issue-body.json << EOF
-                {
-                  "title": "🚨 Security: Critical vulnerabilities detected in infrastructure code",
-                  "body": "## Security Scan Results\n\n**Risk Level:** CRITICAL\n\n**Findings:**\n- Critical: ${critical}\n- High: ${high}\n- Medium: ${medium}\n- Low: ${low}\n\n## Action Required\n\nPlease review the security scan results and address critical vulnerabilities immediately.\n\n## Scan Artifacts\n\n- tfsec results: See Jenkins build artifacts\n- checkov results: See Jenkins build artifacts\n- trivy results: See Jenkins build artifacts\n\n## Next Steps\n\n1. Review all critical findings\n2. Create remediation PRs for each critical issue\n3. Update security policies if needed\n\n---\n*This issue was automatically created by Jenkins security validation pipeline.*",
-                  "labels": ["security", "critical", "automated"]
-                }
-                EOF
-                
-                curl -X POST \
-                  -H "Authorization: token ${GITHUB_TOKEN}" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${GITHUB_REPO}/issues" \
-                  -d @issue-body.json
-              '''
+              withEnv([
+                "CRITICAL_COUNT=${critical}",
+                "HIGH_COUNT=${high}",
+                "MEDIUM_COUNT=${medium}",
+                "LOW_COUNT=${low}",
+                "GITHUB_REPO=${env.GITHUB_REPO}"
+              ]) {
+                sh '''
+                  cat > issue-body.json << EOF
+                  {
+                    "title": "🚨 Security: Critical vulnerabilities detected in infrastructure code",
+                    "body": "## Security Scan Results\\n\\n**Risk Level:** CRITICAL\\n\\n**Findings:**\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\n## Action Required\\n\\nPlease review the security scan results and address critical vulnerabilities immediately.\\n\\n## Scan Artifacts\\n\\n- tfsec results: See Jenkins build artifacts\\n- checkov results: See Jenkins build artifacts\\n- trivy results: See Jenkins build artifacts\\n\\n## Next Steps\\n\\n1. Review all critical findings\\n2. Create remediation PRs for each critical issue\\n3. Update security policies if needed\\n\\n---\\n*This issue was automatically created by Jenkins security validation pipeline.*",
+                    "labels": ["security", "critical", "automated"]
+                  }
+                  EOF
+                  
+                  curl -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues" \
+                    -d @issue-body.json
+                '''
+              }
             } else if (high >= Integer.parseInt(env.HIGH_THRESHOLD)) {
               // Create PR with automated fixes for high-risk findings
               echo "⚠️ HIGH risk detected! Creating remediation PR..."
-              sh '''
-                # Create a branch for security fixes
-                BRANCH_NAME="security/automated-fixes-$(date +%Y%m%d-%H%M%S)"
-                git config user.name "Jenkins Security Bot"
-                git config user.email "jenkins@canepro.me"
-                git checkout -b ${BRANCH_NAME}
-                
-                # Create a security fixes file (placeholder - actual fixes would be applied here)
-                cat > SECURITY_FIXES.md << EOF
-                # Security Fixes
-                
-                This PR addresses high-priority security findings from automated scans.
-                
-                ## Findings Summary
-                - Critical: ${critical}
-                - High: ${high}
-                - Medium: ${medium}
-                - Low: ${low}
-                
-                ## Automated Fixes
-                
-                This PR includes automated fixes for high-priority security issues.
-                Please review all changes before merging.
-                
-                ## Manual Review Required
-                
-                Some findings may require manual review and cannot be auto-fixed.
-                Please check the Jenkins build logs for detailed findings.
-                EOF
-                
-                git add SECURITY_FIXES.md
-                git commit -m "security: automated fixes for high-priority findings
-
-                - Addresses ${high} high-priority security findings
-                - Generated by Jenkins security validation pipeline
-                - Review required before merging"
-                
-                git push origin ${BRANCH_NAME}
-                
-                # Create PR
-                cat > pr-body.json << EOF
-                {
-                  "title": "🔒 Security: Automated fixes for high-priority findings",
-                  "head": "${BRANCH_NAME}",
-                  "base": "master",
-                  "body": "## Automated Security Fixes\n\nThis PR addresses **${high} high-priority** security findings detected by automated scans.\n\n### Findings Summary\n- Critical: ${critical}\n- High: ${high}\n- Medium: ${medium}\n- Low: ${low}\n\n### Changes\n\nThis PR includes automated fixes for high-priority security issues. Please review all changes carefully.\n\n### Review Checklist\n\n- [ ] Review all automated changes\n- [ ] Verify fixes don't break functionality\n- [ ] Test in staging if applicable\n- [ ] Check for any manual fixes needed\n\n---\n*This PR was automatically created by Jenkins security validation pipeline.*",
-                  "labels": ["security", "automated", "dependencies"]
-                }
-                EOF
-                
-                curl -X POST \
-                  -H "Authorization: token ${GITHUB_TOKEN}" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${GITHUB_REPO}/pulls" \
-                  -d @pr-body.json
-              '''
+              withEnv([
+                "CRITICAL_COUNT=${critical}",
+                "HIGH_COUNT=${high}",
+                "MEDIUM_COUNT=${medium}",
+                "LOW_COUNT=${low}",
+                "GITHUB_REPO=${env.GITHUB_REPO}"
+              ]) {
+                sh '''
+                  # Create a branch for security fixes
+                  BRANCH_NAME="security/automated-fixes-$(date +%Y%m%d-%H%M%S)"
+                  git config user.name "Jenkins Security Bot"
+                  git config user.email "jenkins@canepro.me"
+                  git checkout -b ${BRANCH_NAME}
+                  
+                  # Create a security fixes file (placeholder - actual fixes would be applied here)
+                  cat > SECURITY_FIXES.md << EOF
+                  # Security Fixes
+                  
+                  This PR addresses high-priority security findings from automated scans.
+                  
+                  ## Findings Summary
+                  - Critical: ${CRITICAL_COUNT}
+                  - High: ${HIGH_COUNT}
+                  - Medium: ${MEDIUM_COUNT}
+                  - Low: ${LOW_COUNT}
+                  
+                  ## Automated Fixes
+                  
+                  This PR includes automated fixes for high-priority security issues.
+                  Please review all changes before merging.
+                  
+                  ## Manual Review Required
+                  
+                  Some findings may require manual review and cannot be auto-fixed.
+                  Please check the Jenkins build logs for detailed findings.
+                  EOF
+                  
+                  git add SECURITY_FIXES.md
+                  git commit -m "security: automated fixes for high-priority findings
+                  
+                  - Addresses ${HIGH_COUNT} high-priority security findings
+                  - Generated by Jenkins security validation pipeline
+                  - Review required before merging"
+                  
+                  git push origin ${BRANCH_NAME}
+                  
+                  # Create PR
+                  cat > pr-body.json << EOF
+                  {
+                    "title": "🔒 Security: Automated fixes for high-priority findings",
+                    "head": "${BRANCH_NAME}",
+                    "base": "master",
+                    "body": "## Automated Security Fixes\\n\\nThis PR addresses **${HIGH_COUNT} high-priority** security findings detected by automated scans.\\n\\n### Findings Summary\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\n### Changes\\n\\nThis PR includes automated fixes for high-priority security issues. Please review all changes carefully.\\n\\n### Review Checklist\\n\\n- [ ] Review all automated changes\\n- [ ] Verify fixes don't break functionality\\n- [ ] Test in staging if applicable\\n- [ ] Check for any manual fixes needed\\n\\n---\\n*This PR was automatically created by Jenkins security validation pipeline.*",
+                    "labels": ["security", "automated", "dependencies"]
+                  }
+                  EOF
+                  
+                  curl -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/pulls" \
+                    -d @pr-body.json
+                '''
+              }
             }
           }
         }
