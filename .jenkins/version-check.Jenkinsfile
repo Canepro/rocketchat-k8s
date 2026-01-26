@@ -239,8 +239,8 @@ spec:
                     echo "Updating $component: $current → $latest in $location"
                     
                     # Update VERSIONS.md (handle different table formats)
-                    sed -i "s/| \\*\\*${component}\\*\\* | \`${current}\` |/| **${component}** | \`${latest}\` |/g" VERSIONS.md || true
-                    sed -i "s/| \\*\\*${component}\\*\\* | \`[^\`]*\` | \`[^\`]*\` |.*⚠️/| **${component}** | \`${latest}\` | \`${latest}\` | ✅ **Up to date**/g" VERSIONS.md || true
+                    sed -i "s/| \\\\*\\\\*${component}\\\\*\\\\* | \\\`${current}\\\` |/| **${component}** | \\\`${latest}\\\` |/g" VERSIONS.md || true
+                    sed -i "s/| \\\\*\\\\*${component}\\\\*\\\\* | \\\`[^\\\`]*\\\` | \\\`[^\\\`]*\\\` |.*⚠️/| **${component}** | \\\`${latest}\\\` | \\\`${latest}\\\` | ✅ **Up to date**/g" VERSIONS.md || true
                     
                     # Update actual code files
                     if [ -f "$location" ]; then
@@ -265,7 +265,7 @@ spec:
                   LATEST_TF=$(jq -r '.terraform.azurerm.latest' updates-to-apply.json 2>/dev/null)
                   if [ -n "$CURRENT_TF" ] && [ -n "$LATEST_TF" ] && [ "$CURRENT_TF" != "$LATEST_TF" ]; then
                     echo "Updating Terraform Azure Provider: $CURRENT_TF → $LATEST_TF"
-                    sed -i "s/| \\*\\*Azure Provider\\*\\* | \`~> ${CURRENT_TF}\` |/| **Azure Provider** | \`~> ${LATEST_TF}\` |/g" VERSIONS.md || true
+                    sed -i "s/| \\\\*\\\\*Azure Provider\\\\*\\\\* | \\\`~> ${CURRENT_TF}\\\` |/| **Azure Provider** | \\\`~> ${LATEST_TF}\\\` |/g" VERSIONS.md || true
                     sed -i "s/version = \"~> ${CURRENT_TF}\"/version = \"~> ${LATEST_TF}\"/g" terraform/main.tf || true
                   fi
                 fi
