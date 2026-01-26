@@ -52,7 +52,7 @@ spec:
           # Install required tools
           # Alpine-based agent: install dependencies via apk
           apk add --no-cache \
-            bash ca-certificates curl git jq python3 py3-pip tar wget gzip coreutils || true
+            bash ca-certificates curl git jq python3 py3-pip tar wget gzip coreutils yq || true
 
           update-ca-certificates || true
           
@@ -60,14 +60,24 @@ spec:
           curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
           
           # Install checkov (Infrastructure as Code security scanner)
-          pip3 install --quiet --no-cache-dir checkov || true
+          # Alpine uses PEP-668 "externally managed" Python; install into a venv.
+          python3 -m venv /tmp/checkov-venv || true
+          if [ -f /tmp/checkov-venv/bin/activate ]; then
+            . /tmp/checkov-venv/bin/activate
+            pip install --quiet --no-cache-dir checkov || true
+            deactivate || true
+            ln -sf /tmp/checkov-venv/bin/checkov /usr/local/bin/checkov || true
+          fi
           
           # Install trivy (Container image scanner)
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           
           # Install kube-score (Kubernetes manifest security scanner)
           mkdir -p /usr/local/bin
-          curl -sL https://github.com/zegl/kube-score/releases/latest/download/kube-score_linux_amd64.tar.gz | tar -xz -C /usr/local/bin/ || true
+          # GitHub sometimes serves HTML (rate-limit/redirect). Download to file and validate.
+          if curl -fsSL -o /tmp/kube-score.tgz https://github.com/zegl/kube-score/releases/latest/download/kube-score_linux_amd64.tar.gz; then
+            tar -xzf /tmp/kube-score.tgz -C /usr/local/bin/ || true
+          fi
           chmod +x /usr/local/bin/kube-score 2>/dev/null || true
           
           # Verify installations
@@ -134,13 +144,21 @@ spec:
           // Extract container images from values.yaml
           def images = sh(
             script: '''
-              grep -E "repository:|tag:" values.yaml | \
-              grep -A1 "repository:" | \
-              grep -E "repository:|tag:" | \
-              sed 's/.*repository: \\(.*\\)/\\1/' | \
-              sed 's/.*tag: "\\(.*\\)"/\\1/' | \
-              paste - - | \
-              sed 's/\\t/:\\t/'
+              set -e
+
+              # Preferred: yq (robust YAML parsing)
+              if command -v yq >/dev/null 2>&1; then
+                REPO="$(yq -r '.image.repository // empty' values.yaml | sed 's/#.*$//' | xargs || true)"
+                TAG="$(yq -r '.image.tag // empty' values.yaml | sed 's/#.*$//' | xargs || true)"
+              else
+                # Fallback: grep/sed (strip inline comments)
+                REPO="$(grep -E '^\\s*repository:' values.yaml | head -1 | sed 's/.*repository:\\s*//' | sed 's/#.*$//' | xargs || true)"
+                TAG="$(grep -E '^\\s*tag:' values.yaml | head -1 | sed 's/.*tag:\\s*\"\\{0,1\\}\\([^\"#]*\\)\"\\{0,1\\}.*/\\1/' | sed 's/#.*$//' | xargs || true)"
+              fi
+
+              if [ -n "$REPO" ] && [ -n "$TAG" ]; then
+                echo "${REPO}:${TAG}"
+              fi
             ''',
             returnStdout: true
           ).trim()
@@ -152,10 +170,10 @@ spec:
             // Scan each image
             images.split('\n').each { line ->
               if (line.contains(':')) {
-                def image = line.replace('\t', ':')
+                def image = line.trim()
                 sh """
                   echo "Scanning image: ${image}"
-                  trivy image --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/:]', '-')}.json ${image} || true
+                  trivy image --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
                   trivy image ${image} || true
                 """
               }
@@ -345,19 +363,23 @@ spec:
       
       // Publish security scan results (if using plugins)
       script {
-        def riskReport = readJSON file: "${env.RISK_REPORT}"
-        echo """
-        ========================================
-        Security Scan Summary
-        ========================================
-        Critical: ${riskReport.critical}
-        High: ${riskReport.high}
-        Medium: ${riskReport.medium}
-        Low: ${riskReport.low}
-        Risk Level: ${riskReport.risk_level}
-        Action Required: ${riskReport.action_required}
-        ========================================
-        """
+        if (fileExists(env.RISK_REPORT)) {
+          def riskReport = readJSON file: "${env.RISK_REPORT}"
+          echo """
+          ========================================
+          Security Scan Summary
+          ========================================
+          Critical: ${riskReport.critical}
+          High: ${riskReport.high}
+          Medium: ${riskReport.medium}
+          Low: ${riskReport.low}
+          Risk Level: ${riskReport.risk_level}
+          Action Required: ${riskReport.action_required}
+          ========================================
+          """
+        } else {
+          echo "Security Scan Summary: ${env.RISK_REPORT} not generated (earlier stage failed or was skipped)"
+        }
       }
     }
     success {
