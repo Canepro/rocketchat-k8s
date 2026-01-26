@@ -60,14 +60,14 @@ spec:
           sh '''
             # Get current version from main.tf
             CURRENT_AZURERM=$(grep -A2 "azurerm = {" terraform/main.tf | grep "version" | sed 's/.*version = "\\(.*\\)".*/\\1/' | tr -d ' ')
-            echo "Current Azure Provider: ${CURRENT_AZURERM}"
+            echo "Current Azure Provider: \${CURRENT_AZURERM}"
             
             # Get latest version from Terraform Registry API
             LATEST_AZURERM=$(curl -s https://registry.terraform.io/v1/providers/hashicorp/azurerm/versions | jq -r '.versions[] | .version' | grep -E "^[0-9]+\\.[0-9]+\\.[0-9]+$" | sort -V | tail -1)
-            echo "Latest Azure Provider: ${LATEST_AZURERM}"
+            echo "Latest Azure Provider: \${LATEST_AZURERM}"
             
-            echo "AZURERM_CURRENT=${CURRENT_AZURERM}" >> versions.env
-            echo "AZURERM_LATEST=${LATEST_AZURERM}" >> versions.env
+            echo "AZURERM_CURRENT=\${CURRENT_AZURERM}" >> versions.env
+            echo "AZURERM_LATEST=\${LATEST_AZURERM}" >> versions.env
           '''
           
           def azurermCurrent = sh(script: 'grep AZURERM_CURRENT versions.env | cut -d= -f2', returnStdout: true).trim()
@@ -93,14 +93,14 @@ spec:
           // Check RocketChat version
           sh '''
             CURRENT_RC=$(grep "tag:" values.yaml | head -1 | sed 's/.*tag: "\\(.*\\)".*/\\1/')
-            echo "Current RocketChat: ${CURRENT_RC}"
+            echo "Current RocketChat: \${CURRENT_RC}"
             
             # Get latest from GitHub Releases API
             LATEST_RC=$(curl -s https://api.github.com/repos/RocketChat/Rocket.Chat/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-            echo "Latest RocketChat: ${LATEST_RC}"
+            echo "Latest RocketChat: \${LATEST_RC}"
             
-            echo "RC_CURRENT=${CURRENT_RC}" >> versions.env
-            echo "RC_LATEST=${LATEST_RC}" >> versions.env
+            echo "RC_CURRENT=\${CURRENT_RC}" >> versions.env
+            echo "RC_LATEST=\${LATEST_RC}" >> versions.env
           '''
           
           def rcCurrent = sh(script: 'grep RC_CURRENT versions.env | cut -d= -f2', returnStdout: true).trim()
@@ -137,14 +137,14 @@ spec:
           sh '''
             # Get current chart version from ArgoCD app or values.yaml comment
             CURRENT_CHART=$(grep "Chart:" values.yaml | head -1 | sed 's/.*Chart:.*\\([0-9]\\+\\.[0-9]\\+\\.[0-9]\\+\\).*/\\1/')
-            echo "Current RocketChat Chart: ${CURRENT_CHART}"
+            echo "Current RocketChat Chart: \${CURRENT_CHART}"
             
             # Get latest from Helm chart repository
             LATEST_CHART=$(helm search repo rocketchat/rocketchat --versions 2>/dev/null | head -2 | tail -1 | awk '{print $2}' || echo "unknown")
-            echo "Latest RocketChat Chart: ${LATEST_CHART}"
+            echo "Latest RocketChat Chart: \${LATEST_CHART}"
             
-            echo "CHART_CURRENT=${CURRENT_CHART}" >> versions.env
-            echo "CHART_LATEST=${LATEST_CHART}" >> versions.env
+            echo "CHART_CURRENT=\${CURRENT_CHART}" >> versions.env
+            echo "CHART_LATEST=\${LATEST_CHART}" >> versions.env
           '''
           
           writeJSON file: 'chart-updates.json', json: chartUpdates
@@ -197,21 +197,21 @@ spec:
             if (criticalUpdates.size() > 0) {
               // Create Issue for critical updates
               echo "🚨 Creating GitHub issue for CRITICAL version updates..."
-              sh '''
-                cat > issue-body.json << EOF
+              sh """
+                cat > issue-body.json << 'ISSUE_EOF'
                 {
                   "title": "🚨 Critical: Major version updates available",
-                  "body": "## Version Update Alert\\n\\n**Risk Level:** CRITICAL\\n\\n**Updates Available:**\\n${criticalUpdates}\\n\\n## Action Required\\n\\nMajor version updates detected. These require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
+                  "body": "## Version Update Alert\\n\\n**Risk Level:** CRITICAL\\n\\n**Updates Available:**\\n${criticalUpdates.join('\\n')}\\n\\n## Action Required\\n\\nMajor version updates detected. These require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
                   "labels": ["dependencies", "critical", "automated", "upgrade"]
                 }
-                EOF
+                ISSUE_EOF
                 
-                curl -X POST \
-                  -H "Authorization: token ${GITHUB_TOKEN}" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${GITHUB_REPO}/issues" \
+                curl -X POST \\
+                  -H "Authorization: token \${GITHUB_TOKEN}" \\
+                  -H "Accept: application/vnd.github.v3+json" \\
+                  "https://api.github.com/repos/${env.GITHUB_REPO}/issues" \\
                   -d @issue-body.json
-              '''
+              """
             } else if (highRiskUpdates.size() > 0 || mediumRiskUpdates.size() >= 5) {
               // Create PR for high/medium risk updates
               echo "⚠️ Creating PR for version updates..."
@@ -228,31 +228,31 @@ spec:
                 BRANCH_NAME="chore/version-updates-$(date +%Y%m%d)"
                 git config user.name "Jenkins Version Bot"
                 git config user.email "jenkins@canepro.me"
-                git checkout -b ${BRANCH_NAME}
+                git checkout -b \${BRANCH_NAME}
                 
                 # Process updates and apply to VERSIONS.md and code files
                 echo "Applying version updates to files..."
                 
                 # Update images from high/medium risk updates
                 jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)"' updates-to-apply.json 2>/dev/null | while IFS='|' read -r component current latest location; do
-                  if [ -n "$component" ] && [ -n "$latest" ] && [ "$current" != "$latest" ]; then
-                    echo "Updating $component: $current → $latest in $location"
+                  if [ -n "\$component" ] && [ -n "\$latest" ] && [ "\$current" != "\$latest" ]; then
+                    echo "Updating \$component: \$current → \$latest in \$location"
                     
                     # Update VERSIONS.md (handle different table formats)
-                    sed -i "s/| \\\\*\\\\*${component}\\\\*\\\\* | \\\`${current}\\\` |/| **${component}** | \\\`${latest}\\\` |/g" VERSIONS.md || true
-                    sed -i "s/| \\\\*\\\\*${component}\\\\*\\\\* | \\\`[^\\\`]*\\\` | \\\`[^\\\`]*\\\` |.*⚠️/| **${component}** | \\\`${latest}\\\` | \\\`${latest}\\\` | ✅ **Up to date**/g" VERSIONS.md || true
+                    sed -i "s/| \\\\*\\\\*\${component}\\\\*\\\\* | \\\`\${current}\\\` |/| **\${component}** | \\\`\${latest}\\\` |/g" VERSIONS.md || true
+                    sed -i "s/| \\\\*\\\\*\${component}\\\\*\\\\* | \\\`[^\\\`]*\\\` | \\\`[^\\\`]*\\\` |.*⚠️/| **\${component}** | \\\`\${latest}\\\` | \\\`\${latest}\\\` | ✅ **Up to date**/g" VERSIONS.md || true
                     
                     # Update actual code files
-                    if [ -f "$location" ]; then
-                      case "$location" in
+                    if [ -f "\$location" ]; then
+                      case "\$location" in
                         values.yaml)
-                          sed -i "s/tag: \"${current}\"/tag: \"${latest}\"/g" "$location" || true
+                          sed -i "s/tag: \"\${current}\"/tag: \"\${latest}\"/g" "\$location" || true
                           ;;
                         terraform/main.tf)
-                          sed -i "s/version = \"~> ${current}\"/version = \"~> ${latest}\"/g" "$location" || true
+                          sed -i "s/version = \"~> \${current}\"/version = \"~> \${latest}\"/g" "\$location" || true
                           ;;
                         ops/manifests/*.yaml)
-                          sed -i "s/:${current}/:${latest}/g" "$location" || true
+                          sed -i "s/:\${current}/:\${latest}/g" "\$location" || true
                           ;;
                       esac
                     fi
@@ -263,10 +263,10 @@ spec:
                 if [ "$(jq -r '.terraform.azurerm.needsUpdate // false' updates-to-apply.json 2>/dev/null)" = "true" ]; then
                   CURRENT_TF=$(jq -r '.terraform.azurerm.current' updates-to-apply.json 2>/dev/null | sed 's/~>//' | tr -d ' ')
                   LATEST_TF=$(jq -r '.terraform.azurerm.latest' updates-to-apply.json 2>/dev/null)
-                  if [ -n "$CURRENT_TF" ] && [ -n "$LATEST_TF" ] && [ "$CURRENT_TF" != "$LATEST_TF" ]; then
-                    echo "Updating Terraform Azure Provider: $CURRENT_TF → $LATEST_TF"
-                    sed -i "s/| \\\\*\\\\*Azure Provider\\\\*\\\\* | \\\`~> ${CURRENT_TF}\\\` |/| **Azure Provider** | \\\`~> ${LATEST_TF}\\\` |/g" VERSIONS.md || true
-                    sed -i "s/version = \"~> ${CURRENT_TF}\"/version = \"~> ${LATEST_TF}\"/g" terraform/main.tf || true
+                  if [ -n "\$CURRENT_TF" ] && [ -n "\$LATEST_TF" ] && [ "\$CURRENT_TF" != "\$LATEST_TF" ]; then
+                    echo "Updating Terraform Azure Provider: \$CURRENT_TF → \$LATEST_TF"
+                    sed -i "s/| \\\\*\\\\*Azure Provider\\\\*\\\\* | \\\`~> \${CURRENT_TF}\\\` |/| **Azure Provider** | \\\`~> \${LATEST_TF}\\\` |/g" VERSIONS.md || true
+                    sed -i "s/version = \"~> \${CURRENT_TF}\"/version = \"~> \${LATEST_TF}\"/g" terraform/main.tf || true
                   fi
                 fi
                 
@@ -280,8 +280,8 @@ spec:
                 This PR includes automated version updates detected by Jenkins.
                 
                 ## Updates Summary
-                - High Risk: ${HIGH_COUNT}
-                - Medium Risk: ${MEDIUM_COUNT}
+                - High Risk: \${HIGH_COUNT}
+                - Medium Risk: \${MEDIUM_COUNT}
                 
                 ## Files Updated
                 - **VERSIONS.md**: Version tracking automatically updated
@@ -300,29 +300,29 @@ spec:
                 # Commit with detailed message
                 git commit -m "chore: automated version updates
 
-                - High risk: ${HIGH_COUNT}
-                - Medium risk: ${MEDIUM_COUNT}
+                - High risk: \${HIGH_COUNT}
+                - Medium risk: \${MEDIUM_COUNT}
                 - Updated VERSIONS.md automatically
                 - Updated code files with new versions
                 - Generated by Jenkins version check pipeline" || echo "No changes to commit"
                 
-                git push origin ${BRANCH_NAME}
+                git push origin \${BRANCH_NAME}
                 
                 # Create PR
                 cat > pr-body.json << EOF
                 {
-                  "title": "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium",
-                  "head": "${BRANCH_NAME}",
+                  "title": "⬆️ Version Updates: \${HIGH_COUNT} high, \${MEDIUM_COUNT} medium",
+                  "head": "\${BRANCH_NAME}",
                   "base": "master",
-                  "body": "## Automated Version Updates\\n\\nThis PR includes version updates detected by automated checks.\\n\\n### Updates Summary\\n- High Risk: ${HIGH_COUNT}\\n- Medium Risk: ${MEDIUM_COUNT}\\n\\n### Files Updated\\n- **VERSIONS.md**: Automatically updated with new versions\\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\\n\\n### Review Required\\n\\nPlease review all changes and test before merging.\\n\\n---\\n*This PR was automatically created by Jenkins version check pipeline.*",
+                  "body": "## Automated Version Updates\\n\\nThis PR includes version updates detected by automated checks.\\n\\n### Updates Summary\\n- High Risk: \${HIGH_COUNT}\\n- Medium Risk: \${MEDIUM_COUNT}\\n\\n### Files Updated\\n- **VERSIONS.md**: Automatically updated with new versions\\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\\n\\n### Review Required\\n\\nPlease review all changes and test before merging.\\n\\n---\\n*This PR was automatically created by Jenkins version check pipeline.*",
                   "labels": ["dependencies", "automated", "upgrade"]
                 }
                 EOF
                 
-                curl -X POST \
-                  -H "Authorization: token ${GITHUB_TOKEN}" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${GITHUB_REPO}/pulls" \
+                curl -X POST \\
+                  -H "Authorization: token \${GITHUB_TOKEN}" \\
+                  -H "Accept: application/vnd.github.v3+json" \\
+                  "https://api.github.com/repos/${env.GITHUB_REPO}/pulls" \\
                   -d @pr-body.json
               '''
             } else {
