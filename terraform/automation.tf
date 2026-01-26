@@ -171,9 +171,8 @@ resource "azurerm_automation_schedule" "start_weekday_morning" {
 
   lifecycle {
     # Ignore start_time changes (prevents Terraform from updating schedule time on every apply)
-    # TEMPORARILY DISABLED: Remove ignore_changes to allow Terraform to update schedule time to 16:00
-    # After applying schedule change, restore: ignore_changes = [start_time]
-    # ignore_changes = [start_time] # Schedule start_time is managed by Automation Account (not Terraform)
+    # Schedule start_time is managed by Automation Account (not Terraform)
+    ignore_changes = [start_time]
   }
 }
 
