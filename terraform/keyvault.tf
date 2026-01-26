@@ -92,6 +92,12 @@ resource "azurerm_key_vault_secret" "rocketchat_mongo_uri" {
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     Purpose = "RocketChatMongoConnection" # Purpose tag (for resource organization)
   })
@@ -103,6 +109,12 @@ resource "azurerm_key_vault_secret" "rocketchat_mongo_oplog_uri" {
   value        = var.rocketchat_mongo_oplog_uri                             # Secret value (from terraform.tfvars, sensitive - never committed)
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
 
   tags = merge(var.tags, {
     Purpose = "RocketChatMongoOplogConnection" # Purpose tag (for resource organization)
@@ -116,6 +128,12 @@ resource "azurerm_key_vault_secret" "mongodb_admin_password" {
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     Purpose = "MongoDBAdminPassword" # Purpose tag (for resource organization)
   })
@@ -128,6 +146,12 @@ resource "azurerm_key_vault_secret" "mongodb_rocketchat_password" {
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     Purpose = "MongoDBRocketChatPassword" # Purpose tag (for resource organization)
   })
@@ -139,6 +163,12 @@ resource "azurerm_key_vault_secret" "mongodb_metrics_endpoint_password" {
   value        = var.mongodb_metrics_endpoint_password                      # Secret value (from terraform.tfvars, sensitive - never committed)
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
 
   tags = merge(var.tags, {
     Purpose = "MongoDBMetricsPassword" # Purpose tag (for resource organization)
@@ -153,6 +183,12 @@ resource "azurerm_key_vault_secret" "observability_username" {
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     Purpose = "ObservabilityCredentials" # Purpose tag (for resource organization)
   })
@@ -165,6 +201,12 @@ resource "azurerm_key_vault_secret" "observability_password" {
   value        = var.observability_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
 
   tags = merge(var.tags, {
     Purpose = "ObservabilityCredentials" # Purpose tag (for resource organization)
@@ -179,6 +221,12 @@ resource "azurerm_key_vault_secret" "jenkins_admin_username" {
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     Purpose = "JenkinsCredentials" # Purpose tag (for resource organization)
   })
@@ -192,6 +240,12 @@ resource "azurerm_key_vault_secret" "jenkins_admin_password" {
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
   tags = merge(var.tags, {
     Purpose = "JenkinsCredentials" # Purpose tag (for resource organization)
   })
@@ -204,6 +258,12 @@ resource "azurerm_key_vault_secret" "jenkins_github_token" {
   value        = var.jenkins_github_token                                   # Secret value (from terraform.tfvars, sensitive - never committed)
   key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
   depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
 
   tags = merge(var.tags, {
     Purpose = "JenkinsCredentials" # Purpose tag (for resource organization)
