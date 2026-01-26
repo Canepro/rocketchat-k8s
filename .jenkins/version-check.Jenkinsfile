@@ -234,7 +234,7 @@ spec:
                 echo "Applying version updates to files..."
                 
                 # Update images from high/medium risk updates
-                jq -r '.high[] + .medium[] | select(.component != null) | "\(.component)|\(.current)|\(.latest)|\(.location)"' updates-to-apply.json 2>/dev/null | while IFS='|' read -r component current latest location; do
+                jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)"' updates-to-apply.json 2>/dev/null | while IFS='|' read -r component current latest location; do
                   if [ -n "$component" ] && [ -n "$latest" ] && [ "$current" != "$latest" ]; then
                     echo "Updating $component: $current → $latest in $location"
                     
