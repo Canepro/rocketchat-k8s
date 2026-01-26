@@ -35,13 +35,11 @@ resource "azurerm_kubernetes_cluster" "main" {
   # RBAC is required for proper Kubernetes security and is required for many features
   role_based_access_control_enabled = true # Enable RBAC (required for AKS)
 
-  # API server authorized IP ranges (empty = allow all)
-  # This controls which IP addresses can access the Kubernetes API server
-  # Note: This uses deprecated syntax because api_server_access_profile block
-  # causes perpetual drift (azurerm provider bug). Will migrate to new syntax
-  # when upgrading to provider v4.0.
-  # Empty array means allow all IPs (less secure but more flexible)
-  api_server_authorized_ip_ranges = [] # Allow all IPs (can restrict to specific IPs for security)
+  # API server access profile: Controls which IP addresses can access the Kubernetes API server
+  # Empty authorized_ip_ranges means allow all IPs (less secure but more flexible)
+  api_server_access_profile {
+    authorized_ip_ranges = [] # Allow all IPs (can restrict to specific IPs for security)
+  }
 
   # Default node pool: Worker nodes for running Kubernetes pods
   # Default node pool
@@ -50,9 +48,8 @@ resource "azurerm_kubernetes_cluster" "main" {
     node_count                  = var.node_count            # Number of nodes (from variables.tf, default: 2)
     vm_size                     = var.vm_size               # VM size (from variables.tf, default: "Standard_D4as_v5")
     os_disk_size_gb             = 30                        # OS disk size in GB (minimum 30GB for AKS)
-    type                        = "VirtualMachineScaleSets" # Node pool type (VMSS for scalability)
-    enable_auto_scaling         = false                     # Disable auto-scaling (manual scaling for now)
-    vnet_subnet_id              = azurerm_subnet.aks.id     # Subnet for nodes (from network.tf)
+    type            = "VirtualMachineScaleSets" # Node pool type (VMSS for scalability)
+    vnet_subnet_id  = azurerm_subnet.aks.id     # Subnet for nodes (from network.tf)
     temporary_name_for_rotation = "tempnodepool"            # Required when updating vm_size (enables rolling node updates)
 
     # Labels and taints: Kubernetes node labels and taints
