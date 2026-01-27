@@ -35,7 +35,7 @@ spec:
     - name: ARM_CLIENT_ID
       value: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
     - name: ARM_SUBSCRIPTION_ID
-      value: "096534ab-797f-4623-82dc-5f6526f38ed9"
+      value: "1c6e2ceb-7310-4193-ab4d-95120348b934"
 """
     }
   }
@@ -52,8 +52,10 @@ spec:
     stage('Setup') {
       steps {
         sh '''
-          # Install Terraform
-          apk add --no-cache curl unzip
+          # Install Terraform on Mariner Linux (Azure CLI image)
+          # Mariner uses tdnf package manager
+          tdnf install -y unzip 2>/dev/null || yum install -y unzip 2>/dev/null || true
+          
           TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*' | cut -d'"' -f4)
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
           unzip -o terraform.zip -d /usr/local/bin/
