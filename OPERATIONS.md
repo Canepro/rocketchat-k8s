@@ -611,5 +611,5 @@ A Grafana dashboard is available to monitor all maintenance CronJobs in real-tim
 - Alert if any maintenance job fails 2+ times in a row
 
 ## ⚠️ Known Quirks
-- **PV Naming**: The PVC `mongo-pvc` is currently bound to a PV named `prometheus-pv`. This is a legacy naming mismatch (Retain policy). Do not rename/delete without a migration plan.
 - **Secrets**: `rocketchat-rocketchat` secret is managed by Helm but populated via `values.yaml` (externalMongodbUrl) to preserve legacy passwords. Do not delete it manually.
+- **Image Prune CronJob**: The `k3s-image-prune` cronjob has a legacy name but works on AKS (uses `crictl` with k3s fallback).
