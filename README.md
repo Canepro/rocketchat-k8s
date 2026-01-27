@@ -1,105 +1,215 @@
-# RocketChat GitOps Repository
+# RocketChat Kubernetes Platform
 
-This repository contains the declarative GitOps configuration for the entire Rocket.Chat stack, managed by ArgoCD.
+Production-grade RocketChat deployment on Azure Kubernetes Service (AKS) using GitOps principles with ArgoCD.
 
-## 🗺️ Architecture
-The Rocket.Chat microservices stack is deployed on an AKS cluster (`aks-canepro`) and managed via ArgoCD using a **Split-App Pattern**:
+## Overview
 
-1.  **Rocket.Chat App (Helm)**: Manages the application stack (monolith + microservices) via the official Helm chart + `values.yaml`.
-2.  **Ops App (Kustomize)**: Manages infrastructure glue (storage, monitoring, maintenance jobs) via `ops/`.
+This repository contains the complete infrastructure-as-code for deploying and operating RocketChat at scale:
 
-- **Diagram**: See [DIAGRAM.md](DIAGRAM.md) for the architecture and data flow.
-- **Operations**: See [OPERATIONS.md](OPERATIONS.md) for upgrade and maintenance instructions.
+- **Application**: RocketChat monolith + microservices (account, authorization, presence, ddp-streamer)
+- **Database**: MongoDB via Community Kubernetes Operator
+- **Messaging**: NATS for microservices communication
+- **Ingress**: Traefik with automatic TLS via cert-manager
+- **Observability**: Prometheus, Grafana, Loki, Tempo (hosted on separate OKE hub cluster)
+- **Secrets**: External Secrets Operator + Azure Key Vault
+- **CI/CD**: ArgoCD (GitOps) + Jenkins (validation)
 
-## 🚀 Quick Start
-To upgrade the Rocket.Chat version:
-1.  Edit `values.yaml`.
-2.  Change `image.tag` to the desired version.
-3.  Commit and push to the `master` branch.
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        AKS Cluster                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │  RocketChat  │  │   MongoDB    │  │    Observability     │  │
+│  │  (Helm)      │  │  (Operator)  │  │  (Prometheus Agent)  │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+│           │                │                    │               │
+│           └────────────────┴────────────────────┘               │
+│                            │                                    │
+│                     ┌──────┴──────┐                            │
+│                     │   Traefik   │                            │
+│                     │  (Ingress)  │                            │
+│                     └─────────────┘                            │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                       k8.canepro.me
+```
+
+For detailed architecture diagrams, see [DIAGRAM.md](DIAGRAM.md).
+
+## Quick Start
+
+### Upgrade RocketChat Version
 
 ```bash
+# 1. Edit values.yaml - change image.tag
+vim values.yaml
+
+# 2. Commit and push
+git add values.yaml
+git commit -m "chore: upgrade RocketChat to X.Y.Z"
 git push origin master
 ```
-ArgoCD will automatically detect the changes and perform a rolling update.
 
-**Note**: For major version upgrades (e.g., 7.x → 8.x), check [OPERATIONS.md](OPERATIONS.md) for upgrade prerequisites and breaking changes.
+ArgoCD automatically syncs changes within 3 minutes.
 
-## 🗄️ MongoDB (Recommended: external via official MongoDB Operator)
+### Manual Cluster Operations
 
-Rocket.Chat has indicated the built-in / bundled MongoDB should not be used going forward (Bitnami images are no longer produced and there are security/maintenance concerns). The recommended direction is to run MongoDB independently using the official MongoDB Kubernetes Operator and point Rocket.Chat at it.
+```bash
+# Start cluster (if stopped)
+az aks start --resource-group rg-canepro-aks --name aks-canepro
 
-- **Reference instructions (upstream community guide)**: `https://gist.github.com/geekgonecrazy/5fcb04aacadaa310aed0b6cc71f9de74`
-- **Operator ArgoCD app (this repo)**: `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml`
-- **MongoDBCommunity example (this repo)**: `ops/manifests/mongodb-community.example.yaml`
+# Stop cluster
+az aks stop --resource-group rg-canepro-aks --name aks-canepro
 
-This repo configures Rocket.Chat to read its Mongo connection string from `existingMongodbSecret` (key `mongo-uri`) so credentials are not stored in git.
+# Check cluster status
+az aks show --resource-group rg-canepro-aks --name aks-canepro --query powerState
+```
 
-## 🔐 GitOps-first Secrets (Recommended on Azure)
+## Repository Structure
 
-We should avoid manual `kubectl create secret ...` for anything that must persist. For Azure, the recommended model is:
+```
+.
+├── values.yaml                 # RocketChat Helm values (versions, scaling, config)
+├── ops/
+│   ├── kustomization.yaml      # Kustomize entrypoint for ops manifests
+│   ├── manifests/              # Raw K8s manifests (PVCs, monitoring, maintenance)
+│   └── secrets/                # ExternalSecret definitions (GitOps secrets)
+├── terraform/                  # AKS infrastructure + automation schedules
+├── .jenkins/                   # CI pipeline definitions
+└── docs/
+    ├── OPERATIONS.md           # Day-2 operations runbook
+    ├── DIAGRAM.md              # Architecture diagrams
+    ├── VERSIONS.md             # Component version tracking
+    └── TROUBLESHOOTING_DNS_TLS.md
+```
 
-- **External Secrets Operator (ESO)** reconciles `ExternalSecret` manifests from git into Kubernetes Secrets.
-- **Azure Key Vault** stores the actual secret values.
-- **ArgoCD remains the deploy engine** (GitOps); CI can validate changes, but should not apply to the cluster.
+## GitOps Model
 
-See `OPERATIONS.md` and `MIGRATION_STATUS.md`.
+This repository follows a **Split-App Pattern** with ArgoCD:
 
-## 🤖 CI/CD with Jenkins (Optional)
+| Application | Source | Manages |
+|-------------|--------|---------|
+| `aks-rocketchat-helm` | `values.yaml` | RocketChat application stack |
+| `aks-rocketchat-ops` | `ops/` | Infrastructure (storage, monitoring, jobs) |
+| `aks-rocketchat-secrets` | `ops/secrets/` | External Secrets definitions |
 
-Jenkins is configured for CI validation (PR checks, linting, policy validation):
+**Deployment Flow**:
+1. Commit changes to `master` branch
+2. ArgoCD detects changes (3-min sync interval)
+3. ArgoCD applies changes to cluster
+4. Rollback via `git revert` if needed
 
-- **Access**: `https://jenkins.canepro.me`
-- **Role**: CI validation only (no applies by default)
-- **Agents**: Dynamic Kubernetes pods (terraform, helm, default)
-- **Secrets**: Managed via External Secrets Operator + Azure Key Vault
+## Configuration
 
-**What Jenkins validates**:
-- ✅ PR validation (lint, policy checks)
-- ✅ `terraform fmt -check`, `terraform validate`, `terraform plan`
-- ✅ `helm template` + `kubeconform` for manifest validation
-- ✅ YAML linting (`yamllint`)
-- ✅ Policy checks (OPA/Conftest)
+### Key Files
 
-**Deployment**: See [JENKINS_DEPLOYMENT.md](JENKINS_DEPLOYMENT.md) for complete deployment guide.
+| File | Purpose |
+|------|---------|
+| `values.yaml` | RocketChat version, replicas, resources, feature flags |
+| `ops/manifests/mongodb-community.example.yaml` | MongoDB cluster configuration |
+| `terraform/variables.tf` | Infrastructure parameters |
+| `jenkins-values.yaml` | Jenkins Helm configuration |
 
-## 📊 Health Dashboard
-Monitor the real-time status of your stack here:
-[https://argocd.canepro.me](https://argocd.canepro.me)
+### Secrets Management
 
-## 💰 Cost Optimization
+Secrets are managed via GitOps using External Secrets Operator:
 
-The AKS cluster uses **automated scheduling** to minimize costs:
+```yaml
+# ops/secrets/externalsecret-example.yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: rocketchat-mongodb
+spec:
+  secretStoreRef:
+    name: azure-keyvault
+    kind: ClusterSecretStore
+  target:
+    name: rocketchat-mongodb
+  data:
+    - secretKey: mongo-uri
+      remoteRef:
+        key: rocketchat-mongodb-uri
+```
 
-- **Schedule**: Weekdays 16:00-23:00 (7 hours/day), stays off weekends
-- **Monthly Runtime**: ~35 hours/week = ~140 hours/month
-- **Estimated Cost**: ~£55-70/month (within £90/month budget)
-- **Manual Override**: `az aks start --resource-group rg-canepro-aks --name aks-canepro`
+**Never commit secrets to this repository.** Store values in Azure Key Vault.
 
-**Configuration**: Managed via Terraform (`terraform/automation.tf`) with Azure Automation schedules. See [`terraform/README.md`](terraform/README.md) for details.
+## Operations
 
-## 🧹 Maintenance & Monitoring
+### Monitoring
 
-The workspace includes automated maintenance jobs:
-- **Image Prune**: Weekly cleanup of unused images (Sunday 03:00 UTC)
-- **Stale Pod Cleanup**: Daily cleanup after cluster restart (09:00 UTC)
+| Service | URL |
+|---------|-----|
+| ArgoCD | https://argocd.canepro.me |
+| Grafana | https://grafana.canepro.me |
+| Jenkins | https://jenkins.canepro.me |
+| RocketChat | https://k8.canepro.me |
 
-**Monitor maintenance jobs** via Grafana dashboard:
-- **Grafana URL**: `https://grafana.canepro.me`
-- **Dashboard JSON**: `ops/manifests/grafana-dashboard-maintenance-jobs.json`
-- **Monitoring Guide**: [`ops/MAINTENANCE_MONITORING.md`](ops/MAINTENANCE_MONITORING.md)
-- **Manual Operations**: [`OPERATIONS.md`](OPERATIONS.md)
+### Cost Optimization
 
-## 🧪 Tracing Validation (Tempo)
-To validate tracing end-to-end (tracegen → OTel Collector → Tempo), see `OPERATIONS.md` → **"Validate Tracing End-to-End (Tracegen → OTel Collector → Tempo)"**.
+The cluster runs on an automated schedule to minimize costs:
 
-## 🔧 Troubleshooting
+- **Runtime**: Weekdays 16:00-23:00 UTC (7 hours/day)
+- **Monthly Hours**: ~140 hours
+- **Estimated Cost**: £55-70/month
 
-- **DNS & TLS Issues**: See [`TROUBLESHOOTING_DNS_TLS.md`](TROUBLESHOOTING_DNS_TLS.md) for comprehensive guide on:
-  - ACME certificate issuance failures
-  - Network Security Group configuration
-  - ArgoCD and cert-manager conflicts
-  - Verification procedures
+Schedule is managed via Terraform in `terraform/automation.tf`.
 
-- **General Operations**: See [`OPERATIONS.md`](OPERATIONS.md) for day-2 operations, upgrades, and common issues.
+### Maintenance Jobs
 
-- **Migration Status**: See [`MIGRATION_STATUS.md`](MIGRATION_STATUS.md) for current migration progress and completed tasks.
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
+| `aks-stale-pod-cleanup` | Daily 09:00 UTC | Clean up pods after cluster restart |
+
+## CI/CD Pipeline
+
+### Jenkins (Validation)
+
+Jenkins performs CI validation on pull requests:
+
+- Terraform: `fmt -check`, `validate`, `plan`
+- Helm: `template` + `kubeconform`
+- YAML: `yamllint`
+- Security: `tfsec`, `checkov`, `trivy`
+
+### ArgoCD (Deployment)
+
+ArgoCD handles all deployments via GitOps:
+
+- Auto-sync enabled on `master` branch
+- Self-heal enabled (drift correction)
+- Prune enabled (remove orphaned resources)
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [OPERATIONS.md](OPERATIONS.md) | Day-2 operations, upgrades, troubleshooting |
+| [DIAGRAM.md](DIAGRAM.md) | Architecture and data flow diagrams |
+| [VERSIONS.md](VERSIONS.md) | Component version tracking |
+| [JENKINS_DEPLOYMENT.md](JENKINS_DEPLOYMENT.md) | Jenkins setup and configuration |
+| [TROUBLESHOOTING_DNS_TLS.md](TROUBLESHOOTING_DNS_TLS.md) | DNS and TLS troubleshooting |
+| [MIGRATION_STATUS.md](MIGRATION_STATUS.md) | Migration progress tracking |
+| [terraform/README.md](terraform/README.md) | Infrastructure documentation |
+
+## Prerequisites
+
+- Azure CLI with AKS credentials
+- `kubectl` configured for the cluster
+- Git access to this repository
+
+For emergency access or initial setup, see [OPERATIONS.md](OPERATIONS.md).
+
+## Contributing
+
+1. Create a feature branch from `master`
+2. Make changes and test locally where possible
+3. Submit a pull request
+4. Jenkins validates the changes
+5. Merge to `master` triggers ArgoCD deployment
+
+## License
+
+See [LICENSE](LICENSE) for details.
