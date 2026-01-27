@@ -5,12 +5,15 @@ This directory contains Jenkinsfiles for CI validation of the `rocketchat-k8s` r
 ## Available Pipelines
 
 ### `terraform-validation.Jenkinsfile`
-Validates Terraform infrastructure code:
+Validates Terraform infrastructure code using **Azure Workload Identity** for authentication:
 - Format check (`terraform fmt -check`)
 - Syntax validation (`terraform validate`)
-- Plan generation (`terraform plan`)
+- Plan generation (`terraform plan`) with Azure state backend
 
-**Agent**: `terraform` (Hashicorp Terraform image)
+**Agent**: `terraform-azure` (Azure CLI image with Terraform installed)
+**Authentication**: Uses Azure Workload Identity (federated credentials via `jenkins` service account)
+
+**Note**: The pipeline uses `terraform.tfvars.example` for CI validation (placeholder values). Real secrets are never stored in blob storage or git.
 
 ### `helm-validation.Jenkinsfile`
 Validates Helm charts and Kubernetes manifests:

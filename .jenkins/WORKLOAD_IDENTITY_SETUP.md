@@ -14,40 +14,60 @@ Workload Identity allows Kubernetes pods to authenticate to Azure services using
 
 ## Required Permissions
 
-The ESO identity needs these Azure RBAC roles:
+The ESO identity (`aks-canepro-eso-identity`) needs these Azure RBAC roles for Jenkins terraform validation:
 
-### 1. Key Vault Secrets User (Already Configured ✅)
+### 1. Key Vault Secrets User (Configured ✅)
+For External Secrets Operator to read secrets from Key Vault.
 ```bash
-# Already granted - verified in previous setup
 az role assignment list \
-  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/rg-canepro-aks/providers/Microsoft.KeyVault/vaults/aks-canepro-kv-e8d280" \
-  --assignee "fe3d3d95-fb61-4a42-8d82-ec0852486531" \
-  --query "[?roleDefinitionName=='Key Vault Secrets User']"
+  --scope "/subscriptions/1c6e2ceb-7310-4193-ab4d-95120348b934/resourceGroups/rg-canepro-aks/providers/Microsoft.KeyVault/vaults/aks-canepro-kv-e8d280" \
+  --assignee "18a1bdaf-a0f4-45fb-99c7-4f98e659f385" \
+  --output table
 ```
 
-### 2. Storage Account Access (Needs to be granted)
+### 2. Storage Account Access (Configured ✅)
+For Terraform backend state storage:
 
-The identity needs to read from the Storage Account to download `terraform.tfvars`:
+| Role | Scope | Purpose |
+|------|-------|---------|
+| `Reader` | Storage Account | Read storage account properties for terraform init |
+| `Storage Blob Data Contributor` | Storage Account | Read/write/lock terraform state files |
 
 ```bash
-# Set variables
-ESO_CLIENT_ID="fe3d3d95-fb61-4a42-8d82-ec0852486531"
-STORAGE_ACCOUNT_RESOURCE_ID="/subscriptions/$(az account show --query id -o tsv)/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/tfcaneprostate1"
-
-# Grant "Storage Blob Data Reader" role (read-only access to blobs)
-az role assignment create \
-  --assignee $ESO_CLIENT_ID \
-  --role "Storage Blob Data Reader" \
-  --scope $STORAGE_ACCOUNT_RESOURCE_ID
-
-# Verify the assignment
+# Verify storage account roles
 az role assignment list \
-  --scope $STORAGE_ACCOUNT_RESOURCE_ID \
-  --assignee $ESO_CLIENT_ID \
-  --query "[?roleDefinitionName=='Storage Blob Data Reader']"
+  --scope "/subscriptions/1c6e2ceb-7310-4193-ab4d-95120348b934/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/tfcaneprostate1" \
+  --assignee "18a1bdaf-a0f4-45fb-99c7-4f98e659f385" \
+  --output table
 ```
 
-**Alternative**: If you prefer to use Storage Account keys (stored in Key Vault), the identity only needs Key Vault access (already configured). The current Jenkinsfiles support both approaches.
+### 3. Subscription/Resource Group Access (Configured ✅)
+For Terraform to read existing Azure resources during plan:
+
+| Role | Scope | Purpose |
+|------|-------|---------|
+| `Reader` | Subscription | Read all Azure resources for terraform plan |
+| `Azure Kubernetes Service Cluster User Role` | AKS Cluster | List AKS cluster credentials |
+
+```bash
+# Verify subscription-level roles
+az role assignment list \
+  --assignee "18a1bdaf-a0f4-45fb-99c7-4f98e659f385" \
+  --all \
+  --output table
+```
+
+### Full Role Summary
+
+| Role | Scope | Status |
+|------|-------|--------|
+| Key Vault Secrets User | Key Vault | ✅ Configured |
+| Reader | Storage Account (tfcaneprostate1) | ✅ Configured |
+| Storage Blob Data Contributor | Storage Account (tfcaneprostate1) | ✅ Configured |
+| Reader | Subscription | ✅ Configured |
+| Azure Kubernetes Service Cluster User Role | AKS Cluster | ✅ Configured |
+
+**Note**: For `terraform apply` (not currently enabled), the identity would need `Contributor` role on the resource group instead of just `Reader`.
 
 ## How It Works
 
