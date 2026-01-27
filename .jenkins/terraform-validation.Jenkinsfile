@@ -117,24 +117,15 @@ spec:
       }
     }
     
-    // Stage 5: Download tfvars
+    // Stage 5: Prepare tfvars for validation
     stage('Get Variables') {
       steps {
         dir('terraform') {
           sh '''
-            # Download terraform.tfvars from Azure Storage
-            az storage blob download \
-              --account-name $STORAGE_ACCOUNT \
-              --container-name $STORAGE_CONTAINER \
-              --name $TFVARS_BLOB \
-              --file terraform.tfvars \
-              --auth-mode login || true
-            
-            # Check if downloaded file has content, otherwise use example
-            if [ ! -s terraform.tfvars ]; then
-              echo "INFO: tfvars empty or not found, using example file for validation"
-              cp terraform.tfvars.example terraform.tfvars
-            fi
+            # Use example file for CI validation (contains placeholder values)
+            # Real secrets are never stored in blob storage
+            echo "INFO: Using example tfvars for validation (placeholder values)"
+            cp terraform.tfvars.example terraform.tfvars
           '''
         }
       }
