@@ -367,11 +367,38 @@ az aks stop --resource-group rg-canepro-aks --name aks-canepro
 - **Current schedule** (16:00-23:00): ~35 hours/week = ~140 hours/month ≈ £55-70/month
 - **Savings**: ~52% reduction in runtime hours, saving ~£75-88/month
 
-## Jenkins + Terraform (future)
+## Jenkins + Terraform (CI Validation)
 
-To keep GitOps principles intact:
-- Jenkins can run `terraform fmt`, `terraform validate`, and `terraform plan` as PR checks.
-- Jenkins should not run `terraform apply` unless the organization explicitly changes the Cloud Shell restriction and you implement manual approvals + least-privilege Azure auth + secure handling of `terraform.tfvars` and state.
+Jenkins is configured to run Terraform validation on every push/PR using **Azure Workload Identity**:
+
+### Current CI Pipeline Stages (All Enabled ✅)
+1. **Setup**: Installs Terraform in the Azure CLI container
+2. **Azure Login**: Authenticates via Workload Identity (federated token)
+3. **Terraform Format**: `terraform fmt -check -recursive`
+4. **Terraform Validate**: `terraform init` + `terraform validate`
+5. **Terraform Plan**: `terraform plan` with state from Azure Storage
+
+### How It Works
+- **Authentication**: Uses the `jenkins` service account with federated credentials to the ESO managed identity
+- **State Backend**: Reads/writes to `tfcaneprostate1` storage account using Azure AD auth
+- **Variables**: Uses `terraform.tfvars.example` for CI (placeholder values, no real secrets)
+- **Plan Output**: Archived as build artifact for review
+
+### Permissions Required (Already Configured)
+The ESO identity has these roles for Jenkins terraform validation:
+- `Reader` on subscription (read Azure resources)
+- `Storage Blob Data Contributor` on tfcaneprostate1 (read/write/lock state)
+- `Azure Kubernetes Service Cluster User Role` on AKS (list cluster credentials)
+
+See `.jenkins/WORKLOAD_IDENTITY_SETUP.md` for full details.
+
+### Terraform Apply from Jenkins
+**Not currently enabled.** To enable `terraform apply`:
+1. Grant `Contributor` role on the resource group (instead of just `Reader`)
+2. Add manual approval step in the pipeline
+3. Implement secure handling of real `terraform.tfvars` (e.g., fetch from Key Vault)
+
+For now, `terraform apply` should be run from **Azure Cloud Shell** on your work machine (per current operational guidelines).
 
 ## Destroying Resources
 

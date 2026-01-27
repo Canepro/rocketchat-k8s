@@ -296,19 +296,34 @@ mongodb_metrics_endpoint_password = "CHANGE_ME"
 - Secret values will be created in Key Vault when you run `terraform apply`
 - Values are marked `sensitive = true` so they won't appear in Terraform output
 
-##### Step 2.5: Terraform state + Jenkins (future workflow)
+##### Step 2.5: Terraform CI/CD (Jenkins Integration)
 
-We expect Terraform to be managed in a **stateful** way:
-- Use the Azure Storage backend (`backend "azurerm" {}` in `terraform/main.tf`) and provide backend values via a local `backend.hcl` file (gitignored).
-- Terraform state must be treated as sensitive (it may include Key Vault secret values).
+Terraform is managed in a **stateful** way:
+- Uses Azure Storage backend (`tfcaneprostate1`) with state file `aks.terraform.tfstate`
+- State is treated as sensitive (may include Key Vault secret values)
+- Backend uses Azure AD authentication (`use_azuread_auth=true`)
 
-**Jenkins guidance (GitOps-aligned):**
-- Jenkins may run **`terraform fmt` / `terraform validate` / `terraform plan`** as PR checks.
-- Jenkins should **not** run `terraform apply` unless the organization explicitly changes the current restriction and the pipeline is designed with:
-  - manual approvals,
-  - remote backend + state locking,
-  - least-privilege Azure credentials,
-  - and secure handling of `terraform.tfvars` (never stored in git, never echoed to logs).
+**Jenkins CI Pipeline (Enabled ✅):**
+
+Jenkins runs these stages on every push/PR to validate Terraform code:
+1. `terraform fmt -check` - Format validation
+2. `terraform validate` - Syntax validation
+3. `terraform plan` - Plan generation (uses placeholder tfvars for CI)
+
+**Authentication**: Uses Azure Workload Identity via the `jenkins` service account federated to the ESO managed identity.
+
+**View CI Results**:
+- Jenkins: `https://jenkins.canepro.me/job/rocketchat-k8s/job/master/`
+- Plan output is archived as a build artifact
+
+**Jenkins Apply (Not Enabled):**
+
+`terraform apply` is **not** run from Jenkins. To enable it in future:
+- Grant `Contributor` role (currently only `Reader`) on the resource group
+- Add manual approval step
+- Implement secure tfvars handling (fetch real secrets from Key Vault)
+
+**Current Workflow**: Run `terraform apply` from **Azure Cloud Shell** on your work machine.
 
 **Alternative approach (manual secret creation):** If you prefer not to store secrets in Terraform state, you can remove the `azurerm_key_vault_secret` resources from `keyvault.tf` and populate secrets manually after Terraform apply (see `terraform/README.md` for details).
 
