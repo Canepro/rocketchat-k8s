@@ -1,81 +1,177 @@
 // Terraform Validation Pipeline for rocketchat-k8s
-// This pipeline validates Terraform infrastructure code without applying changes.
-// Purpose: CI validation only - ArgoCD handles actual deployments via GitOps.
+// This pipeline validates Terraform infrastructure code including plan generation.
+// Uses Azure Workload Identity for authentication.
 pipeline {
-  // Use the 'terraform' Kubernetes agent (Hashicorp Terraform image)
-  // This agent has Terraform pre-installed and ready to use
   agent {
     kubernetes {
-      label 'terraform'
+      label 'terraform-azure'
       defaultContainer 'terraform'
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    azure.workload.identity/use: "true"
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: terraform
+    image: mcr.microsoft.com/azure-cli:latest
+    command: ['sleep', '3600']
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    env:
+    - name: ARM_USE_OIDC
+      value: "true"
+    - name: ARM_OIDC_TOKEN_FILE_PATH
+      value: "/var/run/secrets/azure/tokens/azure-identity-token"
+    - name: ARM_TENANT_ID
+      value: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"
+    - name: ARM_CLIENT_ID
+      value: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
+    - name: ARM_SUBSCRIPTION_ID
+      value: "096534ab-797f-4623-82dc-5f6526f38ed9"
+"""
     }
   }
   
+  environment {
+    // Azure Storage for tfvars
+    STORAGE_ACCOUNT = 'tfcaneprostate1'
+    STORAGE_CONTAINER = 'tfstate'
+    TFVARS_BLOB = 'terraform.tfvars'
+  }
+  
   stages {
-    // Stage 1: Format Check
-    // Ensures all Terraform files follow consistent formatting standards
-    // Fails if files need formatting (enforces code style consistency)
-    stage('Terraform Format Check') {
+    // Stage 1: Install Terraform
+    stage('Setup') {
+      steps {
+        sh '''
+          # Install Terraform
+          apk add --no-cache curl unzip
+          TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*' | cut -d'"' -f4)
+          curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
+          unzip -o terraform.zip -d /usr/local/bin/
+          rm terraform.zip
+          terraform version
+        '''
+      }
+    }
+    
+    // Stage 2: Azure Authentication
+    stage('Azure Login') {
+      steps {
+        sh '''
+          # Login using Workload Identity (federated token)
+          az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
+            --service-principal \
+            -u $ARM_CLIENT_ID \
+            -t $ARM_TENANT_ID || {
+            echo "Workload Identity login failed, trying managed identity..."
+            az login --identity --client-id $ARM_CLIENT_ID
+          }
+          
+          # Set subscription
+          az account set --subscription $ARM_SUBSCRIPTION_ID
+          az account show
+        '''
+      }
+    }
+    
+    // Stage 3: Format Check
+    stage('Terraform Format') {
       steps {
         dir('terraform') {
-          // -check flag: only check formatting, don't modify files
-          // -recursive: check all subdirectories
           sh 'terraform fmt -check -recursive'
         }
       }
     }
     
-    // Stage 2: Syntax Validation
-    // Validates Terraform configuration syntax and basic consistency
-    // Uses -backend=false to avoid needing actual backend credentials
+    // Stage 4: Terraform Init & Validate
     stage('Terraform Validate') {
       steps {
         dir('terraform') {
-          // Initialize without backend (no state file needed for validation)
-          sh 'terraform init -backend=false'
-          // Validate configuration syntax and internal consistency
-          sh 'terraform validate'
+          sh '''
+            # Initialize with backend (uses Workload Identity for auth)
+            terraform init \
+              -backend-config="resource_group_name=rg-terraform-state" \
+              -backend-config="storage_account_name=${STORAGE_ACCOUNT}" \
+              -backend-config="container_name=${STORAGE_CONTAINER}" \
+              -backend-config="key=terraform.tfstate" \
+              -backend-config="use_oidc=true" \
+              -backend-config="tenant_id=${ARM_TENANT_ID}" \
+              -backend-config="client_id=${ARM_CLIENT_ID}" \
+              -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
+            
+            terraform validate
+          '''
         }
       }
     }
     
-    // Stage 3: Plan Generation (SKIPPED in CI)
-    // Plan generation requires Azure authentication which is not available in CI.
-    // Format and Validate stages are sufficient for CI validation.
-    // Real planning/apply happens in Azure Cloud Shell with proper authentication.
-    //
-    // NOTE: Plan stage is commented out because:
-    // - Terraform provider requires Azure CLI (`az`) for authentication
-    // - Jenkins Terraform container is minimal (no Azure CLI installed)
-    // - Format + Validate stages provide sufficient CI validation
-    // - Actual planning/apply happens in Cloud Shell with proper auth
-    //
-    // stage('Terraform Plan') {
-    //   steps {
-    //     sh '''
-    //       rm -rf terraform-ci
-    //       cp -R terraform terraform-ci
-    //     '''
-    //     dir('terraform-ci') {
-    //       sh 'rm -f backend.tf'
-    //       sh 'terraform init -backend=false'
-    //       sh 'terraform plan -no-color -input=false -var-file=terraform.tfvars.example'
-    //     }
-    //   }
-    // }
+    // Stage 5: Download tfvars
+    stage('Get Variables') {
+      steps {
+        dir('terraform') {
+          sh '''
+            # Download terraform.tfvars from Azure Storage
+            az storage blob download \
+              --account-name $STORAGE_ACCOUNT \
+              --container-name $STORAGE_CONTAINER \
+              --name $TFVARS_BLOB \
+              --file terraform.tfvars \
+              --auth-mode login || {
+              echo "WARNING: Could not download tfvars, using example file"
+              cp terraform.tfvars.example terraform.tfvars 2>/dev/null || true
+            }
+          '''
+        }
+      }
+    }
+    
+    // Stage 6: Terraform Plan
+    stage('Terraform Plan') {
+      steps {
+        dir('terraform') {
+          sh '''
+            terraform plan \
+              -no-color \
+              -input=false \
+              -out=tfplan \
+              -detailed-exitcode || PLAN_EXIT=$?
+            
+            # Exit codes: 0 = no changes, 1 = error, 2 = changes present
+            if [ "${PLAN_EXIT:-0}" = "1" ]; then
+              echo "Terraform plan failed"
+              exit 1
+            elif [ "${PLAN_EXIT:-0}" = "2" ]; then
+              echo "Changes detected in plan"
+            else
+              echo "No changes detected"
+            fi
+          '''
+        }
+      }
+    }
   }
   
-  // Post-build actions: cleanup and status reporting
   post {
-    // Always clean workspace after build (free up disk space)
     always {
+      // Archive plan for review
+      dir('terraform') {
+        sh 'terraform show -no-color tfplan > tfplan.txt 2>/dev/null || true'
+        archiveArtifacts artifacts: 'tfplan.txt', allowEmptyArchive: true
+      }
       cleanWs()
     }
-    // Success message for easy log scanning
     success {
       echo '✅ Terraform validation passed'
     }
-    // Failure message for easy log scanning
     failure {
       echo '❌ Terraform validation failed'
     }
