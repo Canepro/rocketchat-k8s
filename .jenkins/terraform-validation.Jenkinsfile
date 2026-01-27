@@ -128,10 +128,13 @@ spec:
               --container-name $STORAGE_CONTAINER \
               --name $TFVARS_BLOB \
               --file terraform.tfvars \
-              --auth-mode login || {
-              echo "WARNING: Could not download tfvars, using example file"
-              cp terraform.tfvars.example terraform.tfvars 2>/dev/null || true
-            }
+              --auth-mode login || true
+            
+            # Check if downloaded file has content, otherwise use example
+            if [ ! -s terraform.tfvars ]; then
+              echo "INFO: tfvars empty or not found, using example file for validation"
+              cp terraform.tfvars.example terraform.tfvars
+            fi
           '''
         }
       }
