@@ -79,14 +79,14 @@ echo ""
 
 for job in "${OLD_JOBS[@]}"; do
   echo "Checking job: $job"
-  
+
   # Check if job exists
   EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
     -u "$JENKINS_USER:$JENKINS_PASSWORD" \
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -H "$CRUMB_FIELD:$CRUMB_VALUE" \
     "$JENKINS_URL/job/$job/api/json")
-  
+
   if [ "$EXISTS" = "200" ]; then
     echo "  Deleting: $job"
     DELETE_RESPONSE=$(curl -sS -L -w "\n%{http_code}" -X POST \
@@ -94,9 +94,9 @@ for job in "${OLD_JOBS[@]}"; do
       -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
       -H "$CRUMB_FIELD:$CRUMB_VALUE" \
       "$JENKINS_URL/job/$job/doDelete")
-    
+
     HTTP_CODE=$(echo "$DELETE_RESPONSE" | tail -n1)
-    
+
     if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
       echo "  ✅ Deleted: $job"
     else
@@ -115,3 +115,4 @@ echo "  - version-check-rocketchat-k8s"
 echo "  - version-check-central-observability-hub-stack"
 echo "  - security-validation-rocketchat-k8s"
 echo "  - security-validation-central-observability-hub-stack"
+

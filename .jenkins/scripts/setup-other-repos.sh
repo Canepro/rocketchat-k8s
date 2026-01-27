@@ -1,11 +1,12 @@
 #!/bin/bash
 # Script to copy Jenkins setup files to other repositories
-# Usage: bash .jenkins/setup-other-repos.sh
+# Usage: bash .jenkins/scripts/setup-other-repos.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROCKETCHAT_K8S_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROCKETCHAT_K8S_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
+JENKINS_SRC_DIR="${ROCKETCHAT_K8S_REPO}/.jenkins"
 
 echo "🚀 Jenkins Multi-Repo Setup Script"
 echo "=================================="
@@ -28,42 +29,41 @@ setup_repo() {
   local REPO_NAME=$1
   local REPO_PATH="$REPOS_DIR/$REPO_NAME"
   local JENKINS_DIR="$REPO_PATH/.jenkins"
-  
+
   if [ ! -d "$REPO_PATH" ]; then
     echo "⚠️  Repository not found: $REPO_PATH"
     echo "   Skipping $REPO_NAME..."
     return 1
   fi
-  
+
   echo ""
   echo "📦 Setting up: $REPO_NAME"
   echo "   Path: $REPO_PATH"
-  
+
   # Create .jenkins directory
   mkdir -p "$JENKINS_DIR"
-  
+
   # Copy shared utilities
   echo "   Copying shared utilities..."
-  cp "$SCRIPT_DIR/create-job.sh" "$JENKINS_DIR/"
-  cp "$SCRIPT_DIR/test-auth.sh" "$JENKINS_DIR/" 2>/dev/null || true
-  cp "$SCRIPT_DIR/setup-via-cli.md" "$JENKINS_DIR/" 2>/dev/null || true
-  
+  cp "$JENKINS_SRC_DIR/scripts/create-job.sh" "$JENKINS_DIR/create-job.sh"
+  cp "$JENKINS_SRC_DIR/scripts/test-auth.sh" "$JENKINS_DIR/test-auth.sh" 2>/dev/null || true
+
   # Make scripts executable
   chmod +x "$JENKINS_DIR/create-job.sh"
   if [ -f "$JENKINS_DIR/test-auth.sh" ]; then
     chmod +x "$JENKINS_DIR/test-auth.sh"
   fi
-  
+
   echo "   ✅ Shared utilities copied"
-  
+
   # Repo-specific files
   case "$REPO_NAME" in
     portfolio_website-main)
       echo "   Creating portfolio website Jenkinsfiles..."
       # Copy actual Jenkinsfile
-      cp "$SCRIPT_DIR/portfolio-website-main-application-validation.Jenkinsfile" \
+      cp "$JENKINS_SRC_DIR/portfolio-website-main-application-validation.Jenkinsfile" \
          "$JENKINS_DIR/application-validation.Jenkinsfile"
-      
+
       # Create job config
       cat > "$JENKINS_DIR/job-config.xml" <<'EOF'
 <?xml version='1.1' encoding='UTF-8'?>
@@ -133,15 +133,15 @@ setup_repo() {
 EOF
       echo "   ✅ Portfolio website files created"
       ;;
-      
+
     GrafanaLocal)
       echo "   Creating observability hub Jenkinsfiles..."
       # Copy actual Jenkinsfiles
-      cp "$SCRIPT_DIR/central-observability-hub-stack-terraform-validation.Jenkinsfile" \
+      cp "$JENKINS_SRC_DIR/central-observability-hub-stack-terraform-validation.Jenkinsfile" \
          "$JENKINS_DIR/terraform-validation.Jenkinsfile"
-      cp "$SCRIPT_DIR/central-observability-hub-stack-k8s-manifest-validation.Jenkinsfile" \
+      cp "$JENKINS_SRC_DIR/central-observability-hub-stack-k8s-manifest-validation.Jenkinsfile" \
          "$JENKINS_DIR/k8s-manifest-validation.Jenkinsfile"
-      
+
       # Create job config for Terraform validation
       # Note: Local directory is GrafanaLocal, but GitHub repo is central-observability-hub-stack
       cat > "$JENKINS_DIR/job-config.xml" <<'EOF'
@@ -212,12 +212,12 @@ EOF
 EOF
       echo "   ✅ Observability hub files created"
       ;;
-      
+
     *)
       echo "   ⚠️  Unknown repo type, only copying shared utilities"
       ;;
   esac
-  
+
   # Create README
   cat > "$JENKINS_DIR/README.md" <<EOF
 # Jenkins CI Validation for $REPO_NAME
@@ -238,7 +238,7 @@ cd $REPO_NAME
 export JENKINS_URL="https://jenkins.canepro.me"
 export JOB_NAME="$REPO_NAME"
 export CONFIG_FILE=".jenkins/job-config.xml"
-bash .jenkins/create-job.sh
+bash .jenkins/scripts/create-job.sh
 \`\`\`
 
 ### Option 2: UI Setup
@@ -259,12 +259,9 @@ Configure webhook in repository settings:
 
 ## More Information
 
-See [JENKINS_STRATEGY.md](../../rocketchat-k8s/JENKINS_STRATEGY.md) in the \`rocketchat-k8s\` repository for:
-- Understanding what Jenkins does
-- How to maximize Jenkins across repos
-- Best practices
+See [JENKINS_DEPLOYMENT.md](../../rocketchat-k8s/JENKINS_DEPLOYMENT.md) in the \`rocketchat-k8s\` repository (section: **"Jenkins Strategy (CI vs CD)"**) for the rationale and best practices.
 EOF
-  
+
   echo "   ✅ README created"
   echo "   ✅ Setup complete for $REPO_NAME"
 }
@@ -282,3 +279,4 @@ echo "1. Review the .jenkins/ directories in each repo"
 echo "2. Commit and push the files to GitHub"
 echo "3. Create Jenkins jobs using the create-job.sh script or UI"
 echo "4. Configure GitHub webhooks for each repository"
+

@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  .jenkins/sync-jenkinsfiles-to-repo.sh /path/to/target-repo [--commit]
+  .jenkins/scripts/sync-jenkinsfiles-to-repo.sh /path/to/target-repo [--commit]
 
 What it does:
   - Copies these files into the target repo:
@@ -14,7 +14,7 @@ What it does:
   - Optionally commits the changes in the target repo (--commit).
 
 Example (WSL):
-  wsl bash -lc "./.jenkins/sync-jenkinsfiles-to-repo.sh /mnt/d/repos/central-observability-hub-stack --commit"
+  wsl bash -lc "./.jenkins/scripts/sync-jenkinsfiles-to-repo.sh /mnt/d/repos/central-observability-hub-stack --commit"
 EOF
 }
 
@@ -26,7 +26,7 @@ fi
 TARGET_REPO="$1"
 DO_COMMIT="${2:-}"
 
-SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC_DIR="${SRC_ROOT}/.jenkins"
 
 if [[ ! -d "$TARGET_REPO" ]]; then

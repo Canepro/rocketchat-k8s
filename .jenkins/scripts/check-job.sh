@@ -42,7 +42,7 @@ if [ "$HTTP_CODE" = "200" ]; then
   JOB_INFO=$(curl -s \
     -u "$JENKINS_USER:$JENKINS_PASSWORD" \
     "$JENKINS_URL/job/$JOB_NAME/api/json?pretty=true")
-  
+
   echo "$JOB_INFO" | grep -E "(name|url|color|healthReport)" | head -10
   echo ""
   echo "Job URL: $JENKINS_URL/job/$JOB_NAME"
@@ -53,5 +53,6 @@ else
   echo "❌ Job '$JOB_NAME' does not exist (HTTP $HTTP_CODE)"
   echo ""
   echo "To create the job, run:"
-  echo "  bash .jenkins/create-job.sh"
+  echo "  bash .jenkins/scripts/create-job.sh"
 fi
+

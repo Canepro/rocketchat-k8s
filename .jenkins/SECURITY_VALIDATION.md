@@ -7,7 +7,8 @@ This document describes the automated security validation workflow that scans in
 The security validation pipeline:
 1. **Scans** Terraform code, Kubernetes manifests, and container images
 2. **Assesses** risk levels based on findings
-3. **Creates** GitHub PRs for high-priority fixes or Issues for critical vulnerabilities
+3. **Reports** results (never fails the build due to findings)
+4. **Creates** a single open GitHub Issue (critical) or PR (non-critical) and **updates it** on subsequent runs (de-dupe via comments)
 
 ## Tools Used
 
@@ -20,9 +21,7 @@ The security validation pipeline:
 
 Findings are categorized by severity:
 - **CRITICAL**: Immediate action required → Creates GitHub Issue
-- **HIGH**: High priority → Creates automated PR with fixes
-- **MEDIUM**: Medium priority → Logged, optional PR
-- **LOW**: Low priority → Logged only
+- **HIGH/MEDIUM/LOW**: Creates (or updates) an automated PR for review
 
 ## Thresholds
 
@@ -35,7 +34,7 @@ Default thresholds (configurable via environment variables):
 
 ### Recommended: Standalone Scheduled Job
 
-Create a separate Jenkins job that runs on schedule (daily):
+Create a separate Jenkins job that runs on a weekday schedule (to match cluster uptime):
 
 **Quick Setup:**
 ```bash
@@ -43,9 +42,9 @@ bash .jenkins/create-security-validation-job.sh
 ```
 
 **Manual Setup:**
-1. **Create Pipeline job** (not multibranch) named `security-validation`
+1. **Create Pipeline job** (not multibranch) named `security-validation-{repo-name}` (recommended)
 2. **Use**: `.jenkins/security-validation.Jenkinsfile`
-3. **Schedule**: `H 3 * * *` (daily at 3 AM)
+3. **Schedule**: `H 18 * * 1-5` (weekdays at 6 PM, after cluster starts at 4 PM)
 4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `master`
 5. **Credentials**: Use `github-token` for GitHub API access
 
@@ -74,24 +73,10 @@ stage('Security Scan') {
 
 ## Usage
 
-### Manual Run
-
-Run security validation manually:
-
-```bash
-# Run security scan
-bash .jenkins/create-security-pr.sh
-
-# Or use the full pipeline
-# (requires Jenkins with security-validation.Jenkinsfile configured)
-```
-
 ### Automatic Run
 
 The pipeline runs automatically on:
-- **Pull Requests**: Validates changes before merge
-- **Master branch**: Full security scan on each commit
-- **Scheduled**: Can be configured to run daily/weekly
+- **Scheduled job**: Runs on the configured cron schedule
 
 ## Output
 
@@ -108,15 +93,9 @@ The pipeline automatically:
 3. **Creates PR** if high findings exceed threshold (with automated fixes)
 4. **Comments on PR** with scan summary
 
-### Manual PR Creation
+### Manual PR/Issue Creation
 
-```bash
-# Set GitHub token
-export GITHUB_TOKEN="your-token"
-
-# Run risk assessment and create PR/issue
-bash .jenkins/create-security-pr.sh
-```
+Use the Jenkins pipeline (`.jenkins/security-validation.Jenkinsfile`) — it contains the remediation + de-dupe logic and is the supported path.
 
 ## Customization
 

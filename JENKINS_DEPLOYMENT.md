@@ -4,12 +4,18 @@ This guide covers deploying a general-purpose Jenkins CI server on AKS for CI va
 
 **Last Updated**: 2026-01-19
 
-> **📖 New to Jenkins?** Read [JENKINS_STRATEGY.md](JENKINS_STRATEGY.md) first to understand:
-> - What Jenkins does and why it's valuable
-> - How it fits into your GitOps workflow
-> - How to maximize it across all your repositories and clusters
+> **📖 New to Jenkins?** Start with **"Jenkins Strategy (CI vs CD)"** below to understand why this repo keeps Jenkins validation-only and lets ArgoCD deploy.
 
 ---
+
+## Jenkins Strategy (CI vs CD)
+
+This repo follows a **GitOps split**:
+
+- **CI (Jenkins)**: validates changes (lint/plan/template/security scans) and reports back to GitHub PRs.
+- **CD (ArgoCD)**: deploys what’s in `master` to the cluster.
+
+Keeping Jenkins “validation-only” avoids out-of-band drift and keeps Git as the source of truth.
 
 ## 📋 Overview
 
@@ -702,7 +708,7 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 4. Configure the GitHub branch source:
 
 **Option B: Via CLI** (if UI is not working - **Recommended**)
-See `.jenkins/setup-via-cli.md` for complete CLI setup instructions.
+Use the repo scripts and XML templates in `.jenkins/` (they handle CSRF crumbs and common auth pitfalls).
 
 **Quick CLI Method** (with CSRF token):
 ```bash
