@@ -2,7 +2,7 @@
 
 This document tracks all software versions used in the AKS Rocket.Chat deployment. Update this file when upgrading any component.
 
-**Last Updated**: 2026-01-20
+**Last Updated**: 2026-01-27
 
 ## Upgrade Status Legend
 
@@ -93,7 +93,7 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 | Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
 |-----------|----------------|----------------|----------------|----------|---------------|
 | **Jenkins Helm Chart** | `5.8.110` | `5.8.110` | ✅ **Up to date** (2026-01-19) | `GrafanaLocal/argocd/applications/aks-jenkins.yaml` | [Jenkins Helm Charts](https://github.com/jenkinsci/helm-charts/releases) |
-| **Jenkins LTS** | `2.528.3-lts-jdk21` | `2.528.3-lts` | ✅ **Up to date** (2026-01-20) | `jenkins-values.yaml` | [Jenkins Releases](https://www.jenkins.io/changelog-stable/) |
+| **Jenkins LTS** | `2.541.1-lts-jdk21` | `2.541.1-lts` | ✅ **Up to date** (2026-01-27) | `jenkins-values.yaml` | [Jenkins Releases](https://www.jenkins.io/changelog-stable/) |
 
 **Jenkins Role**: CI validation only (PR checks, linting, policy validation)
 - ✅ Configured with latest LTS + Java 21 (best practice)
