@@ -77,3 +77,4 @@ echo "================================"
 echo "If all tests pass, you can use:"
 echo "  CRUMB_FIELD=\"$CRUMB_FIELD\""
 echo "  CRUMB_VALUE=\"$CRUMB_VALUE\""
+

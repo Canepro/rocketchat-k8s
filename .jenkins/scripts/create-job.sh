@@ -123,7 +123,7 @@ RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
 
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
   echo "✅ Job created successfully!"
-  
+
   # Trigger initial multibranch indexing
   # (Some Jenkins instances don't expose /scan; /build?delay=0sec triggers Branch Indexing.)
   echo "Triggering initial indexing..."
@@ -132,9 +132,9 @@ if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -H "$CRUMB_FIELD:$CRUMB_VALUE" \
     "$JENKINS_URL/job/$JOB_NAME/build?delay=0sec")
-  
+
   INDEX_CODE=$(echo "$INDEX_RESPONSE" | tail -n1)
-  
+
   if [ "$INDEX_CODE" = "200" ] || [ "$INDEX_CODE" = "201" ] || [ "$INDEX_CODE" = "302" ]; then
     echo "✅ Initial indexing triggered!"
     echo ""
@@ -157,3 +157,4 @@ else
   echo "3. Verify XML config is valid: cat $CONFIG_FILE | head -20"
   exit 1
 fi
+

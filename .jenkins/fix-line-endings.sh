@@ -2,18 +2,18 @@
 # Quick fix for Windows line endings in bash scripts
 # Run this in WSL/bash to convert CRLF to LF
 
-if [ -f .jenkins/create-job.sh ]; then
-  dos2unix .jenkins/create-job.sh 2>/dev/null || \
-  sed -i 's/\r$//' .jenkins/create-job.sh || \
-  tr -d '\r' < .jenkins/create-job.sh > .jenkins/create-job.sh.tmp && mv .jenkins/create-job.sh.tmp .jenkins/create-job.sh
-  echo "✅ Fixed line endings in create-job.sh"
+if [ -f .jenkins/scripts/create-job.sh ]; then
+  dos2unix .jenkins/scripts/create-job.sh 2>/dev/null || \
+  sed -i 's/\r$//' .jenkins/scripts/create-job.sh || \
+  tr -d '\r' < .jenkins/scripts/create-job.sh > .jenkins/scripts/create-job.sh.tmp && mv .jenkins/scripts/create-job.sh.tmp .jenkins/scripts/create-job.sh
+  echo "✅ Fixed line endings in scripts/create-job.sh"
 fi
 
-if [ -f .jenkins/test-auth.sh ]; then
-  dos2unix .jenkins/test-auth.sh 2>/dev/null || \
-  sed -i 's/\r$//' .jenkins/test-auth.sh || \
-  tr -d '\r' < .jenkins/test-auth.sh > .jenkins/test-auth.sh.tmp && mv .jenkins/test-auth.sh.tmp .jenkins/test-auth.sh
-  echo "✅ Fixed line endings in test-auth.sh"
+if [ -f .jenkins/scripts/test-auth.sh ]; then
+  dos2unix .jenkins/scripts/test-auth.sh 2>/dev/null || \
+  sed -i 's/\r$//' .jenkins/scripts/test-auth.sh || \
+  tr -d '\r' < .jenkins/scripts/test-auth.sh > .jenkins/scripts/test-auth.sh.tmp && mv .jenkins/scripts/test-auth.sh.tmp .jenkins/scripts/test-auth.sh
+  echo "✅ Fixed line endings in scripts/test-auth.sh"
 fi
 
 if [ -f .jenkins/create-version-check-job.sh ]; then
@@ -37,32 +37,11 @@ if [ -f .jenkins/setup-all-repos.sh ]; then
   echo "✅ Fixed line endings in setup-all-repos.sh"
 fi
 
-if [ -f .jenkins/check-versions.sh ]; then
-  dos2unix .jenkins/check-versions.sh 2>/dev/null || \
-  sed -i 's/\r$//' .jenkins/check-versions.sh || \
-  tr -d '\r' < .jenkins/check-versions.sh > .jenkins/check-versions.sh.tmp && mv .jenkins/check-versions.sh.tmp .jenkins/check-versions.sh
-  echo "✅ Fixed line endings in check-versions.sh"
-fi
-
-if [ -f .jenkins/create-security-pr.sh ]; then
-  dos2unix .jenkins/create-security-pr.sh 2>/dev/null || \
-  sed -i 's/\r$//' .jenkins/create-security-pr.sh || \
-  tr -d '\r' < .jenkins/create-security-pr.sh > .jenkins/create-security-pr.sh.tmp && mv .jenkins/create-security-pr.sh.tmp .jenkins/create-security-pr.sh
-  echo "✅ Fixed line endings in create-security-pr.sh"
-fi
-
-if [ -f .jenkins/update-versions-md.sh ]; then
-  dos2unix .jenkins/update-versions-md.sh 2>/dev/null || \
-  sed -i 's/\r$//' .jenkins/update-versions-md.sh || \
-  tr -d '\r' < .jenkins/update-versions-md.sh > .jenkins/update-versions-md.sh.tmp && mv .jenkins/update-versions-md.sh.tmp .jenkins/update-versions-md.sh
-  echo "✅ Fixed line endings in update-versions-md.sh"
-fi
-
-if [ -f .jenkins/delete-old-jobs.sh ]; then
-  dos2unix .jenkins/delete-old-jobs.sh 2>/dev/null || \
-  sed -i 's/\r$//' .jenkins/delete-old-jobs.sh || \
-  tr -d '\r' < .jenkins/delete-old-jobs.sh > .jenkins/delete-old-jobs.sh.tmp && mv .jenkins/delete-old-jobs.sh.tmp .jenkins/delete-old-jobs.sh
-  echo "✅ Fixed line endings in delete-old-jobs.sh"
+if [ -f .jenkins/scripts/delete-old-jobs.sh ]; then
+  dos2unix .jenkins/scripts/delete-old-jobs.sh 2>/dev/null || \
+  sed -i 's/\r$//' .jenkins/scripts/delete-old-jobs.sh || \
+  tr -d '\r' < .jenkins/scripts/delete-old-jobs.sh > .jenkins/scripts/delete-old-jobs.sh.tmp && mv .jenkins/scripts/delete-old-jobs.sh.tmp .jenkins/scripts/delete-old-jobs.sh
+  echo "✅ Fixed line endings in scripts/delete-old-jobs.sh"
 fi
 
 if [ -f .jenkins/test-job-trigger.sh ]; then
@@ -92,4 +71,25 @@ if [ -f .jenkins/terraform-validation-with-security.Jenkinsfile ]; then
   sed -i 's/\r$//' .jenkins/terraform-validation-with-security.Jenkinsfile || \
   tr -d '\r' < .jenkins/terraform-validation-with-security.Jenkinsfile > .jenkins/terraform-validation-with-security.Jenkinsfile.tmp && mv .jenkins/terraform-validation-with-security.Jenkinsfile.tmp .jenkins/terraform-validation-with-security.Jenkinsfile
   echo "✅ Fixed line endings in terraform-validation-with-security.Jenkinsfile"
+fi
+
+if [ -f .jenkins/scripts/check-job.sh ]; then
+  dos2unix .jenkins/scripts/check-job.sh 2>/dev/null || \
+  sed -i 's/\r$//' .jenkins/scripts/check-job.sh || \
+  tr -d '\r' < .jenkins/scripts/check-job.sh > .jenkins/scripts/check-job.sh.tmp && mv .jenkins/scripts/check-job.sh.tmp .jenkins/scripts/check-job.sh
+  echo "✅ Fixed line endings in scripts/check-job.sh"
+fi
+
+if [ -f .jenkins/scripts/sync-jenkinsfiles-to-repo.sh ]; then
+  dos2unix .jenkins/scripts/sync-jenkinsfiles-to-repo.sh 2>/dev/null || \
+  sed -i 's/\r$//' .jenkins/scripts/sync-jenkinsfiles-to-repo.sh || \
+  tr -d '\r' < .jenkins/scripts/sync-jenkinsfiles-to-repo.sh > .jenkins/scripts/sync-jenkinsfiles-to-repo.sh.tmp && mv .jenkins/scripts/sync-jenkinsfiles-to-repo.sh.tmp .jenkins/scripts/sync-jenkinsfiles-to-repo.sh
+  echo "✅ Fixed line endings in scripts/sync-jenkinsfiles-to-repo.sh"
+fi
+
+if [ -f .jenkins/scripts/setup-other-repos.sh ]; then
+  dos2unix .jenkins/scripts/setup-other-repos.sh 2>/dev/null || \
+  sed -i 's/\r$//' .jenkins/scripts/setup-other-repos.sh || \
+  tr -d '\r' < .jenkins/scripts/setup-other-repos.sh > .jenkins/scripts/setup-other-repos.sh.tmp && mv .jenkins/scripts/setup-other-repos.sh.tmp .jenkins/scripts/setup-other-repos.sh
+  echo "✅ Fixed line endings in scripts/setup-other-repos.sh"
 fi

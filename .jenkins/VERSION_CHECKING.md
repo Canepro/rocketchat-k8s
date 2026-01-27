@@ -44,7 +44,7 @@ The version checking system:
 
 ### Recommended: Separate Scheduled Job
 
-Create a Jenkins job that runs on schedule (daily):
+Create a Jenkins job that runs on a weekday schedule (to match cluster uptime):
 
 **Quick Setup:**
 ```bash
@@ -52,7 +52,7 @@ bash .jenkins/create-version-check-job.sh
 ```
 
 **Manual Setup:**
-1. **Create Pipeline job** (not multibranch) named `version-check`
+1. **Create Pipeline job** (not multibranch) named `version-check-{repo-name}` (recommended)
 2. **Use**: `.jenkins/version-check.Jenkinsfile`
 3. **Schedule**: `H 17 * * 1-5` (weekdays at 5 PM, after cluster starts at 4 PM)
 4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `master`
@@ -62,7 +62,7 @@ See `.jenkins/SETUP_AUTOMATED_JOBS.md` for detailed setup instructions.
 
 ### Alternative: Add to Existing Pipeline
 
-Add version checking stage to `.jenkins/terraform-validation.Jenkinsfile`:
+Prefer running the dedicated pipeline `.jenkins/version-check.Jenkinsfile` as a scheduled job. If you really want to wire version checking into another pipeline, call the Jenkinsfile logic directly (don’t rely on a separate `.sh` helper script).
 
 ```groovy
 stage('Version Check') {
@@ -74,7 +74,8 @@ stage('Version Check') {
     }
   }
   steps {
-    sh 'bash .jenkins/check-versions.sh'
+    // Run the dedicated version-check pipeline as its own job instead.
+    echo 'Use the scheduled version-check job (.jenkins/version-check.Jenkinsfile)'
   }
 }
 ```
@@ -123,7 +124,7 @@ stage('Version Check') {
 
 ### Adjust Risk Thresholds
 
-Edit `.jenkins/check-versions.sh`:
+Edit `.jenkins/version-check.Jenkinsfile`:
 
 ```bash
 # Change when PR vs Issue is created
@@ -136,7 +137,7 @@ fi
 
 ### Add More Components
 
-Edit `.jenkins/check-versions.sh` to add checks for:
+Edit `.jenkins/version-check.Jenkinsfile` to add checks for:
 - MongoDB Operator versions
 - Traefik versions
 - Other Helm charts

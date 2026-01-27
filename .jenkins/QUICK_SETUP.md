@@ -71,6 +71,7 @@ az role assignment create \
 **✅ Already Configured!** Environment variables are set in the Jenkinsfile itself. No action needed.
 
 The Jenkinsfile includes:
+
 - `AZURE_KEY_VAULT_NAME=aks-canepro-kv-e8d280`
 - `AZURE_STORAGE_ACCOUNT_NAME=tfcaneprostate1`
 - `AZURE_STORAGE_CONTAINER_NAME=tfstate`
@@ -82,6 +83,7 @@ The Jenkinsfile includes:
 ## Status
 
 ✅ **Setup Complete!**
+
 - Storage Account key stored in Key Vault
 - `terraform.tfvars` uploaded to Azure Storage
 - ESO identity has Key Vault access
@@ -90,6 +92,7 @@ The Jenkinsfile includes:
 ## Test
 
 Trigger a Jenkins build and check console output for:
+
 - ✅ "Retrieving Storage Account key from Key Vault"
 - ✅ "Successfully downloaded terraform.tfvars from Azure Storage"
 - ✅ Terraform plan should run successfully
@@ -97,6 +100,7 @@ Trigger a Jenkins build and check console output for:
 ## Troubleshooting
 
 **Authentication fails?**
+
 ```bash
 # Verify ESO identity can access Key Vault
 az keyvault secret show \
@@ -106,6 +110,7 @@ az keyvault secret show \
 ```
 
 **Blob not found?**
+
 ```bash
 # Verify terraform.tfvars exists
 az storage blob list \

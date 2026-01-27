@@ -28,7 +28,7 @@ Automated version checking pipeline:
 - Automatically updates `VERSIONS.md` and code files
 
 **Agent**: `version-checker` (Alpine with version checking tools)
-**Schedule**: Daily at 2 AM
+**Schedule**: Weekdays at 5 PM (`H 17 * * 1-5`, after cluster auto-start at 16:00)
 
 ### `security-validation.Jenkinsfile`
 Automated security validation pipeline:
@@ -38,7 +38,7 @@ Automated security validation pipeline:
 - Creates PRs/issues for remediation
 
 **Agent**: `security` (Alpine with security scanning tools)
-**Schedule**: Daily at 3 AM
+**Schedule**: Weekdays at 6 PM (`H 18 * * 1-5`, after cluster auto-start at 16:00)
 
 ## Usage
 
@@ -52,11 +52,11 @@ These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatica
 ### Automated Jobs (Scheduled)
 
 The version-check and security-validation pipelines run as scheduled jobs:
-- Run daily on master branch
+- Run on a weekday schedule (see above) on `master`
 - Create PRs/issues automatically
 - Update code and documentation
 
-See `.jenkins/SETUP_AUTOMATED_JOBS.md` for setup instructions.
+**Setup**: See `.jenkins/SETUP_AUTOMATED_JOBS.md` (single source of truth).
 
 ## Setup in Jenkins
 
@@ -85,7 +85,7 @@ Use the repo script which handles CSRF + session cookies:
 kubectl -n jenkins port-forward pod/jenkins-0 8080:8080
 export JENKINS_URL="http://127.0.0.1:8080"
 
-bash .jenkins/create-job.sh
+bash .jenkins/scripts/create-job.sh
 ```
 
 ## GitHub Webhook

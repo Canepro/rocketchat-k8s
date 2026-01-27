@@ -9,7 +9,7 @@ Two automated jobs are available:
 1. **version-check** - Checks for component version updates and creates PRs/issues
 2. **security-validation** - Scans infrastructure code for security issues and creates PRs/issues
 
-Both jobs run on a schedule (daily) and are regular Pipeline jobs (not multibranch).
+Both jobs run on a weekday schedule and are regular Pipeline jobs (not multibranch).
 
 ## Prerequisites
 
@@ -18,7 +18,9 @@ Both jobs run on a schedule (daily) and are regular Pipeline jobs (not multibran
 - Kubernetes access to retrieve Jenkins admin credentials (optional, can provide manually)
 - `kubectl` configured (if using Kubernetes secret for credentials)
 
-## Quick Setup
+## Quick Setup (Recommended)
+
+This repo includes scripts that handle CSRF crumbs + session cookies (Jenkins often requires both).
 
 ### Option 1: Using Setup Scripts (Recommended)
 
@@ -35,6 +37,26 @@ bash .jenkins/create-version-check-job.sh
 
 # Create security-validation job
 bash .jenkins/create-security-validation-job.sh
+```
+
+### Option 1b: Multi-Repository Setup (Recommended when you run multiple repos)
+
+Use the helper to create both jobs for a configured list of repos:
+
+```bash
+# Edit this file to add/remove repos:
+# .jenkins/setup-all-repos.sh
+bash .jenkins/setup-all-repos.sh
+```
+
+### Option 1c: One-off Setup for a Specific Repository
+
+Important: Use the **GitHub repository name**, not your local directory name.
+
+```bash
+# Example: central-observability-hub-stack
+bash .jenkins/create-version-check-job.sh Canepro central-observability-hub-stack version-check-central-observability-hub-stack
+bash .jenkins/create-security-validation-job.sh Canepro central-observability-hub-stack security-validation-central-observability-hub-stack
 ```
 
 ### Option 2: Manual Setup via Jenkins UI
@@ -97,11 +119,11 @@ curl -X POST \
 
 ```bash
 # Check if jobs exist
-bash .jenkins/check-job.sh
+bash .jenkins/scripts/check-job.sh
 
 # Or check specific job
-JOB_NAME="version-check" bash .jenkins/check-job.sh
-JOB_NAME="security-validation" bash .jenkins/check-job.sh
+JOB_NAME="version-check" bash .jenkins/scripts/check-job.sh
+JOB_NAME="security-validation" bash .jenkins/scripts/check-job.sh
 ```
 
 ## Manual Trigger
@@ -109,13 +131,9 @@ JOB_NAME="security-validation" bash .jenkins/check-job.sh
 You can trigger jobs manually:
 
 ```bash
-# Via curl
-curl -X POST \
-  -u "$JENKINS_USER:$JENKINS_PASSWORD" \
-  "$JENKINS_URL/job/version-check/build"
-
-# Or via Jenkins UI
-# Go to job → Click "Build Now"
+# Recommended (handles CSRF + session cookies)
+bash .jenkins/test-job-trigger.sh version-check-rocketchat-k8s
+bash .jenkins/test-job-trigger.sh security-validation-rocketchat-k8s
 ```
 
 ## Schedule Configuration
@@ -217,22 +235,16 @@ After setting up the jobs:
 
 ## Multi-Repository Support
 
-The setup scripts now support multiple repositories! See `.jenkins/MULTI_REPO_SETUP.md` for details on setting up jobs for:
-- `rocketchat-k8s` (default)
-- `central-observability-hub-stack` (or any other repository)
+The setup scripts support multiple repositories. Use either:
+- `.jenkins/setup-all-repos.sh` (best for repeatable setup)
+- `create-*-job.sh` with arguments (best for one-off jobs)
 
-**Important**: Use the **GitHub repository name**, not your local directory name.
-
-Quick example:
-```bash
-# Set up for central-observability-hub-stack repository
-bash .jenkins/create-version-check-job.sh Canepro central-observability-hub-stack version-check-central-observability-hub-stack
-bash .jenkins/create-security-validation-job.sh Canepro central-observability-hub-stack security-validation-central-observability-hub-stack
-```
+All jobs should be named to avoid collisions:
+- `version-check-{repo-name}`
+- `security-validation-{repo-name}`
 
 ## Related Documentation
 
-- `.jenkins/MULTI_REPO_SETUP.md` - Multi-repository setup guide
 - `.jenkins/VERSION_CHECKING.md` - Version checking details
 - `.jenkins/SECURITY_VALIDATION.md` - Security validation details
 - `.jenkins/README.md` - General Jenkins setup
