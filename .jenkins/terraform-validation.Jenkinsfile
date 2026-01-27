@@ -104,7 +104,7 @@ spec:
               -backend-config="resource_group_name=rg-terraform-state" \
               -backend-config="storage_account_name=${STORAGE_ACCOUNT}" \
               -backend-config="container_name=${STORAGE_CONTAINER}" \
-              -backend-config="key=terraform.tfstate" \
+              -backend-config="key=aks.terraform.tfstate" \
               -backend-config="use_oidc=true" \
               -backend-config="use_azuread_auth=true" \
               -backend-config="tenant_id=${ARM_TENANT_ID}" \
