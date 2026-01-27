@@ -106,6 +106,7 @@ spec:
               -backend-config="container_name=${STORAGE_CONTAINER}" \
               -backend-config="key=terraform.tfstate" \
               -backend-config="use_oidc=true" \
+              -backend-config="use_azuread_auth=true" \
               -backend-config="tenant_id=${ARM_TENANT_ID}" \
               -backend-config="client_id=${ARM_CLIENT_ID}" \
               -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
