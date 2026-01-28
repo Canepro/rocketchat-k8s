@@ -310,13 +310,14 @@ spec:
                   ensure_label "automated" "0e8a16"
                   ensure_label "upgrade" "fbca04"
                   
-                  cat > issue-body.json << 'ISSUE_EOF'
-                  {
-                    "title": "🚨 Breaking: Major version updates available",
-                    "body": "## Version Update Alert\\n\\n**Risk Level:** BREAKING (major version)\\n\\n**Updates Available:**\\n${CRITICAL_UPDATES}\\n\\n## Action Required\\n\\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
-                    "labels": ["dependencies", "breaking", "automated", "upgrade"]
-                  }
-ISSUE_EOF
+                  # Build JSON with jq so newlines are escaped correctly
+                  ISSUE_BODY_JSON=$(jq -n \
+                    --arg title "🚨 Breaking: Major version updates available" \
+                    --arg updates "${CRITICAL_UPDATES}" \
+                    --arg body_prefix "## Version Update Alert\n\n**Risk Level:** BREAKING (major version)\n\n**Updates Available:**\n" \
+                    --arg body_suffix "\n\n## Action Required\n\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\n\n## Next Steps\n\n1. Review breaking changes in release notes\n2. Test in staging environment\n3. Create upgrade plan\n4. Schedule maintenance window if needed\n\n---\n*This issue was automatically created by Jenkins version check pipeline.*" \
+                    '{title:$title, body:($body_prefix + $updates + $body_suffix), labels:["dependencies","breaking","automated","upgrade"]}')
+                  echo "$ISSUE_BODY_JSON" > issue-body.json
                   
                   curl -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
