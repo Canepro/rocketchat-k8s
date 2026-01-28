@@ -316,7 +316,7 @@ spec:
                     "body": "## Version Update Alert\\n\\n**Risk Level:** BREAKING (major version)\\n\\n**Updates Available:**\\n${CRITICAL_UPDATES}\\n\\n## Action Required\\n\\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
                     "labels": ["dependencies", "breaking", "automated", "upgrade"]
                   }
-                  ISSUE_EOF
+ISSUE_EOF
                   
                   curl -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -424,7 +424,7 @@ spec:
                 - [ ] Verify code file changes are correct
                 - [ ] Check release notes for breaking changes
                 - [ ] Test in staging if applicable
-                EOF
+EOF
                 
                 # Stage all changes
                 git add VERSIONS.md VERSION_UPDATES.md values.yaml terraform/main.tf ops/manifests/*.yaml 2>/dev/null || true
@@ -472,7 +472,7 @@ spec:
                   "base": "master",
                   "body": "## Automated Version Updates\\n\\nThis PR includes version updates detected by automated checks.\\n\\n### Updates Summary\\n- High Risk: ${HIGH_COUNT}\\n- Medium Risk: ${MEDIUM_COUNT}\\n\\n### Files Updated\\n- **VERSIONS.md**: Automatically updated with new versions\\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\\n\\n### Review Required\\n\\nPlease review all changes and test before merging.\\n\\n---\\n*This PR was automatically created by Jenkins version check pipeline.*"
                 }
-                EOF
+EOF
                 
                 PR_CREATE_JSON=$(curl -sS -X POST \\
                   -H "Authorization: token ${GITHUB_TOKEN}" \\
@@ -564,7 +564,7 @@ EOF
               "body": "## Jenkins job failed\\n\\nJob: ${JOB_NAME}\\nBuild: ${BUILD_URL}\\nCommit: ${GIT_COMMIT}\\n\\nPlease check Jenkins logs for details.\\n\\n---\\n*This issue was automatically created by Jenkins.*",
               "labels": ["ci", "jenkins", "failure", "automated"]
             }
-            EOF
+EOF
             
             curl -X POST \
               -H "Authorization: token ${GITHUB_TOKEN}" \
