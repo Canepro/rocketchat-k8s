@@ -286,8 +286,8 @@ spec:
               echo "🚨 Creating GitHub issue for BREAKING version updates..."
               sh """
                 ensure_label() {
-                  LABEL_NAME="$1"
-                  LABEL_COLOR="$2"
+                  LABEL_NAME="\$1"
+                  LABEL_COLOR="\$2"
                   curl -fsSL \\
                     -H "Authorization: token \${GITHUB_TOKEN}" \\
                     -H "Accept: application/vnd.github.v3+json" \\
