@@ -61,10 +61,19 @@ resource "azurerm_role_assignment" "eso_secrets_user" {
 # Grant the current Terraform runner permission to manage Key Vault secrets.
 # This role assignment allows Terraform to create/update/delete secrets in Key Vault.
 # Required because Key Vault is in RBAC mode and the provider performs GetSecret/SetSecret calls.
+# Note: Uses lifecycle ignore_changes to prevent replacement when Jenkins (different identity) runs terraform plan.
+# Terraform applies only run from Cloud Shell, so the role assignment should remain with the Cloud Shell user's object ID.
 resource "azurerm_role_assignment" "terraform_runner_secrets_officer" {
   scope                = azurerm_key_vault.rocketchat.id              # Key Vault resource ID (scope for role assignment)
   role_definition_name = "Key Vault Secrets Officer"                  # Azure RBAC role (allows managing secrets)
   principal_id         = data.azurerm_client_config.current.object_id # Current Terraform runner's object ID
+
+  lifecycle {
+    # Ignore principal_id changes to prevent replacement when Jenkins (ESO identity) runs terraform plan.
+    # Terraform applies only run from Cloud Shell (per OPERATIONS.md), so the role assignment should remain
+    # with the Cloud Shell user's object ID. Jenkins only runs terraform plan for validation.
+    ignore_changes = [principal_id]
+  }
 }
 
 # Optional: Grant ESO identity "Key Vault Secrets Officer" if you want ESO to also create/update secrets
