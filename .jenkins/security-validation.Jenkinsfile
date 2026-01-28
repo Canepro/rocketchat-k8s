@@ -336,6 +336,7 @@ spec:
                   ensure_label() {
                     LABEL_NAME="$1"
                     LABEL_COLOR="$2"
+                    LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
                     curl -fsSL \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
@@ -344,7 +345,7 @@ spec:
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
                       "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                      -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+                      -d "$LABEL_JSON" >/dev/null 2>&1 || true
                   }
                   
                   ensure_label "security" "d73a4a"
@@ -410,6 +411,7 @@ EOF
                   ensure_label() {
                     LABEL_NAME="$1"
                     LABEL_COLOR="$2"
+                    LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
                     curl -fsSL \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
@@ -418,7 +420,7 @@ EOF
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
                       "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                      -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+                      -d "$LABEL_JSON" >/dev/null 2>&1 || true
                   }
                   
                   ensure_label "security" "d73a4a"
@@ -574,6 +576,7 @@ EOF
             ensure_label() {
               LABEL_NAME="$1"
               LABEL_COLOR="$2"
+              LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
               curl -fsSL \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
@@ -582,7 +585,7 @@ EOF
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+                -d "$LABEL_JSON" >/dev/null 2>&1 || true
             }
             
             ensure_label "ci" "6a737d"

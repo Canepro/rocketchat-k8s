@@ -165,7 +165,7 @@ spec:
           // Check Helm chart versions for all ArgoCD apps
           def chartLines = sh(
             script: '''
-              set -e
+              set +e
               for app in GrafanaLocal/argocd/applications/*.yaml; do
                 if command -v yq >/dev/null 2>&1; then
                   yq -r '.spec.sources // [ .spec.source ] | .[] | select(has("chart")) | [.chart, .repoURL, (.targetRevision|tostring)] | @tsv' "$app" 2>/dev/null | \
@@ -179,10 +179,13 @@ spec:
                       latest=""
                     fi
                     rm -f "$TMP_INDEX"
-                    [ -n "$latest" ] && [ "$latest" != "null" ] && echo "${app}|${chart}|${current}|${latest}|${repo}"
-                  done
+                    if [ -n "$latest" ] && [ "$latest" != "null" ]; then
+                      echo "${app}|${chart}|${current}|${latest}|${repo}"
+                    fi
+                  done || true
                 fi
               done
+              true
             ''',
             returnStdout: true
           ).trim()
@@ -284,40 +287,44 @@ spec:
             if (criticalUpdates.size() > 0) {
               // Create Issue for breaking (major) updates
               echo "🚨 Creating GitHub issue for BREAKING version updates..."
-              sh """
-                ensure_label() {
-                  LABEL_NAME="\$1"
-                  LABEL_COLOR="\$2"
-                  curl -fsSL \\
-                    -H "Authorization: token \${GITHUB_TOKEN}" \\
-                    -H "Accept: application/vnd.github.v3+json" \\
-                    "https://api.github.com/repos/${env.GITHUB_REPO}/labels/\${LABEL_NAME}" >/dev/null 2>&1 && return 0
-                  curl -fsSL -X POST \\
-                    -H "Authorization: token \${GITHUB_TOKEN}" \\
-                    -H "Accept: application/vnd.github.v3+json" \\
-                    "https://api.github.com/repos/${env.GITHUB_REPO}/labels" \\
-                    -d "{\\"name\\":\\"\${LABEL_NAME}\\",\\"color\\":\\"\${LABEL_COLOR}\\"}" >/dev/null 2>&1 || true
-                }
-                
-                ensure_label "dependencies" "0366d6"
-                ensure_label "breaking" "b60205"
-                ensure_label "automated" "0e8a16"
-                ensure_label "upgrade" "fbca04"
-                
-                cat > issue-body.json << 'ISSUE_EOF'
-                {
-                  "title": "🚨 Breaking: Major version updates available",
-                  "body": "## Version Update Alert\\n\\n**Risk Level:** BREAKING (major version)\\n\\n**Updates Available:**\\n${criticalUpdates.join('\\n')}\\n\\n## Action Required\\n\\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
-                  "labels": ["dependencies", "breaking", "automated", "upgrade"]
-                }
-                ISSUE_EOF
-                
-                curl -X POST \\
-                  -H "Authorization: token \${GITHUB_TOKEN}" \\
-                  -H "Accept: application/vnd.github.v3+json" \\
-                  "https://api.github.com/repos/${env.GITHUB_REPO}/issues" \\
-                  -d @issue-body.json
-              """
+              def criticalSummary = criticalUpdates.collect { "- ${it.component}: ${it.current} → ${it.latest}" }.join('\\n')
+              withEnv(["CRITICAL_UPDATES=${criticalSummary}"]) {
+                sh '''
+                  ensure_label() {
+                    LABEL_NAME="$1"
+                    LABEL_COLOR="$2"
+                    LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
+                    curl -fsSL \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1 && return 0
+                    curl -fsSL -X POST \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/labels" \
+                      -d "$LABEL_JSON" >/dev/null 2>&1 || true
+                  }
+                  
+                  ensure_label "dependencies" "0366d6"
+                  ensure_label "breaking" "b60205"
+                  ensure_label "automated" "0e8a16"
+                  ensure_label "upgrade" "fbca04"
+                  
+                  cat > issue-body.json << 'ISSUE_EOF'
+                  {
+                    "title": "🚨 Breaking: Major version updates available",
+                    "body": "## Version Update Alert\\n\\n**Risk Level:** BREAKING (major version)\\n\\n**Updates Available:**\\n${CRITICAL_UPDATES}\\n\\n## Action Required\\n\\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
+                    "labels": ["dependencies", "breaking", "automated", "upgrade"]
+                  }
+                  ISSUE_EOF
+                  
+                  curl -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues" \
+                    -d @issue-body.json
+                '''
+              }
             } else if (highRiskUpdates.size() > 0 || mediumRiskUpdates.size() > 0) {
               // Create PR for high/medium risk updates
               echo "⚠️ Creating PR for version updates..."
@@ -441,6 +448,7 @@ spec:
                 ensure_label() {
                   LABEL_NAME="$1"
                   LABEL_COLOR="$2"
+                  LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
                   curl -fsSL \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
@@ -449,7 +457,7 @@ spec:
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                    -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+                    -d "$LABEL_JSON" >/dev/null 2>&1 || true
                 }
                 
                 ensure_label "dependencies" "0366d6"
@@ -509,6 +517,7 @@ spec:
             ensure_label() {
               LABEL_NAME="$1"
               LABEL_COLOR="$2"
+              LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
               curl -fsSL \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
@@ -517,7 +526,7 @@ spec:
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+                -d "$LABEL_JSON" >/dev/null 2>&1 || true
             }
             
             ensure_label "ci" "6a737d"
