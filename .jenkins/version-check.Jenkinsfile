@@ -93,29 +93,55 @@ spec:
         script {
           def imageUpdates = []
           
-          // Check RocketChat version
+          // Check Rocket.Chat image version (prefer Docker Hub tags; fallback to GitHub releases)
           sh '''
-            CURRENT_RC=$(grep "tag:" values.yaml | head -1 | sed 's/.*tag: "\\(.*\\)".*/\\1/')
-            echo "Current RocketChat: ${CURRENT_RC}"
+            # Extract current repo + tag from values.yaml
+            if command -v yq >/dev/null 2>&1; then
+              RC_REPO=$(yq -r '.image.repository // ""' values.yaml 2>/dev/null | sed 's/#.*$//' | xargs || true)
+              RC_TAG=$(yq -r '.image.tag // ""' values.yaml 2>/dev/null | sed 's/#.*$//' | xargs || true)
+            else
+              RC_REPO=$(grep -E '^\\s*repository:' values.yaml | head -1 | sed 's/.*repository:\\s*//' | sed 's/#.*$//' | xargs || true)
+              RC_TAG=$(grep -E '^\\s*tag:' values.yaml | head -1 | sed 's/.*tag:\\s*\"\\{0,1\\}\\([^\"#]*\\)\"\\{0,1\\}.*/\\1/' | sed 's/#.*$//' | xargs || true)
+            fi
+            echo "Current Rocket.Chat image: ${RC_REPO}:${RC_TAG}"
             
-            # Get latest from GitHub Releases API
-            LATEST_RC=$(curl -s https://api.github.com/repos/RocketChat/Rocket.Chat/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-            echo "Latest RocketChat: ${LATEST_RC}"
+            # Latest Rocket.Chat app release (GitHub)
+            LATEST_RC_RELEASE=$(curl -s https://api.github.com/repos/RocketChat/Rocket.Chat/releases/latest | jq -r '.tag_name' | sed 's/^v//')
             
-            echo "RC_CURRENT=${CURRENT_RC}" >> versions.env
-            echo "RC_LATEST=${LATEST_RC}" >> versions.env
+            # Latest Rocket.Chat image tag (registry API if possible)
+            REGISTRY_HOST=$(echo "${RC_REPO}" | cut -d'/' -f1)
+            REPO_PATH=$(echo "${RC_REPO}" | cut -d'/' -f2-)
+            
+            if echo "${REGISTRY_HOST}" | grep -q '\\.'; then
+              # Custom registry (e.g., registry.rocket.chat)
+              LATEST_RC_IMAGE=$(curl -s "https://${REGISTRY_HOST}/v2/${REPO_PATH}/tags/list" | jq -r '.tags[]' 2>/dev/null | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | sort -V | tail -1)
+            else
+              # Docker Hub (no explicit registry host in repo)
+              REPO_PATH="${RC_REPO#docker.io/}"
+              LATEST_RC_IMAGE=$(curl -s "https://registry.hub.docker.com/v2/repositories/${REPO_PATH}/tags?page_size=100" | jq -r '.results[].name' 2>/dev/null | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | sort -V | tail -1)
+            fi
+            
+            echo "RC_REPO=${RC_REPO}" >> versions.env
+            echo "RC_CURRENT=${RC_TAG}" >> versions.env
+            echo "RC_LATEST_RELEASE=${LATEST_RC_RELEASE}" >> versions.env
+            echo "RC_LATEST_IMAGE=${LATEST_RC_IMAGE}" >> versions.env
           '''
           
           def rcCurrent = sh(script: 'grep RC_CURRENT versions.env | cut -d= -f2', returnStdout: true).trim()
-          def rcLatest = sh(script: 'grep RC_LATEST versions.env | cut -d= -f2', returnStdout: true).trim()
+          def rcLatestRelease = sh(script: 'grep RC_LATEST_RELEASE versions.env | cut -d= -f2', returnStdout: true).trim()
+          def rcLatestImage = sh(script: 'grep RC_LATEST_IMAGE versions.env | cut -d= -f2', returnStdout: true).trim()
+          def rcLatest = rcLatestImage ?: rcLatestRelease
+          def rcSource = rcLatestImage ? 'docker-hub' : 'github-release'
           
-          if (rcCurrent != rcLatest) {
+          if (rcLatest && rcCurrent && rcCurrent != rcLatest) {
             imageUpdates.add([
-              component: 'RocketChat',
+              component: 'Rocket.Chat Application',
               current: rcCurrent,
               latest: rcLatest,
               location: 'values.yaml',
-              risk: isMajorVersionUpdate(rcCurrent, rcLatest) ? 'HIGH' : 'MEDIUM'
+              # Treat major version bumps as breaking changes
+              risk: isMajorVersionUpdate(rcCurrent, rcLatest) ? 'CRITICAL' : 'MEDIUM',
+              source: rcSource
             ])
           }
           
@@ -136,20 +162,64 @@ spec:
         script {
           def chartUpdates = []
           
-          // Check RocketChat Helm chart version
-          sh '''
-            # Get current chart version from ArgoCD app or values.yaml comment
-            CURRENT_CHART=$(grep "Chart:" values.yaml | head -1 | sed 's/.*Chart:.*\\([0-9]\\+\\.[0-9]\\+\\.[0-9]\\+\\).*/\\1/')
-            echo "Current RocketChat Chart: ${CURRENT_CHART}"
-            
-            # Get latest from Helm chart repository
-            LATEST_CHART=$(helm search repo rocketchat/rocketchat --versions 2>/dev/null | head -2 | tail -1 | awk '{print $2}' || echo "unknown")
-            echo "Latest RocketChat Chart: ${LATEST_CHART}"
-            
-            echo "CHART_CURRENT=${CURRENT_CHART}" >> versions.env
-            echo "CHART_LATEST=${LATEST_CHART}" >> versions.env
-          '''
-          
+          // Check Helm chart versions for all ArgoCD apps
+          def chartLines = sh(
+            script: '''
+              set -e
+              for app in GrafanaLocal/argocd/applications/*.yaml; do
+                if command -v yq >/dev/null 2>&1; then
+                  yq -r '.spec.sources // [ .spec.source ] | .[] | select(has("chart")) | [.chart, .repoURL, (.targetRevision|tostring)] | @tsv' "$app" 2>/dev/null | \
+                  while IFS=$'\\t' read -r chart repo current; do
+                    [ -z "$chart" ] && continue
+                    INDEX_URL="${repo%/}/index.yaml"
+                    TMP_INDEX=$(mktemp)
+                    if curl -fsSL "$INDEX_URL" -o "$TMP_INDEX"; then
+                      latest=$(yq -r ".entries.\"${chart}\"[].version" "$TMP_INDEX" | sort -V | tail -1)
+                    else
+                      latest=""
+                    fi
+                    rm -f "$TMP_INDEX"
+                    [ -n "$latest" ] && [ "$latest" != "null" ] && echo "${app}|${chart}|${current}|${latest}|${repo}"
+                  done
+                fi
+              done
+            ''',
+            returnStdout: true
+          ).trim()
+
+          if (chartLines) {
+            def chartComponentMap = [
+              'rocketchat': 'Rocket.Chat Helm Chart',
+              'traefik': 'Traefik Helm Chart',
+              'jenkins': 'Jenkins Helm Chart',
+              'mongodb-kubernetes': 'MongoDB Operator Helm Chart',
+              'external-secrets': 'External Secrets Operator Helm Chart'
+            ]
+
+            chartLines.split('\\n').each { line ->
+              def parts = line.split('\\|')
+              if (parts.size() >= 4) {
+                def appFile = parts[0].trim()
+                def chart = parts[1].trim()
+                def current = parts[2].trim()
+                def latest = parts[3].trim()
+                def componentName = chartComponentMap.get(chart, "Helm Chart: ${chart}")
+
+                if (current && latest && current != latest) {
+                  chartUpdates.add([
+                    component: componentName,
+                    current: current,
+                    latest: latest,
+                    location: appFile,
+                    chart: chart,
+                    # Treat major chart bumps as breaking changes
+                    risk: isMajorVersionUpdate(current, latest) ? 'CRITICAL' : 'MEDIUM'
+                  ])
+                }
+              }
+            }
+          }
+
           writeJSON file: 'chart-updates.json', json: chartUpdates
         }
       }
@@ -183,6 +253,16 @@ spec:
               mediumRiskUpdates.add(update)
             }
           }
+
+          chartUpdates.each { update ->
+            if (update.risk == 'CRITICAL') {
+              criticalUpdates.add(update)
+            } else if (update.risk == 'HIGH') {
+              highRiskUpdates.add(update)
+            } else {
+              mediumRiskUpdates.add(update)
+            }
+          }
           
           // Create report
           def updateReport = [
@@ -197,15 +277,38 @@ spec:
           
           // Create PR or Issue based on risk
           withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+            if (!env.GITHUB_TOKEN?.trim()) {
+              echo "⚠️ GitHub token is empty; skipping issue/PR creation."
+              return
+            }
             if (criticalUpdates.size() > 0) {
-              // Create Issue for critical updates
-              echo "🚨 Creating GitHub issue for CRITICAL version updates..."
+              // Create Issue for breaking (major) updates
+              echo "🚨 Creating GitHub issue for BREAKING version updates..."
               sh """
+                ensure_label() {
+                  LABEL_NAME="$1"
+                  LABEL_COLOR="$2"
+                  curl -fsSL \\
+                    -H "Authorization: token \${GITHUB_TOKEN}" \\
+                    -H "Accept: application/vnd.github.v3+json" \\
+                    "https://api.github.com/repos/${env.GITHUB_REPO}/labels/\${LABEL_NAME}" >/dev/null 2>&1 && return 0
+                  curl -fsSL -X POST \\
+                    -H "Authorization: token \${GITHUB_TOKEN}" \\
+                    -H "Accept: application/vnd.github.v3+json" \\
+                    "https://api.github.com/repos/${env.GITHUB_REPO}/labels" \\
+                    -d "{\\"name\\":\\"\${LABEL_NAME}\\",\\"color\\":\\"\${LABEL_COLOR}\\"}" >/dev/null 2>&1 || true
+                }
+                
+                ensure_label "dependencies" "0366d6"
+                ensure_label "breaking" "b60205"
+                ensure_label "automated" "0e8a16"
+                ensure_label "upgrade" "fbca04"
+                
                 cat > issue-body.json << 'ISSUE_EOF'
                 {
-                  "title": "🚨 Critical: Major version updates available",
-                  "body": "## Version Update Alert\\n\\n**Risk Level:** CRITICAL\\n\\n**Updates Available:**\\n${criticalUpdates.join('\\n')}\\n\\n## Action Required\\n\\nMajor version updates detected. These require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
-                  "labels": ["dependencies", "critical", "automated", "upgrade"]
+                  "title": "🚨 Breaking: Major version updates available",
+                  "body": "## Version Update Alert\\n\\n**Risk Level:** BREAKING (major version)\\n\\n**Updates Available:**\\n${criticalUpdates.join('\\n')}\\n\\n## Action Required\\n\\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\\n\\n## Next Steps\\n\\n1. Review breaking changes in release notes\\n2. Test in staging environment\\n3. Create upgrade plan\\n4. Schedule maintenance window if needed\\n\\n---\\n*This issue was automatically created by Jenkins version check pipeline.*",
+                  "labels": ["dependencies", "breaking", "automated", "upgrade"]
                 }
                 ISSUE_EOF
                 
@@ -215,7 +318,7 @@ spec:
                   "https://api.github.com/repos/${env.GITHUB_REPO}/issues" \\
                   -d @issue-body.json
               """
-            } else if (highRiskUpdates.size() > 0 || mediumRiskUpdates.size() >= 5) {
+            } else if (highRiskUpdates.size() > 0 || mediumRiskUpdates.size() > 0) {
               // Create PR for high/medium risk updates
               echo "⚠️ Creating PR for version updates..."
               
@@ -236,8 +339,8 @@ spec:
                 # Process updates and apply to VERSIONS.md and code files
                 echo "Applying version updates to files..."
                 
-                # Update images from high/medium risk updates
-                jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)"' updates-to-apply.json 2>/dev/null | while IFS='|' read -r component current latest location; do
+                # Update images/charts/providers from high/medium risk updates
+                jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)|\\(.chart // \"\")"' updates-to-apply.json 2>/dev/null | while IFS='|' read -r component current latest location chart; do
                   if [ -n "$component" ] && [ -n "$latest" ] && [ "$current" != "$latest" ]; then
                     echo "Updating $component: $current → $latest in $location"
                     
@@ -255,6 +358,23 @@ spec:
                           ;;
                         terraform/main.tf)
                           sed -i "s/version = \"~> ${current}\"/version = \"~> ${latest}\"/g" "$location" || true
+                          ;;
+                        GrafanaLocal/argocd/applications/*.yaml)
+                          if command -v yq >/dev/null 2>&1 && [ -n "$chart" ]; then
+                            yq -i '
+                              if .spec.sources then
+                                .spec.sources |= map( if (.chart // "") == "'"$chart"'" then .targetRevision = "'"$latest"'" else . end )
+                              else
+                                if (.spec.source.chart // "") == "'"$chart"'" then .spec.source.targetRevision = "'"$latest"'" else . end
+                              end
+                            ' "$location" || true
+                          else
+                            sed -i "s/targetRevision: ${current}/targetRevision: ${latest}/g" "$location" || true
+                          fi
+                          # Keep values.yaml chart comment in sync for Rocket.Chat
+                          if [ "$chart" = "rocketchat" ]; then
+                            sed -i "s/Chart: rocketchat\\/rocketchat ${current}/Chart: rocketchat\\/rocketchat ${latest}/g" values.yaml || true
+                          fi
                           ;;
                         ops/manifests/*.yaml)
                           sed -i "s/:${current}/:${latest}/g" "$location" || true
@@ -311,7 +431,30 @@ spec:
                 - Updated code files with new versions
                 - Generated by Jenkins version check pipeline" || echo "No changes to commit"
                 
+                # Ensure authenticated remote for push
+                set +x
+                git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" 2>/dev/null || true
+                set -x
+
                 git push origin ${BRANCH_NAME}
+
+                ensure_label() {
+                  LABEL_NAME="$1"
+                  LABEL_COLOR="$2"
+                  curl -fsSL \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1 && return 0
+                  curl -fsSL -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/labels" \
+                    -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+                }
+                
+                ensure_label "dependencies" "0366d6"
+                ensure_label "automated" "0e8a16"
+                ensure_label "upgrade" "fbca04"
                 
                 # Create PR
                 cat > pr-body.json << EOF
@@ -319,16 +462,24 @@ spec:
                   "title": "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium",
                   "head": "${BRANCH_NAME}",
                   "base": "master",
-                  "body": "## Automated Version Updates\\n\\nThis PR includes version updates detected by automated checks.\\n\\n### Updates Summary\\n- High Risk: ${HIGH_COUNT}\\n- Medium Risk: ${MEDIUM_COUNT}\\n\\n### Files Updated\\n- **VERSIONS.md**: Automatically updated with new versions\\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\\n\\n### Review Required\\n\\nPlease review all changes and test before merging.\\n\\n---\\n*This PR was automatically created by Jenkins version check pipeline.*",
-                  "labels": ["dependencies", "automated", "upgrade"]
+                  "body": "## Automated Version Updates\\n\\nThis PR includes version updates detected by automated checks.\\n\\n### Updates Summary\\n- High Risk: ${HIGH_COUNT}\\n- Medium Risk: ${MEDIUM_COUNT}\\n\\n### Files Updated\\n- **VERSIONS.md**: Automatically updated with new versions\\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\\n\\n### Review Required\\n\\nPlease review all changes and test before merging.\\n\\n---\\n*This PR was automatically created by Jenkins version check pipeline.*"
                 }
                 EOF
                 
-                curl -X POST \\
+                PR_CREATE_JSON=$(curl -sS -X POST \\
                   -H "Authorization: token ${GITHUB_TOKEN}" \\
                   -H "Accept: application/vnd.github.v3+json" \\
                   "https://api.github.com/repos/${GITHUB_REPO}/pulls" \\
-                  -d @pr-body.json
+                  -d @pr-body.json || echo '{}')
+                
+                PR_CREATED_NUMBER=$(echo "$PR_CREATE_JSON" | jq -r '.number // empty' 2>/dev/null || true)
+                if [ -n "${PR_CREATED_NUMBER}" ]; then
+                  curl -sS -X POST \\
+                    -H "Authorization: token ${GITHUB_TOKEN}" \\
+                    -H "Accept: application/vnd.github.v3+json" \\
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues/${PR_CREATED_NUMBER}/labels" \\
+                    -d '{"labels":["dependencies","automated","upgrade"]}' >/dev/null 2>&1 || true
+                fi
               '''
             } else {
               echo "✅ All versions are up to date or updates are low risk"
@@ -342,6 +493,78 @@ spec:
   post {
     always {
       archiveArtifacts artifacts: '*.json,*.md', allowEmptyArchive: true
+    }
+    failure {
+      echo '❌ Version check failed'
+      script {
+        withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+          if (!env.GITHUB_TOKEN?.trim()) {
+            echo "⚠️ GitHub token is empty; skipping failure notification."
+            return
+          }
+          sh '''
+            set +e
+            ISSUE_TITLE="CI Failure: ${JOB_NAME}"
+            
+            ensure_label() {
+              LABEL_NAME="$1"
+              LABEL_COLOR="$2"
+              curl -fsSL \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1 && return 0
+              curl -fsSL -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${GITHUB_REPO}/labels" \
+                -d "{\"name\":\"${LABEL_NAME}\",\"color\":\"${LABEL_COLOR}\"}" >/dev/null 2>&1 || true
+            }
+            
+            ensure_label "ci" "6a737d"
+            ensure_label "jenkins" "5319e7"
+            ensure_label "failure" "b60205"
+            ensure_label "automated" "0e8a16"
+            
+            ISSUE_LIST_JSON=$(curl -fsSL \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=ci,jenkins,failure,automated&per_page=100" \
+              || echo '[]')
+            
+            ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+            ISSUE_URL=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
+            
+            if [ -n "${ISSUE_NUMBER}" ]; then
+              cat > issue-comment.json << EOF
+            {
+              "body": "## Jenkins job failed\\n\\nJob: ${JOB_NAME}\\nBuild: ${BUILD_URL}\\nCommit: ${GIT_COMMIT}\\n\\n(Automated update on existing issue.)"
+            }
+EOF
+              curl -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${GITHUB_REPO}/issues/${ISSUE_NUMBER}/comments" \
+                -d @issue-comment.json >/dev/null 2>&1 || true
+              echo "Updated existing failure issue: ${ISSUE_URL}"
+              exit 0
+            fi
+            
+            cat > issue-body.json << EOF
+            {
+              "title": "${ISSUE_TITLE}",
+              "body": "## Jenkins job failed\\n\\nJob: ${JOB_NAME}\\nBuild: ${BUILD_URL}\\nCommit: ${GIT_COMMIT}\\n\\nPlease check Jenkins logs for details.\\n\\n---\\n*This issue was automatically created by Jenkins.*",
+              "labels": ["ci", "jenkins", "failure", "automated"]
+            }
+            EOF
+            
+            curl -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${GITHUB_REPO}/issues" \
+              -d @issue-body.json >/dev/null 2>&1 || true
+          '''
+        }
+      }
     }
   }
 }
