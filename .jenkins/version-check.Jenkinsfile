@@ -139,7 +139,7 @@ spec:
               current: rcCurrent,
               latest: rcLatest,
               location: 'values.yaml',
-              # Treat major version bumps as breaking changes
+              // Treat major version bumps as breaking changes
               risk: isMajorVersionUpdate(rcCurrent, rcLatest) ? 'CRITICAL' : 'MEDIUM',
               source: rcSource
             ])
@@ -212,7 +212,7 @@ spec:
                     latest: latest,
                     location: appFile,
                     chart: chart,
-                    # Treat major chart bumps as breaking changes
+                    // Treat major chart bumps as breaking changes
                     risk: isMajorVersionUpdate(current, latest) ? 'CRITICAL' : 'MEDIUM'
                   ])
                 }
