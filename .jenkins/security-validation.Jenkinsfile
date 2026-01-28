@@ -384,7 +384,7 @@ EOF
                     "body": "## Security Scan Results\\n\\n**Risk Level:** CRITICAL\\n\\n**Findings:**\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\n## Action Required\\n\\nPlease review the security scan results and address critical vulnerabilities immediately.\\n\\n## Scan Artifacts\\n\\n- tfsec results: See Jenkins build artifacts\\n- checkov results: See Jenkins build artifacts\\n- trivy results: See Jenkins build artifacts\\n\\n## Next Steps\\n\\n1. Review all critical findings\\n2. Create remediation PRs for each critical issue\\n3. Update security policies if needed\\n\\n---\\n*This issue was automatically created by Jenkins security validation pipeline.*",
                     "labels": ["security", "critical", "automated"]
                   }
-                  EOF
+EOF
                   
                   curl -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -485,7 +485,7 @@ EOF
                   
                   Some findings may require manual review and cannot be auto-fixed.
                   Please check the Jenkins build logs for detailed findings.
-                  EOF
+EOF
                   
                   git add SECURITY_FIXES.md
                   git commit -m "security: automated fixes for high-priority findings
@@ -504,7 +504,7 @@ EOF
                     "base": "master",
                     "body": "## Automated Security Fixes\\n\\nThis PR addresses **${HIGH_COUNT} high-priority** security findings detected by automated scans.\\n\\n### Findings Summary\\n- Critical: ${CRITICAL_COUNT}\\n- High: ${HIGH_COUNT}\\n- Medium: ${MEDIUM_COUNT}\\n- Low: ${LOW_COUNT}\\n\\n### Changes\\n\\nThis PR includes automated fixes for high-priority security issues. Please review all changes carefully.\\n\\n### Review Checklist\\n\\n- [ ] Review all automated changes\\n- [ ] Verify fixes don't break functionality\\n- [ ] Test in staging if applicable\\n- [ ] Check for any manual fixes needed\\n\\n---\\n*This PR was automatically created by Jenkins security validation pipeline.*"
                   }
-                  EOF
+EOF
                   
                   PR_CREATE_JSON=$(curl -sS -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -623,7 +623,7 @@ EOF
               "body": "## Jenkins job failed\\n\\nJob: ${JOB_NAME}\\nBuild: ${BUILD_URL}\\nCommit: ${GIT_COMMIT}\\n\\nPlease check Jenkins logs for details.\\n\\n---\\n*This issue was automatically created by Jenkins.*",
               "labels": ["ci", "jenkins", "failure", "automated"]
             }
-            EOF
+EOF
             
             curl -X POST \
               -H "Authorization: token ${GITHUB_TOKEN}" \
