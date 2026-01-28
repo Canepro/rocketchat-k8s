@@ -40,9 +40,10 @@ resource "azurerm_key_vault" "rocketchat" {
     bypass         = "AzureServices"                      # Bypass network rules for Azure services (required for AKS)
   }
 
-  # RBAC mode is now the default for new Key Vaults (enable_rbac_authorization is deprecated)
-  # RBAC mode uses Azure RBAC for Key Vault access (more secure and flexible than access policies)
-  # The Key Vault will use RBAC mode by default, and role assignments below configure access
+  # RBAC mode: Explicitly enabled for Azure RBAC-based access control
+  # Required for ESO (External Secrets Operator) and Jenkins to access secrets via role assignments
+  # Do NOT remove - Access Policy mode would break all RBAC role assignments
+  enable_rbac_authorization = true
 
   tags = merge(var.tags, {
     Purpose = "RocketChatSecrets" # Purpose tag (for resource organization)
