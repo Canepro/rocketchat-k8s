@@ -438,6 +438,15 @@ spec:
                   exit 1
                 fi
 
+                # Run git against a known working directory (avoids "not in a git directory" when cwd shifts)
+                gitw() {
+                  if [ -n "${WORKSPACE:-}" ]; then
+                    git -C "${WORKSPACE}" "$@"
+                  else
+                    git "$@"
+                  fi
+                }
+
                 # De-duplicate: re-use an existing open "Version Updates" PR if present.
                 PR_LIST_JSON=$(curl -fsSL \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -461,15 +470,15 @@ spec:
                 fi
                 BRANCH_NAME="${BRANCH_NAME:-chore/version-updates}"
 
-                git config user.name "Jenkins Version Bot"
-                git config user.email "jenkins@canepro.me"
+                gitw config user.name "Jenkins Version Bot"
+                gitw config user.email "jenkins@canepro.me"
                 
                 # Check out existing remote branch if it exists
-                git fetch origin "${BRANCH_NAME}" 2>/dev/null || true
-                if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH_NAME}"; then
-                  git checkout -B "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
+                gitw fetch origin "${BRANCH_NAME}" 2>/dev/null || true
+                if gitw show-ref --verify --quiet "refs/remotes/origin/${BRANCH_NAME}"; then
+                  gitw checkout -B "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
                 else
-                  git checkout -b "${BRANCH_NAME}"
+                  gitw checkout -b "${BRANCH_NAME}"
                 fi
                 
                 # Process updates and apply to VERSIONS.md and code files
