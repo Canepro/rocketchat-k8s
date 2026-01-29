@@ -45,20 +45,16 @@ spec:
           fi
           set -e
 
+          # Verify critical tools exist; fail fast if any are missing
+          for tool in curl jq git bash yq; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "Critical tool $tool not installed"
+              exit 1
+            fi
+          done
+
           # GitHub CLI is optional (pipeline uses curl for API calls); log if missing
           command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
-
-          # Install yq for YAML parsing (apk yq preferred; fallback: pinned release + optional checksum)
-          if ! command -v yq >/dev/null 2>&1; then
-            YQ_VERSION="4.44.1"
-            YQ_URL="https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-            wget -qO /usr/local/bin/yq "${YQ_URL}"
-            # Optional: set YQ_SHA256 from https://github.com/mikefarah/yq/releases to verify integrity
-            if [ -n "${YQ_SHA256:-}" ]; then
-              printf '%s  %s\n' "${YQ_SHA256}" /usr/local/bin/yq | sha256sum -c -
-            fi
-            chmod +x /usr/local/bin/yq || true
-          fi
         '''
       }
     }
@@ -78,9 +74,18 @@ spec:
             fi
             # Get current version from main.tf (may be constraint e.g. ~>3.0)
             CURRENT_AZURERM=$(grep -A2 "azurerm = {" terraform/main.tf | grep "version" | sed 's/.*version = "\\(.*\\)".*/\\1/' | tr -d ' ')
+            if [ -z "${CURRENT_AZURERM}" ]; then
+              echo "Failed to extract current Azure provider version from terraform/main.tf (grep pattern did not match)."
+              echo "Please verify the provider \"azurerm\" block and its version field format."
+              exit 1
+            fi
             echo "Current Azure Provider: ${CURRENT_AZURERM}"
             # Get latest version from Terraform Registry API (plain semver only)
             LATEST_AZURERM=$(curl -sSf https://registry.terraform.io/v1/providers/hashicorp/azurerm/versions | jq -r '.versions[] | .version' | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | sort -V | tail -1)
+            if [ -z "${LATEST_AZURERM}" ]; then
+              echo "Failed to retrieve latest Azure provider version from Terraform Registry"
+              exit 1
+            fi
             echo "Latest Azure Provider: ${LATEST_AZURERM}"
             echo "AZURERM_CURRENT=${CURRENT_AZURERM}" >> versions.env
             echo "AZURERM_LATEST=${LATEST_AZURERM}" >> versions.env
