@@ -479,7 +479,7 @@ spec:
                 
                 # Update Terraform provider if needed
                 if [ "$(jq -r '.terraform.azurerm.needsUpdate // false' updates-to-apply.json 2>/dev/null)" = "true" ]; then
-                  TF_RISK=$(jq -r '.terraform.azurerm.risk // \"\"' updates-to-apply.json 2>/dev/null || echo \"\")
+                  TF_RISK=$(jq -r '.terraform.azurerm.risk // ""' updates-to-apply.json 2>/dev/null || echo "")
                   if [ "$TF_RISK" = "CRITICAL" ]; then
                     echo "Terraform azurerm update is breaking (major); skipping PR update."
                   else
