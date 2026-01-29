@@ -78,7 +78,8 @@ terraform apply  # Create secrets
 
 **GitHub Token Scopes Required**:
 - `repo` (full control of private repositories)
-- `admin:repo_hook` (webhook management)
+- `workflow` (GitHub status checks / workflow API access)
+- `admin:repo_hook` (optional; only needed if you want Jenkins managing webhooks)
 
 **Generate GitHub Token**: [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
 
@@ -651,7 +652,7 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 - ✅ Admin credentials synced from Key Vault
 - ✅ GitHub token secret synced
 - ⚠️ Prometheus disk usage warning (fixed in jenkins-values.yaml - will apply on next sync)
-- ⚠️ GitHub token credential needs to be configured in Jenkins UI
+- ✅ GitHub token credential is GitOps-managed (ESO → Kubernetes Secret → Jenkins auto-discovery)
 - ⚠️ GitHub webhook needs to be configured
 - ⚠️ Jenkinsfiles need to be created
 
@@ -663,17 +664,19 @@ After Jenkins is deployed, follow these steps to get it fully functional for CI 
 ### Step 2: Configure GitHub Token Credential
 **Purpose**: Jenkins needs the GitHub token to authenticate with GitHub API for PR validation.
 
-**Action**:
-1. Access Jenkins UI: `https://jenkins.canepro.me`
-2. Login with admin credentials (get from Key Vault secret)
-3. Navigate: **Manage Jenkins** → **Credentials** → **System** → **Global credentials (unrestricted)**
-4. Click **Add Credentials**
-5. Configure:
-   - **Kind**: Secret text
-   - **Secret**: Get from `kubectl get secret jenkins-github -n jenkins -o jsonpath='{.data.token}' | base64 -d`
-   - **ID**: `github-token` (must match `jenkins-values.yaml` line 78)
-   - **Description**: "GitHub Personal Access Token for PR validation"
-6. Click **OK**
+**Action (GitOps-first, recommended)**:
+
+This repo provisions the GitHub token into Jenkins automatically:
+- Azure Key Vault secret: `jenkins-github-token`
+- ExternalSecret: `ops/secrets/externalsecret-jenkins.yaml`
+- Kubernetes Secret created: `jenkins/secret/jenkins-github`
+- Jenkins auto-discovery: Kubernetes Credentials Provider plugin
+
+The resulting Jenkins credential is:
+- **ID**: `github-token`
+- **Type**: **Username with password** (password is the PAT)
+
+If `github-token` is missing in Jenkins dropdowns, follow `.jenkins/GITHUB_CREDENTIALS_SETUP.md`.
 
 ### Step 3: Set Up GitHub Webhook
 **Purpose**: Automatically trigger Jenkins jobs when PRs are created/updated.

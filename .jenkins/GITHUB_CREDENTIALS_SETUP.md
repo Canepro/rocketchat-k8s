@@ -1,10 +1,14 @@
 # GitHub Credentials Setup for Jenkins
 
-Jenkins is hitting GitHub API rate limits because it's using anonymous access. Configure GitHub credentials to fix this.
+Jenkins needs authenticated GitHub API access for:
+- multibranch scanning + PR status checks
+- automated issues/PRs created by scheduled jobs (`version-check-*`, `security-validation-*`)
 
-## Quick Setup (5 minutes)
+This repo is designed to provision the GitHub credential **via GitOps** (External Secrets Operator + Kubernetes Credentials Provider), so you shouldn't need to click around Jenkins UI on every rebuild.
 
-### Step 1: Get GitHub Token from Key Vault (Azure Cloud Shell)
+## Quick Setup (GitOps-first, recommended)
+
+### Step 1: Store the PAT in Azure Key Vault (Cloud Shell)
 
 ```bash
 # Get the token from Key Vault
@@ -13,7 +17,7 @@ GITHUB_TOKEN=$(az keyvault secret show \
   --name jenkins-github-token \
   --query value -o tsv)
 
-echo "GitHub Token: $GITHUB_TOKEN"
+echo "GitHub Token retrieved (not printing it)"
 ```
 
 **If the token doesn't exist in Key Vault**, create a GitHub Personal Access Token:
@@ -27,22 +31,18 @@ echo "GitHub Token: $GITHUB_TOKEN"
      --value "<your-github-token>"
    ```
 
-### Step 2: Create Jenkins Credential
+### Step 2: Let ESO sync it into Kubernetes (no Jenkins UI clicks)
 
-**Important:** The GitHub plugin for multibranch pipelines requires **"Username with password"** credentials, not "Secret text". The password field should contain your GitHub Personal Access Token.
+This repo already contains an ExternalSecret that syncs the token into the `jenkins` namespace:
+- `ops/secrets/externalsecret-jenkins.yaml` → creates/updates `secret/jenkins-github`
 
-1. Go to Jenkins: `https://jenkins.canepro.me`
-2. **Manage Jenkins** → **Credentials** → **System** → **Global credentials (unrestricted)**
-3. Click **"Add Credentials"**
-4. Configure:
-   - **Kind**: Username with password
-   - **Username**: Your GitHub username (e.g., `your-username`)
-   - **Password**: `<paste-token-from-step-1>` (the GitHub Personal Access Token)
-   - **ID**: `github-token` (must match exactly - this is what jenkins-values.yaml expects)
-   - **Description**: "GitHub Personal Access Token for PR validation"
-5. Click **"Create"**
+That Secret is annotated/labeled so Jenkins’ **Kubernetes Credentials Provider** plugin auto-discovers it as:
+- **Type**: Username with password
+- **ID**: `github-token`
+- **Username**: `jenkins-bot` (placeholder; GitHub PAT auth uses the password field)
+- **Password**: the GitHub PAT value
 
-**Note:** If you already created a "Secret text" credential, you need to delete it and create a new "Username with password" credential instead. The GitHub plugin filters out non-"username with password" credentials for multibranch pipelines.
+Once the cluster is up and ArgoCD/ESO have synced, `github-token` should appear in Jenkins dropdowns automatically.
 
 ### Step 3: Verify
 
@@ -51,22 +51,34 @@ Trigger a new build. You should see:
 - ✅ No more rate limiting messages
 - ✅ Builds proceed immediately
 
-## Alternative: Use Kubernetes Secret (If ESO is syncing it)
+## Verification
 
-If External Secrets Operator has synced the token to Kubernetes:
+1. Confirm ESO created the Secret:
 
 ```bash
-# Get token from Kubernetes Secret
-kubectl get secret jenkins-github -n jenkins -o jsonpath='{.data.token}' | base64 -d
+kubectl get secret jenkins-github -n jenkins
 ```
 
-Then use that token to create the Jenkins credential (Step 2 above).
+2. Confirm Jenkins can see it:
+- Jenkins → **Manage Jenkins** → **Credentials**
+- It should show a credential with **ID** `github-token`
 
-## Troubleshooting: Credential Exists But Still Getting Rate Limits
+## Manual fallback (only if Kubernetes Credentials Provider is not available)
+
+**Important:** The GitHub plugin for multibranch pipelines requires **"Username with password"** credentials, not "Secret text".
+
+Create it in Jenkins UI:
+- **Kind**: Username with password
+- **ID**: `github-token`
+- **Password**: GitHub PAT
+
+(If you created a "Secret text" credential previously, it won’t appear in the multibranch GitHub credential dropdown.)
+
+## Troubleshooting
 
 If you already have the credential configured but Jenkins is still using anonymous access:
 
-### 1. Verify GitHub Plugin Configuration
+### 1. Verify Jenkins GitHub configuration
 
 1. Go to Jenkins: `https://jenkins.canepro.me`
 2. **Manage Jenkins** → **Configure System**
@@ -90,7 +102,7 @@ kubectl rollout status statefulset/jenkins -n jenkins
 
 **Note:** Jenkins is deployed as a StatefulSet (not a Deployment), so use `statefulset/jenkins` instead of `deployment/jenkins`.
 
-### 3. Verify Multibranch Pipeline Configuration
+### 2. Verify Multibranch Pipeline Configuration
 
 For each multibranch pipeline (portfolio_website-main, GrafanaLocal, etc.):
 
@@ -103,13 +115,13 @@ For each multibranch pipeline (portfolio_website-main, GrafanaLocal, etc.):
 
 **Important:** Only "Username with password" credentials appear in the dropdown for multibranch pipelines. If your credential doesn't show up, it's likely a "Secret text" type and needs to be recreated.
 
-### 4. Test the Connection
+### 3. Test the Connection
 
 1. In the pipeline configuration, click **"Validate"** next to the GitHub credentials
 2. You should see: ✅ "Success"
 3. If it fails, verify the token has the correct scopes (`repo`)
 
-### 5. Check Jenkins Logs
+### 4. Check Jenkins Logs
 
 If still not working, check Jenkins logs:
 

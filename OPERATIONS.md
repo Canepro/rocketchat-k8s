@@ -94,6 +94,17 @@ The AKS cluster uses **Azure Automation** to automatically start and stop on a s
 - **Runtime**: ~7 hours/day × 5 weekdays = ~35 hours/week = ~140 hours/month
 - **Estimated Monthly Cost**: ~£55-70 (within £90/month budget)
 
+## 🔔 CI notifications (avoid daily Jenkins logins)
+
+This repo is set up so “routine automation” reports into GitHub:
+- **Version check** (`.jenkins/version-check.Jenkinsfile`): opens/updates a breaking-upgrades issue and (separately) a non-breaking version-updates PR.
+- **Security validation** (`.jenkins/security-validation.Jenkinsfile`): opens/updates a security issue or PR depending on severity.
+- **Job failures**: create/update a GitHub issue titled `CI Failure: <JOB_NAME>` (labels include `ci`, `jenkins`, `failure`, `automated`).
+
+Operational expectation:
+- If the AKS cluster is **stopped**, these scheduled jobs won’t run until the next start window.
+- Leave the issue/PR open if you’re not ready; the jobs will append comments/updates rather than spamming duplicates.
+
 ### Manual Cluster Control
 
 If you need the cluster during off-hours:
