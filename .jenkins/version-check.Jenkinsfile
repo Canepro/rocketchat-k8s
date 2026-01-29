@@ -622,11 +622,6 @@ EOF
 
                 # If we updated an existing PR branch, add a comment so changes aren’t missed.
                 if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
-                  case "${EXISTING_PR_NUMBER}" in
-                    *[!0-9]*) echo "Invalid EXISTING_PR_NUMBER; skipping comment." ; EXISTING_PR_NUMBER="" ;;
-                  esac
-                fi
-                if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
                   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
                   # Build optional build line in shell so jq receives a single safe string (avoids jq ternary quoting issues)
                   BUILD_LINE=""
