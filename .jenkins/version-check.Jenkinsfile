@@ -45,9 +45,11 @@ spec:
           # GitHub CLI is optional (pipeline uses curl for API calls); log if missing
           command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
 
-          # Install yq for YAML parsing (apk yq preferred; fallback binary if missing)
+          # Install yq for YAML parsing (apk yq preferred; fallback: pinned release, no mutable "latest")
           if ! command -v yq >/dev/null 2>&1; then
-            wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            YQ_VERSION="4.44.1"
+            YQ_URL="https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+            wget -qO /usr/local/bin/yq "${YQ_URL}"
             chmod +x /usr/local/bin/yq || true
           fi
         '''
@@ -360,11 +362,13 @@ spec:
                     "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=dependencies,breaking,automated,upgrade&per_page=100" \
                     || echo '[]')
                   EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+                  # Validate issue number is numeric; if invalid, skip comment and create new issue below
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
-                    # Validate issue number is numeric before using in URL (injection safety)
                     case "${EXISTING_ISSUE_NUMBER}" in
-                      ''|*[!0-9]*) echo "Invalid EXISTING_ISSUE_NUMBER; skipping comment." ; exit 1 ;;
+                      ''|*[!0-9]*) echo "Invalid EXISTING_ISSUE_NUMBER; skipping comment." ; EXISTING_ISSUE_NUMBER="" ;;
                     esac
+                  fi
+                  if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
                     # Build optional build line in shell so jq receives a single safe string (avoids jq ternary quoting issues)
                     BUILD_LINE=""
@@ -606,10 +610,11 @@ EOF
 
                 # If we updated an existing PR branch, add a comment so changes aren’t missed.
                 if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
-                  # Validate PR number is numeric before using in URL (injection safety)
                   case "${EXISTING_PR_NUMBER}" in
-                    ''|*[!0-9]*) echo "Invalid EXISTING_PR_NUMBER; skipping comment." ; exit 1 ;;
+                    ''|*[!0-9]*) echo "Invalid EXISTING_PR_NUMBER; skipping comment." ; EXISTING_PR_NUMBER="" ;;
                   esac
+                fi
+                if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
                   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
                   # Build optional build line in shell so jq receives a single safe string (avoids jq ternary quoting issues)
                   BUILD_LINE=""
