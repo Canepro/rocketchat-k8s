@@ -570,16 +570,16 @@ spec:
 EOF
                 
                 # Stage all changes
-                git add VERSIONS.md VERSION_UPDATES.md values.yaml terraform/main.tf ops/manifests/*.yaml 2>/dev/null || true
+                gitw add VERSIONS.md VERSION_UPDATES.md values.yaml terraform/main.tf ops/manifests/*.yaml 2>/dev/null || true
 
                 # If there is nothing to commit, skip pushing/PR creation
-                if git diff --cached --quiet; then
+                if gitw diff --cached --quiet; then
                   echo "No staged changes; skipping PR creation."
                   exit 0
                 fi
                 
                 # Commit with detailed message
-                git commit -m "chore: automated version updates
+                gitw commit -m "chore: automated version updates
 
                 - High risk: ${HIGH_COUNT}
                 - Medium risk: ${MEDIUM_COUNT}
@@ -589,10 +589,10 @@ EOF
                 
                 # Ensure authenticated remote for push
                 set +x
-                git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" 2>/dev/null || true
+                gitw remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" 2>/dev/null || true
                 set -x
 
-                git push origin ${BRANCH_NAME}
+                gitw push origin ${BRANCH_NAME}
 
                 ensure_label() {
                   LABEL_NAME="$1"
