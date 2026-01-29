@@ -97,7 +97,7 @@ The AKS cluster uses **Azure Automation** to automatically start and stop on a s
 ## 🔔 CI notifications (avoid daily Jenkins logins)
 
 This repo is set up so “routine automation” reports into GitHub:
-- **Version check** (`.jenkins/version-check.Jenkinsfile`): opens/updates a breaking-upgrades issue and (separately) a non-breaking version-updates PR.
+- **Version check** (`.jenkins/version-check.Jenkinsfile`): opens/updates a breaking-upgrade issue and (separately) a non-breaking version-updates PR.
 - **Security validation** (`.jenkins/security-validation.Jenkinsfile`): opens/updates a security issue or PR depending on severity.
 - **Job failures**: create/update a GitHub issue titled `CI Failure: <JOB_NAME>` (labels include `ci`, `jenkins`, `failure`, `automated`).
 
