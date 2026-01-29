@@ -14,7 +14,7 @@ Both jobs run on a weekday schedule and are regular Pipeline jobs (not multibran
 ## Prerequisites
 
 - Jenkins is deployed and accessible
-- GitHub token credential (`github-token`) is configured in Jenkins
+- GitHub token credential (`github-token`) is available in Jenkins (prefer GitOps-provisioned via ESO + Kubernetes Credentials Provider)
 - Kubernetes access to retrieve Jenkins admin credentials (optional, can provide manually)
 - `kubectl` configured (if using Kubernetes secret for credentials)
 
@@ -169,8 +169,9 @@ Or update via Jenkins UI: Job → Configure → Build Triggers → Build periodi
    - `ops/manifests/*.yaml`
 
 3. Creates PRs/issues based on risk:
-   - **Critical** (major version): Creates GitHub Issue
-   - **High/Medium** (minor/patch): Creates PR with automatic updates
+   - **Critical** (major version): Creates/updates a single open GitHub Issue (de-duped via comments)
+   - **High/Medium** (minor/patch): Creates/updates a single open GitHub PR (de-duped via reusing the branch + comments)
+   - **Note**: The job can create/update both in one run (breaking issue + non-breaking PR)
 
 4. Automatically updates:
    - `VERSIONS.md` with new versions
@@ -209,7 +210,7 @@ Or update via Jenkins UI: Job → Configure → Build Triggers → Build periodi
 ### GitHub API Errors
 
 - Verify `github-token` credential is valid
-- Check token has permissions: `repo`, `write:packages`, `read:packages`
+- Check token has permissions: `repo`, `workflow` (and optionally `admin:repo_hook` if you want Jenkins managing webhooks)
 - Token should have access to `Canepro/rocketchat-k8s` repository
 
 ### Agent Not Found
@@ -248,3 +249,4 @@ All jobs should be named to avoid collisions:
 - `.jenkins/VERSION_CHECKING.md` - Version checking details
 - `.jenkins/SECURITY_VALIDATION.md` - Security validation details
 - `.jenkins/README.md` - General Jenkins setup
+- `.jenkins/GITHUB_CREDENTIALS_SETUP.md` - How `github-token` is provisioned (GitOps-first)

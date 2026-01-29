@@ -27,18 +27,23 @@ Validates Helm charts and Kubernetes manifests:
 Automated version checking pipeline:
 - Checks for latest versions of all components
 - Compares with current versions in code
-- Creates PRs/issues for updates based on risk assessment
+- Creates/updates GitHub Issues and PRs for updates based on risk assessment (de-duped)
 - Automatically updates `VERSIONS.md` and code files
 
 **Agent**: `version-checker` (Alpine with version checking tools)
 **Schedule**: Weekdays at 5 PM (`H 17 * * 1-5`, after cluster auto-start at 16:00)
+
+**GitHub output (summary)**:
+- **Breaking updates**: one open issue (updated via comments)
+- **Non-breaking updates**: one open PR (updated by pushing to the same branch + commenting)
+- **Job failures**: GitHub issue notification (so you don't need to log into Jenkins daily)
 
 ### `security-validation.Jenkinsfile`
 Automated security validation pipeline:
 - Scans Terraform code (tfsec, checkov)
 - Scans container images (trivy)
 - Assesses risk levels
-- Creates PRs/issues for remediation
+- Creates/updates PRs/issues for remediation (de-duped) and notifies on job failures
 
 **Agent**: `security` (Alpine with security scanning tools)
 **Schedule**: Weekdays at 6 PM (`H 18 * * 1-5`, after cluster auto-start at 16:00)
@@ -107,3 +112,12 @@ To retrieve the current credentials:
 kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.username}' | base64 -d; echo
 kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' | base64 -d; echo
 ```
+
+## GitHub token credential (how it is provided)
+
+This repo provisions the `github-token` Jenkins credential via GitOps:
+- **Source of truth**: Azure Key Vault secret `jenkins-github-token`
+- **Sync**: `ops/secrets/externalsecret-jenkins.yaml` (ESO → `jenkins/secret/jenkins-github`)
+- **Discovery**: Jenkins Kubernetes Credentials Provider auto-discovers it as a **username/password** credential with ID `github-token`
+
+If `github-token` is missing in Jenkins dropdowns, see `.jenkins/GITHUB_CREDENTIALS_SETUP.md`.
