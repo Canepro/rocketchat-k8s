@@ -37,19 +37,26 @@ spec:
     stage('Install Tools') {
       steps {
         sh '''
-          set -e
-          # Alpine-based agent: install tools via apk
-          apk add --no-cache curl jq git bash python3 py3-pip wget yq github-cli || \
+          # Alpine-based agent: install tools via apk (allow fallback if github-cli unavailable)
+          set +e
+          apk add --no-cache curl jq git bash python3 py3-pip wget yq github-cli
+          if [ $? -ne 0 ]; then
             apk add --no-cache curl jq git bash python3 py3-pip wget yq
+          fi
+          set -e
 
           # GitHub CLI is optional (pipeline uses curl for API calls); log if missing
           command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
 
-          # Install yq for YAML parsing (apk yq preferred; fallback: pinned release, no mutable "latest")
+          # Install yq for YAML parsing (apk yq preferred; fallback: pinned release + optional checksum)
           if ! command -v yq >/dev/null 2>&1; then
             YQ_VERSION="4.44.1"
             YQ_URL="https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
             wget -qO /usr/local/bin/yq "${YQ_URL}"
+            # Optional: set YQ_SHA256 from https://github.com/mikefarah/yq/releases to verify integrity
+            if [ -n "${YQ_SHA256:-}" ]; then
+              printf '%s  %s\n' "${YQ_SHA256}" /usr/local/bin/yq | sha256sum -c -
+            fi
             chmod +x /usr/local/bin/yq || true
           fi
         '''
@@ -365,7 +372,7 @@ spec:
                   # Validate issue number is numeric; if invalid, skip comment and create new issue below
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     case "${EXISTING_ISSUE_NUMBER}" in
-                      ''|*[!0-9]*) echo "Invalid EXISTING_ISSUE_NUMBER; skipping comment." ; EXISTING_ISSUE_NUMBER="" ;;
+                      *[!0-9]*) echo "Invalid EXISTING_ISSUE_NUMBER; skipping comment." ; EXISTING_ISSUE_NUMBER="" ;;
                     esac
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
@@ -426,7 +433,7 @@ spec:
                 EXISTING_PR_NUMBER=$(echo "$PR_LIST_JSON" | jq -r '[.[] | select(.pull_request != null) | select(.title | startswith("⬆️ Version Updates:"))][0].number // empty' 2>/dev/null || true)
                 if [ -n "${EXISTING_PR_NUMBER}" ]; then
                   case "${EXISTING_PR_NUMBER}" in
-                    ''|*[!0-9]*) EXISTING_PR_NUMBER="" ;;  # invalid; treat as no existing PR
+                    *[!0-9]*) EXISTING_PR_NUMBER="" ;;  # invalid; treat as no existing PR
                   esac
                 fi
                 if [ -n "${EXISTING_PR_NUMBER}" ]; then
@@ -611,7 +618,7 @@ EOF
                 # If we updated an existing PR branch, add a comment so changes aren’t missed.
                 if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
                   case "${EXISTING_PR_NUMBER}" in
-                    ''|*[!0-9]*) echo "Invalid EXISTING_PR_NUMBER; skipping comment." ; EXISTING_PR_NUMBER="" ;;
+                    *[!0-9]*) echo "Invalid EXISTING_PR_NUMBER; skipping comment." ; EXISTING_PR_NUMBER="" ;;
                   esac
                 fi
                 if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
@@ -726,7 +733,7 @@ EOF
 // Returns 0 for null, empty, or unparseable input so callers get a safe comparison.
 def parseMajorVersion(String v) {
   if (v == null) return 0
-  def s = (v instanceof String) ? v.trim() : v.toString().trim()
+  def s = v.trim()
   if (!s) return 0
   def cleaned = s.replaceAll(/^[^0-9]+/, '').trim()
   def segment = cleaned.split('\\.')[0]?.trim()
