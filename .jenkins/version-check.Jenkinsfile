@@ -430,8 +430,8 @@ spec:
               
               sh '''
                 # Ensure we run git operations inside the checked-out workspace
-                if [ -n "${WORKSPACE:-}" ]; then
-                  cd "${WORKSPACE}"
+                if [ -n "$WORKSPACE" ]; then
+                  cd "$WORKSPACE" || { echo "Failed to change to workspace directory: $WORKSPACE"; exit 1; }
                 fi
                 if [ ! -d .git ]; then
                   echo "Workspace is not a git repository: $(pwd)"
