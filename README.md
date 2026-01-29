@@ -179,8 +179,8 @@ This repo also runs two scheduled “automation” jobs that report to GitHub so
 - **Security validation**: `.jenkins/security-validation.Jenkinsfile` → issue/PR updates (de-duped)
 
 See:
-- `.jenkins/VERSION_CHECKING.md`
-- `.jenkins/SECURITY_VALIDATION.md`
+- [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md)
+- [.jenkins/SECURITY_VALIDATION.md](.jenkins/SECURITY_VALIDATION.md)
 
 ### ArgoCD (Deployment)
 
