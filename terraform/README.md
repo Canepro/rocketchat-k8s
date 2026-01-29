@@ -131,6 +131,17 @@ The `keyvault.tf` file provisions:
 - **User Assigned Managed Identity** for External Secrets Operator
 - **RBAC role assignment**: UAMI gets "Key Vault Secrets User" role (read secrets)
 
+### Plan stability (Cloud Shell vs Jenkins identity)
+
+This repo may be planned/applied by different Azure identities (e.g., your Cloud Shell user vs Jenkins Workload Identity).
+
+To avoid noisy plans (or destructive replacements) caused solely by “who ran Terraform”, the Key Vault role assignment that grants the Terraform runner permissions is configured to **ignore changes to `principal_id`**.
+
+Practical impact:
+- ✅ prevents “replace role assignment” churn when switching runners
+- ✅ keeps Key Vault RBAC mode stable for ESO/Jenkins
+- ⚠️ if you intentionally want a new identity to have the same Key Vault role, grant it explicitly (don’t rely on Terraform drift)
+
 **Network access:** Defaults to `Allow` (public). To restrict:
 - Set `key_vault_network_default_action = "Deny"` in `terraform.tfvars`
 - Add `network_acls` rules in `keyvault.tf` for specific IPs/VNets

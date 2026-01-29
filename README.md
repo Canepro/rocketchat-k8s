@@ -77,11 +77,11 @@ az aks show --resource-group rg-canepro-aks --name aks-canepro --query powerStat
 │   └── secrets/                # ExternalSecret definitions (GitOps secrets)
 ├── terraform/                  # AKS infrastructure + automation schedules
 ├── .jenkins/                   # CI pipeline definitions
-└── docs/
-    ├── OPERATIONS.md           # Day-2 operations runbook
-    ├── DIAGRAM.md              # Architecture diagrams
-    ├── VERSIONS.md             # Component version tracking
-    └── TROUBLESHOOTING_DNS_TLS.md
+├── OPERATIONS.md               # Day-2 operations runbook
+├── JENKINS_DEPLOYMENT.md       # Jenkins setup + runbook
+├── VERSIONS.md                 # Component version tracking
+├── DIAGRAM.md                  # Architecture diagrams
+└── TROUBLESHOOTING_DNS_TLS.md  # DNS/TLS troubleshooting
 ```
 
 ## GitOps Model
@@ -174,6 +174,14 @@ Jenkins performs CI validation on pull requests:
 - YAML: `yamllint`
 - Security: `tfsec`, `checkov`, `trivy`
 
+This repo also runs two scheduled “automation” jobs that report to GitHub so you don’t have to check Jenkins daily:
+- **Version updates**: `.jenkins/version-check.Jenkinsfile` → breaking issue + non-breaking PR (de-duped)
+- **Security validation**: `.jenkins/security-validation.Jenkinsfile` → issue/PR updates (de-duped)
+
+See:
+- [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md)
+- [.jenkins/SECURITY_VALIDATION.md](.jenkins/SECURITY_VALIDATION.md)
+
 ### ArgoCD (Deployment)
 
 ArgoCD handles all deployments via GitOps:
@@ -193,6 +201,7 @@ ArgoCD handles all deployments via GitOps:
 | [TROUBLESHOOTING_DNS_TLS.md](TROUBLESHOOTING_DNS_TLS.md) | DNS and TLS troubleshooting |
 | [MIGRATION_STATUS.md](MIGRATION_STATUS.md) | Migration progress tracking |
 | [terraform/README.md](terraform/README.md) | Infrastructure documentation |
+| [.jenkins/README.md](.jenkins/README.md) | Jenkins pipelines overview |
 
 ## Prerequisites
 

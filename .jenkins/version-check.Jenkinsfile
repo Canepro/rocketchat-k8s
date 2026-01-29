@@ -247,6 +247,13 @@ spec:
           def highRiskUpdates = []
           def mediumRiskUpdates = []
           
+          // Classify Terraform provider update risk (so we can avoid auto-PR for breaking bumps)
+          if (terraformVersions?.azurerm?.needsUpdate) {
+            terraformVersions.azurerm.risk = isMajorVersionUpdate(terraformVersions.azurerm.current, terraformVersions.azurerm.latest) ? 'CRITICAL' : 'MEDIUM'
+          } else {
+            terraformVersions?.azurerm?.put('risk', 'LOW')
+          }
+
           imageUpdates.each { update ->
             if (update.risk == 'CRITICAL') {
               criticalUpdates.add(update)
@@ -267,6 +274,24 @@ spec:
             }
           }
           
+          // If Terraform provider update is a major bump, treat it as breaking (issue), otherwise allow PR.
+          if (terraformVersions?.azurerm?.needsUpdate) {
+            def tfRisk = terraformVersions.azurerm.risk
+            if (tfRisk == 'CRITICAL') {
+              criticalUpdates.add([
+                component: 'Terraform Azure Provider (azurerm)',
+                current: terraformVersions.azurerm.current,
+                latest: terraformVersions.azurerm.latest,
+                location: 'terraform/main.tf',
+                risk: 'CRITICAL',
+                source: 'terraform-registry'
+              ])
+            } else {
+              // Do NOT add terraform to mediumRiskUpdates list (PR script has a dedicated terraform section).
+              // We only need terraform risk info in updates-to-apply.json.
+            }
+          }
+
           // Create report
           def updateReport = [
             timestamp: sh(script: 'date -u +%Y-%m-%dT%H:%M:%SZ', returnStdout: true).trim(),
@@ -284,10 +309,14 @@ spec:
               echo "⚠️ GitHub token is empty; skipping issue/PR creation."
               return
             }
+            def createdBreakingIssue = false
+
             if (criticalUpdates.size() > 0) {
               // Create Issue for breaking (major) updates
               echo "🚨 Creating GitHub issue for BREAKING version updates..."
-              def criticalSummary = criticalUpdates.collect { "- ${it.component}: ${it.current} → ${it.latest}" }.join('\\n')
+              // Use REAL newlines so GitHub markdown renders bullet lists correctly.
+              // (Using '\\n' would embed the two characters '\' and 'n' into the issue body.)
+              def criticalSummary = criticalUpdates.collect { "- ${it.component}: ${it.current} → ${it.latest}" }.join('\n')
               withEnv(["CRITICAL_UPDATES=${criticalSummary}"]) {
                 sh '''
                   ensure_label() {
@@ -311,13 +340,34 @@ spec:
                   ensure_label "upgrade" "fbca04"
                   
                   # Build JSON with jq so newlines are escaped correctly
+                  # Write updates to a file to safely preserve newlines.
+                  printf "%s" "${CRITICAL_UPDATES}" > critical-updates.md
                   ISSUE_BODY_JSON=$(jq -n \
                     --arg title "🚨 Breaking: Major version updates available" \
-                    --arg updates "${CRITICAL_UPDATES}" \
-                    --arg body_prefix "## Version Update Alert\n\n**Risk Level:** BREAKING (major version)\n\n**Updates Available:**\n" \
-                    --arg body_suffix "\n\n## Action Required\n\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\n\n## Next Steps\n\n1. Review breaking changes in release notes\n2. Test in staging environment\n3. Create upgrade plan\n4. Schedule maintenance window if needed\n\n---\n*This issue was automatically created by Jenkins version check pipeline.*" \
-                    '{title:$title, body:($body_prefix + $updates + $body_suffix), labels:["dependencies","breaking","automated","upgrade"]}')
+                    --rawfile updates critical-updates.md \
+                    '{title:$title, body:("## Version Update Alert\n\n**Risk Level:** BREAKING (major version)\n\n**Updates Available:**\n" + $updates + "\n\n## Action Required\n\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\n\n## Next Steps\n\n1. Review breaking changes in release notes\n2. Test in staging environment\n3. Create upgrade plan\n4. Schedule maintenance window if needed\n\n---\n*This issue was automatically created by Jenkins version check pipeline.*"), labels:["dependencies","breaking","automated","upgrade"]}')
                   echo "$ISSUE_BODY_JSON" > issue-body.json
+
+                  # De-duplicate: if an open breaking issue already exists, comment on it instead of creating a new one.
+                  ISSUE_TITLE="🚨 Breaking: Major version updates available"
+                  ISSUE_LIST_JSON=$(curl -fsSL \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=dependencies,breaking,automated,upgrade&per_page=100" \
+                    || echo '[]')
+                  EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+                  if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
+                    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                    COMMENT_JSON=$(jq -n --rawfile updates critical-updates.md --arg ts "$TS" --arg build "${BUILD_URL:-}" \
+                      '{body:("## New breaking updates detected\n\nTime: " + $ts + ( ($build|length)>0 ? ("\nBuild: " + $build) : "" ) + "\n\n**Updates Available:**\n" + $updates)}')
+                    curl -fsSL -X POST \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_ISSUE_NUMBER}/comments" \
+                      -d "$COMMENT_JSON" >/dev/null 2>&1 || true
+                    echo "Updated existing breaking issue #${EXISTING_ISSUE_NUMBER}"
+                    exit 0
+                  fi
                   
                   curl -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -326,9 +376,20 @@ spec:
                     -d @issue-body.json
                 '''
               }
-            } else if (highRiskUpdates.size() > 0 || mediumRiskUpdates.size() > 0) {
-              // Create PR for high/medium risk updates
-              echo "⚠️ Creating PR for version updates..."
+              createdBreakingIssue = true
+            }
+
+            // Also create a PR for non-breaking updates (even if breaking updates exist),
+            // so smaller safe bumps (like Rocket.Chat chart 6.29.0 -> 6.30.0) don’t get hidden.
+            def shouldCreateNonBreakingPr =
+              (highRiskUpdates.size() > 0) ||
+              (mediumRiskUpdates.size() > 0) ||
+              (terraformVersions?.azurerm?.needsUpdate && terraformVersions?.azurerm?.risk != 'CRITICAL')
+
+            if (shouldCreateNonBreakingPr) {
+              echo(createdBreakingIssue
+                ? "⚠️ Creating PR for NON-BREAKING updates (breaking issue already created)..."
+                : "⚠️ Creating PR for version updates...")
               
               // Write updates to JSON for shell script processing
               def updatesToApply = [
@@ -339,10 +400,34 @@ spec:
               writeJSON file: 'updates-to-apply.json', json: updatesToApply
               
               sh '''
-                BRANCH_NAME="chore/version-updates-$(date +%Y%m%d)"
+                # De-duplicate: re-use an existing open "Version Updates" PR if present.
+                PR_LIST_JSON=$(curl -fsSL \
+                  -H "Authorization: token ${GITHUB_TOKEN}" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=dependencies,automated,upgrade&per_page=100" \
+                  || echo '[]')
+                EXISTING_PR_NUMBER=$(echo "$PR_LIST_JSON" | jq -r '[.[] | select(.pull_request != null) | select(.title | startswith("⬆️ Version Updates:"))][0].number // empty' 2>/dev/null || true)
+                if [ -n "${EXISTING_PR_NUMBER}" ]; then
+                  PR_JSON=$(curl -fsSL \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/pulls/${EXISTING_PR_NUMBER}" \
+                    || echo '{}')
+                  BRANCH_NAME=$(echo "$PR_JSON" | jq -r '.head.ref // empty' 2>/dev/null || true)
+                  echo "Found existing version update PR #${EXISTING_PR_NUMBER} on branch ${BRANCH_NAME}; will update it."
+                fi
+                BRANCH_NAME="${BRANCH_NAME:-chore/version-updates}"
+
                 git config user.name "Jenkins Version Bot"
                 git config user.email "jenkins@canepro.me"
-                git checkout -b ${BRANCH_NAME}
+                
+                # Check out existing remote branch if it exists
+                git fetch origin "${BRANCH_NAME}" 2>/dev/null || true
+                if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH_NAME}"; then
+                  git checkout -B "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
+                else
+                  git checkout -b "${BRANCH_NAME}"
+                fi
                 
                 # Process updates and apply to VERSIONS.md and code files
                 echo "Applying version updates to files..."
@@ -394,12 +479,17 @@ spec:
                 
                 # Update Terraform provider if needed
                 if [ "$(jq -r '.terraform.azurerm.needsUpdate // false' updates-to-apply.json 2>/dev/null)" = "true" ]; then
+                  TF_RISK=$(jq -r '.terraform.azurerm.risk // ""' updates-to-apply.json 2>/dev/null || echo "")
+                  if [ "$TF_RISK" = "CRITICAL" ]; then
+                    echo "Terraform azurerm update is breaking (major); skipping PR update."
+                  else
                   CURRENT_TF=$(jq -r '.terraform.azurerm.current' updates-to-apply.json 2>/dev/null | sed 's/~>//' | tr -d ' ')
                   LATEST_TF=$(jq -r '.terraform.azurerm.latest' updates-to-apply.json 2>/dev/null)
                   if [ -n "$CURRENT_TF" ] && [ -n "$LATEST_TF" ] && [ "$CURRENT_TF" != "$LATEST_TF" ]; then
                     echo "Updating Terraform Azure Provider: $CURRENT_TF → $LATEST_TF"
                     sed -i "s/| \\*\\*Azure Provider\\*\\* | [^|]* |/| **Azure Provider** | ~> ${LATEST_TF} |/g" VERSIONS.md || true
                     sed -i "s/version = \"~> ${CURRENT_TF}\"/version = \"~> ${LATEST_TF}\"/g" terraform/main.tf || true
+                  fi
                   fi
                 fi
                 
@@ -429,6 +519,12 @@ EOF
                 
                 # Stage all changes
                 git add VERSIONS.md VERSION_UPDATES.md values.yaml terraform/main.tf ops/manifests/*.yaml 2>/dev/null || true
+
+                # If there is nothing to commit, skip pushing/PR creation
+                if git diff --cached --quiet; then
+                  echo "No staged changes; skipping PR creation."
+                  exit 0
+                fi
                 
                 # Commit with detailed message
                 git commit -m "chore: automated version updates
@@ -489,9 +585,23 @@ EOF
                     "https://api.github.com/repos/${GITHUB_REPO}/issues/${PR_CREATED_NUMBER}/labels" \\
                     -d '{"labels":["dependencies","automated","upgrade"]}' >/dev/null 2>&1 || true
                 fi
+
+                # If we updated an existing PR branch, add a comment so changes aren’t missed.
+                if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
+                  TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  COMMENT_JSON=$(jq -n --arg ts "$TS" --arg build "${BUILD_URL:-}" --arg high "${HIGH_COUNT}" --arg med "${MEDIUM_COUNT}" \
+                    '{body:("## PR updated by Jenkins\n\nTime: " + $ts + ( ($build|length)>0 ? ("\nBuild: " + $build) : "" ) + "\n\nUpdates summary:\n- High Risk: " + $high + "\n- Medium Risk: " + $med)}')
+                  curl -fsSL -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_PR_NUMBER}/comments" \
+                    -d "$COMMENT_JSON" >/dev/null 2>&1 || true
+                fi
               '''
-            } else {
+            } else if (!createdBreakingIssue) {
               echo "✅ All versions are up to date or updates are low risk"
+            } else {
+              echo "✅ Breaking updates detected and issue created; no non-breaking PR updates to apply."
             }
           }
         }
