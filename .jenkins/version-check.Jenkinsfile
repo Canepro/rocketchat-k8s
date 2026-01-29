@@ -37,6 +37,7 @@ spec:
     stage('Install Tools') {
       steps {
         sh '''
+          set -e
           # Alpine-based agent: install tools via apk
           apk add --no-cache curl jq git bash python3 py3-pip wget yq github-cli || \
             apk add --no-cache curl jq git bash python3 py3-pip wget yq
@@ -44,7 +45,7 @@ spec:
           # GitHub CLI is optional (pipeline uses curl for API calls); log if missing
           command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
 
-          # Install yq for YAML parsing (apk 'yq' preferred; fallback binary if missing)
+          # Install yq for YAML parsing (apk yq preferred; fallback binary if missing)
           if ! command -v yq >/dev/null 2>&1; then
             wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
             chmod +x /usr/local/bin/yq || true
@@ -61,14 +62,17 @@ spec:
           
           // Check Azure Provider version
           sh '''
-            # Get current version from main.tf
+            set -e
+            if [ ! -f terraform/main.tf ]; then
+              echo "terraform/main.tf not found; cannot check Azure provider version."
+              exit 1
+            fi
+            # Get current version from main.tf (may be constraint e.g. ~>3.0)
             CURRENT_AZURERM=$(grep -A2 "azurerm = {" terraform/main.tf | grep "version" | sed 's/.*version = "\\(.*\\)".*/\\1/' | tr -d ' ')
             echo "Current Azure Provider: ${CURRENT_AZURERM}"
-            
-            # Get latest version from Terraform Registry API
-            LATEST_AZURERM=$(curl -s https://registry.terraform.io/v1/providers/hashicorp/azurerm/versions | jq -r '.versions[] | .version' | grep -E "^[0-9]+\\.[0-9]+\\.[0-9]+$" | sort -V | tail -1)
+            # Get latest version from Terraform Registry API (plain semver only)
+            LATEST_AZURERM=$(curl -sSf https://registry.terraform.io/v1/providers/hashicorp/azurerm/versions | jq -r '.versions[] | .version' | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | sort -V | tail -1)
             echo "Latest Azure Provider: ${LATEST_AZURERM}"
-            
             echo "AZURERM_CURRENT=${CURRENT_AZURERM}" >> versions.env
             echo "AZURERM_LATEST=${LATEST_AZURERM}" >> versions.env
           '''
@@ -357,9 +361,18 @@ spec:
                     || echo '[]')
                   EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
+                    # Validate issue number is numeric before using in URL (injection safety)
+                    case "${EXISTING_ISSUE_NUMBER}" in
+                      ''|*[!0-9]*) echo "Invalid EXISTING_ISSUE_NUMBER; skipping comment." ; exit 1 ;;
+                    esac
                     TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                    COMMENT_JSON=$(jq -n --rawfile updates critical-updates.md --arg ts "$TS" --arg build "${BUILD_URL:-}" \
-                      '{body:("## New breaking updates detected\n\nTime: " + $ts + ( ($build|length)>0 ? ("\nBuild: " + $build) : "" ) + "\n\n**Updates Available:**\n" + $updates)}')
+                    # Build optional build line in shell so jq receives a single safe string (avoids jq ternary quoting issues)
+                    BUILD_LINE=""
+                    if [ -n "${BUILD_URL:-}" ]; then
+                      BUILD_LINE=$(printf '\nBuild: %s' "${BUILD_URL}")
+                    fi
+                    COMMENT_JSON=$(jq -n --rawfile updates critical-updates.md --arg ts "$TS" --arg buildline "$BUILD_LINE" \
+                      '{body:("## New breaking updates detected\n\nTime: " + $ts + $buildline + "\n\n**Updates Available:**\n" + $updates)}')
                     curl -fsSL -X POST \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
@@ -407,6 +420,11 @@ spec:
                   "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=dependencies,automated,upgrade&per_page=100" \
                   || echo '[]')
                 EXISTING_PR_NUMBER=$(echo "$PR_LIST_JSON" | jq -r '[.[] | select(.pull_request != null) | select(.title | startswith("⬆️ Version Updates:"))][0].number // empty' 2>/dev/null || true)
+                if [ -n "${EXISTING_PR_NUMBER}" ]; then
+                  case "${EXISTING_PR_NUMBER}" in
+                    ''|*[!0-9]*) EXISTING_PR_NUMBER="" ;;  # invalid; treat as no existing PR
+                  esac
+                fi
                 if [ -n "${EXISTING_PR_NUMBER}" ]; then
                   PR_JSON=$(curl -fsSL \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -588,9 +606,18 @@ EOF
 
                 # If we updated an existing PR branch, add a comment so changes aren’t missed.
                 if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
+                  # Validate PR number is numeric before using in URL (injection safety)
+                  case "${EXISTING_PR_NUMBER}" in
+                    ''|*[!0-9]*) echo "Invalid EXISTING_PR_NUMBER; skipping comment." ; exit 1 ;;
+                  esac
                   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                  COMMENT_JSON=$(jq -n --arg ts "$TS" --arg build "${BUILD_URL:-}" --arg high "${HIGH_COUNT}" --arg med "${MEDIUM_COUNT}" \
-                    '{body:("## PR updated by Jenkins\n\nTime: " + $ts + ( ($build|length)>0 ? ("\nBuild: " + $build) : "" ) + "\n\nUpdates summary:\n- High Risk: " + $high + "\n- Medium Risk: " + $med)}')
+                  # Build optional build line in shell so jq receives a single safe string (avoids jq ternary quoting issues)
+                  BUILD_LINE=""
+                  if [ -n "${BUILD_URL:-}" ]; then
+                    BUILD_LINE=$(printf '\nBuild: %s' "${BUILD_URL}")
+                  fi
+                  COMMENT_JSON=$(jq -n --arg ts "$TS" --arg buildline "$BUILD_LINE" --arg high "${HIGH_COUNT}" --arg med "${MEDIUM_COUNT}" \
+                    '{body:("## PR updated by Jenkins\n\nTime: " + $ts + $buildline + "\n\nUpdates summary:\n- High Risk: " + $high + "\n- Medium Risk: " + $med)}')
                   curl -fsSL -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
@@ -689,15 +716,19 @@ EOF
   }
 }
 
-// Helper: parse major version from a string that may be a constraint (e.g. "~>3.0") or plain semver ("4.58.0")
+// Parse major version number from a version string (constraint or plain semver).
+// Handles Terraform-style constraints (e.g. "~>3.0", ">=4.2.1") and plain semver ("4.58.0").
+// Returns 0 for null, empty, or unparseable input so callers get a safe comparison.
 def parseMajorVersion(String v) {
-  if (!v?.trim()) return 0
-  def cleaned = v.replaceAll(/^[^0-9]+/, '').trim()  // strip constraint prefix like ~> >= =
+  if (v == null) return 0
+  def s = (v instanceof String) ? v.trim() : v.toString().trim()
+  if (!s) return 0
+  def cleaned = s.replaceAll(/^[^0-9]+/, '').trim()
   def segment = cleaned.split('\\.')[0]?.trim()
   return (segment ==~ /[0-9]+/) ? segment.toInteger() : 0
 }
 
-// Helper function to determine if version update is major
+// Returns true if latest is a higher major version than current (e.g. 3.x -> 4.x).
 def isMajorVersionUpdate(current, latest) {
   def currentMajor = parseMajorVersion(current?.toString())
   def latestMajor = parseMajorVersion(latest?.toString())
