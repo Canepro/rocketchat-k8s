@@ -10,6 +10,9 @@ The security validation pipeline:
 3. **Reports** results (never fails the build due to findings)
 4. **Creates** a single open GitHub Issue (critical) or PR (non-critical) and **updates it** on subsequent runs (de-dupe via comments)
 
+Additionally:
+- **Job failures** create/update a GitHub issue (`CI Failure: <JOB_NAME>`) so you get notified in GitHub without checking Jenkins daily.
+
 ## Tools Used
 
 - **tfsec**: Terraform security scanner
@@ -47,6 +50,8 @@ bash .jenkins/create-security-validation-job.sh
 3. **Schedule**: `H 18 * * 1-5` (weekdays at 6 PM, after cluster starts at 4 PM)
 4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `master`
 5. **Credentials**: Use `github-token` for GitHub API access
+
+**Credential type note**: the GitHub multibranch integration expects **Username with password** credentials (password = PAT). In this repo it’s designed to be provisioned via ESO + Kubernetes Credentials Provider. See `.jenkins/GITHUB_CREDENTIALS_SETUP.md`.
 
 See `.jenkins/SETUP_AUTOMATED_JOBS.md` for detailed setup instructions.
 

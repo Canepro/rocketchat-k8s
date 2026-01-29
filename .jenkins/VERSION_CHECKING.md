@@ -1,152 +1,85 @@
 # Automated Version Checking
 
-This document describes how Jenkins automatically checks for version updates and creates PRs/issues.
+This document describes how the scheduled Jenkins job (`version-check-…`) detects dependency updates and keeps GitHub “as the dashboard” (issues + PRs), so you don’t have to live in Jenkins logs.
 
 ## Overview
 
-The version checking system:
-1. **Checks** latest versions of all components (Terraform, Helm charts, container images)
-2. **Compares** with current versions in `VERSIONS.md` and code
-3. **Assesses** risk (major = critical, minor = medium)
-4. **Creates** GitHub Issues for major updates, PRs for minor updates
+The version-check pipeline (`.jenkins/version-check.Jenkinsfile`) does three things:
+- **Detect** updates (Terraform provider, Helm charts, Rocket.Chat image)
+- **Classify** risk (major = breaking)
+- **Report** to GitHub (breaking issue + non-breaking PR), with **de-duplication** so daily runs don’t spam
 
-## What Gets Checked
+## What Gets Checked (Current Implementation)
 
-### Infrastructure
-- **Terraform Azure Provider**: Checks Terraform Registry
-- **Terraform version**: Checks Terraform releases
+### Terraform
+- **AzureRM provider (`azurerm`)**: reads the current version from `terraform/main.tf`, fetches latest from Terraform Registry.
 
-### Application Stack
-- **RocketChat**: Checks GitHub releases
-- **Helm Charts**: RocketChat, Traefik, MongoDB Operator
-- **Container Images**: All images in `ops/manifests/` and `values.yaml`
+### Rocket.Chat application image
+- **Current**: reads `image.repository` + `image.tag` from `values.yaml`
+- **Latest**:
+  - preferred: Docker Registry API for `registry.rocket.chat`
+  - fallback: Rocket.Chat GitHub “latest release” tag
 
-### Observability
-- **Prometheus Agent**: GitHub releases
-- **OTel Collector**: GitHub releases
-- **Other observability tools**: As listed in VERSIONS.md
+### Helm charts (via ArgoCD Applications)
 
-## Risk Assessment
+The pipeline scans `GrafanaLocal/argocd/applications/*.yaml` for Helm sources:
+- `repoURL`
+- `chart`
+- `targetRevision` (current chart version)
 
-- **CRITICAL** (Major version): Creates GitHub Issue
-  - Example: RocketChat 7.x → 8.x
-  - Example: Terraform Provider 3.x → 4.x
-  
-- **HIGH** (Minor version, security): Creates PR with fixes
-  - Example: RocketChat 8.0.1 → 8.0.2
-  - Example: Security patches
-  
-- **MEDIUM** (Patch version): Creates PR for review
-  - Example: 8.0.1 → 8.0.2 (patch)
-  - Example: Dependency updates
+Then it fetches `<repoURL>/index.yaml` and picks the latest semver in `.entries[chart][].version`.
 
-## Setup
+## Risk Model (How PR vs Issue is decided)
 
-### Recommended: Separate Scheduled Job
+- **CRITICAL / BREAKING**: major version bump (e.g., `34.x → 39.x`, or `0.x → 1.x`)
+  - Creates/updates a single open GitHub issue titled **“🚨 Breaking: Major version updates available”**
+- **NON-BREAKING**: minor/patch bumps (e.g., `6.29.0 → 6.30.0`)
+  - Creates/updates a single open GitHub PR titled **“⬆️ Version Updates: …”**
 
-Create a Jenkins job that runs on a weekday schedule (to match cluster uptime):
+### Terraform special case
 
-**Quick Setup:**
-```bash
-bash .jenkins/create-version-check-job.sh
-```
+- Terraform `azurerm` **major** bump is treated as **breaking** (issue).
+- Terraform `azurerm` **minor/patch** bump can be included in the non-breaking PR.
 
-**Manual Setup:**
-1. **Create Pipeline job** (not multibranch) named `version-check-{repo-name}` (recommended)
-2. **Use**: `.jenkins/version-check.Jenkinsfile`
-3. **Schedule**: `H 17 * * 1-5` (weekdays at 5 PM, after cluster starts at 4 PM)
-4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `master`
-5. **Credentials**: Use `github-token` for GitHub API access
+## GitHub Output (De-dupe behavior)
 
-See `.jenkins/SETUP_AUTOMATED_JOBS.md` for detailed setup instructions.
+### Breaking issue (one open issue, updated by comments)
 
-### Alternative: Add to Existing Pipeline
+- **Title**: `🚨 Breaking: Major version updates available`
+- **Labels**: `dependencies`, `breaking`, `automated`, `upgrade`
+- **Behavior**:
+  - if the issue exists: the job **adds a comment** with the latest breaking list (timestamp + build link)
+  - if it doesn’t exist: the job creates it
 
-Prefer running the dedicated pipeline `.jenkins/version-check.Jenkinsfile` as a scheduled job. If you really want to wire version checking into another pipeline, call the Jenkinsfile logic directly (don’t rely on a separate `.sh` helper script).
+### Non-breaking PR (one open PR, updated by pushing + commenting)
 
-```groovy
-stage('Version Check') {
-  when {
-    // Only run on master branch or scheduled
-    anyOf {
-      branch 'master'
-      expression { env.BRANCH_NAME == 'master' }
-    }
-  }
-  steps {
-    // Run the dedicated version-check pipeline as its own job instead.
-    echo 'Use the scheduled version-check job (.jenkins/version-check.Jenkinsfile)'
-  }
-}
-```
+- **Title prefix**: `⬆️ Version Updates:`
+- **Labels**: `dependencies`, `automated`, `upgrade`
+- **Branch**: `chore/version-updates` (stable; reused across runs)
+- **Behavior**:
+  - if an open PR exists: the job **pushes updates to the same branch** and comments “PR updated by Jenkins”
+  - if it doesn’t exist: the job creates the PR and applies labels
 
-## How It Works
+### Failure notifications (so Jenkins failures show up in GitHub)
 
-1. **Extract Current Versions**
-   - Reads from `VERSIONS.md`
-   - Parses `values.yaml` for image tags
-   - Checks `terraform/main.tf` for provider versions
+If the job fails unexpectedly, it creates/updates an issue:
+- **Title**: `CI Failure: <JOB_NAME>`
+- **Labels**: `ci`, `jenkins`, `failure`, `automated`
 
-2. **Fetch Latest Versions**
-   - GitHub Releases API for applications
-   - Terraform Registry API for providers
-   - Docker Hub/Container Registry APIs for images
+## Credentials (GitHub)
 
-3. **Compare and Assess**
-   - Determines if update is major/minor/patch
-   - Categorizes by risk level
+The Jenkinsfiles expect a Jenkins credential ID:
+- **ID**: `github-token`
+- **Type**: **Username with password** (username can be a placeholder; password is the PAT)
 
-4. **Create PR/Issue**
-   - **Critical**: GitHub Issue (requires manual review)
-   - **High/Medium**: Automated PR with version updates
+In this repo, it is designed to be provisioned automatically via:
+- `ops/secrets/externalsecret-jenkins.yaml` (ESO → Kubernetes Secret)
+- Jenkins “Kubernetes Credentials Provider” plugin auto-discovers that Secret via annotations/labels
 
-## Example Output
+See `.jenkins/GITHUB_CREDENTIALS_SETUP.md` for setup + troubleshooting.
 
-```json
-{
-  "timestamp": "2026-01-26T19:00:00Z",
-  "updates": {
-    "critical": [
-      "NATS Server: 2.4 → 2.10 (MAJOR)"
-    ],
-    "high": [
-      "RocketChat: 8.0.1 → 8.0.2",
-      "Prometheus Agent: 3.8.1 → 3.9.0"
-    ],
-    "medium": [
-      "Alpine: 3.19 → 3.20"
-    ]
-  }
-}
-```
+## Operating the system (what future-you does)
 
-## Customization
-
-### Adjust Risk Thresholds
-
-Edit `.jenkins/version-check.Jenkinsfile`:
-
-```bash
-# Change when PR vs Issue is created
-if [ ${#CRITICAL_UPDATES[@]} -gt 0 ]; then
-  # Create issue
-elif [ ${#HIGH_UPDATES[@]} -gt 0 ] || [ ${#MEDIUM_UPDATES[@]} -ge 3 ]; then
-  # Create PR (change threshold from 3 to your preference)
-fi
-```
-
-### Add More Components
-
-Edit `.jenkins/version-check.Jenkinsfile` to add checks for:
-- MongoDB Operator versions
-- Traefik versions
-- Other Helm charts
-- Base images (Alpine, etc.)
-
-## Integration with Security Pipeline
-
-Version checking complements security scanning:
-- **Security Pipeline**: Finds vulnerabilities in current versions
-- **Version Pipeline**: Finds newer versions that may fix vulnerabilities
-
-Both can run together for comprehensive dependency management.
+- **If you see a breaking issue**: treat it as the “one open ticket for breaking upgrades”. Close it when handled.
+- **If you see a version updates PR**: review/merge (or close) when you’re ready. Keeping it open is fine; the job will update it daily.
+- **If the cluster is off**: the job won’t run successfully until the cluster is back (scheduled window).
