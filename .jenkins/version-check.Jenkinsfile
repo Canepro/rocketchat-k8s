@@ -689,9 +689,17 @@ EOF
   }
 }
 
+// Helper: parse major version from a string that may be a constraint (e.g. "~>3.0") or plain semver ("4.58.0")
+def parseMajorVersion(String v) {
+  if (!v?.trim()) return 0
+  def cleaned = v.replaceAll(/^[^0-9]+/, '').trim()  // strip constraint prefix like ~> >= =
+  def segment = cleaned.split('\\.')[0]?.trim()
+  return (segment ==~ /[0-9]+/) ? segment.toInteger() : 0
+}
+
 // Helper function to determine if version update is major
 def isMajorVersionUpdate(current, latest) {
-  def currentMajor = current.split('\\.')[0].toInteger()
-  def latestMajor = latest.split('\\.')[0].toInteger()
+  def currentMajor = parseMajorVersion(current?.toString())
+  def latestMajor = parseMajorVersion(latest?.toString())
   return latestMajor > currentMajor
 }
