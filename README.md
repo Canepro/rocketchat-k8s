@@ -170,8 +170,8 @@ Jenkins performs CI validation on pull requests:
 - Security: `tfsec`, `checkov`, `trivy`
 
 This repo also runs two scheduled automation jobs that report to GitHub so you don’t have to check Jenkins daily:
-- **Version updates**: `.jenkins/version-check.Jenkinsfile` — breaking issue + non-breaking PR (de-duped); uses secure Git push and workspace-scoped git commands.
-- **Security validation**: `.jenkins/security-validation.Jenkinsfile` — issue/PR updates (de-duped).
+- **Version updates**: `.jenkins/version-check.Jenkinsfile`; breaking issue + non-breaking PR (de-duped); uses secure Git push and workspace-scoped git commands.
+- **Security validation**: `.jenkins/security-validation.Jenkinsfile`; issue/PR updates (de-duped).
 
 See:
 - [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md)
