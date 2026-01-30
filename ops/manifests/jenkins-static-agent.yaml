@@ -37,14 +37,16 @@ spec:
                 secretKeyRef:
                   name: jenkins-agent-secret
                   key: secret
-          args:
-            - "-url"
-            - "$(JENKINS_URL)"
-            - "-webSocket"
-            - "-name"
-            - "$(JENKINS_AGENT_NAME)"
-            - "-secret"
-            - "$(JENKINS_SECRET)"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              exec java -jar /usr/share/jenkins/agent.jar \
+                -url "$JENKINS_URL" \
+                -webSocket \
+                -name "$JENKINS_AGENT_NAME" \
+                -secret "$JENKINS_SECRET"
           resources:
             requests:
               cpu: "200m"
