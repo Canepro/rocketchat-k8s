@@ -16,26 +16,21 @@ This repository contains the complete infrastructure-as-code for deploying and o
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        AKS Cluster                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  RocketChat  │  │   MongoDB    │  │    Observability     │  │
-│  │  (Helm)      │  │  (Operator)  │  │  (Prometheus Agent)  │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-│           │                │                    │               │
-│           └────────────────┴────────────────────┘               │
-│                            │                                    │
-│                     ┌──────┴──────┐                            │
-│                     │   Traefik   │                            │
-│                     │  (Ingress)  │                            │
-│                     └─────────────┘                            │
-└─────────────────────────────────────────────────────────────────┘
-                             │
-                       k8.canepro.me
+```mermaid
+flowchart TB
+  subgraph AKS["AKS Cluster"]
+    subgraph apps["Application layer"]
+      RC[RocketChat\nHelm]
+      MDB[(MongoDB\nOperator)]
+      OBS[Observability\nPrometheus Agent]
+    end
+    TRAEFIK[Traefik Ingress]
+    apps --> TRAEFIK
+  end
+  TRAEFIK --> |HTTPS| DOMAIN["k8.canepro.me"]
 ```
 
-For detailed architecture diagrams, see [DIAGRAM.md](DIAGRAM.md).
+For detailed architecture and data flows, see [DIAGRAM.md](DIAGRAM.md).
 
 ## Quick Start
 
@@ -174,9 +169,9 @@ Jenkins performs CI validation on pull requests:
 - YAML: `yamllint`
 - Security: `tfsec`, `checkov`, `trivy`
 
-This repo also runs two scheduled “automation” jobs that report to GitHub so you don’t have to check Jenkins daily:
-- **Version updates**: `.jenkins/version-check.Jenkinsfile` → breaking issue + non-breaking PR (de-duped)
-- **Security validation**: `.jenkins/security-validation.Jenkinsfile` → issue/PR updates (de-duped)
+This repo also runs two scheduled automation jobs that report to GitHub so you don’t have to check Jenkins daily:
+- **Version updates**: `.jenkins/version-check.Jenkinsfile`; breaking issue + non-breaking PR (de-duped); uses secure Git push and workspace-scoped git commands.
+- **Security validation**: `.jenkins/security-validation.Jenkinsfile`; issue/PR updates (de-duped).
 
 See:
 - [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md)
