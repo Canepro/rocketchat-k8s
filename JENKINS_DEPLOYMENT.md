@@ -2,7 +2,7 @@
 
 This guide covers deploying a general-purpose Jenkins CI server on AKS for CI validation across multiple projects.
 
-**Last Updated**: 2026-01-19
+**Last Updated**: 2026-01-29
 
 > **📖 New to Jenkins?** Start with **"Jenkins Strategy (CI vs CD)"** below to understand why this repo keeps Jenkins validation-only and lets ArgoCD deploy.
 
@@ -38,6 +38,8 @@ Keeping Jenkins “validation-only” avoids out-of-band drift and keeps Git as 
 ❌ **NOT Done by Default**:
 - `terraform apply` (Cloud Shell only - can be enabled)
 - `kubectl apply` (ArgoCD deploys - can be enabled)
+
+**Scheduled automation jobs** (version-check, security-validation) run on weekdays and report to GitHub (de-duped issues/PRs). Version-check uses secure Git push (GIT_ASKPASS, workspace-scoped git) and validated version extraction. See [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md) and [.jenkins/SECURITY_VALIDATION.md](.jenkins/SECURITY_VALIDATION.md).
 
 ### Architecture
 ```

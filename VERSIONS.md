@@ -2,7 +2,7 @@
 
 This document tracks all software versions used in the AKS Rocket.Chat deployment. Update this file when upgrading any component.
 
-**Last Updated**: 2026-01-27
+**Last Updated**: 2026-01-29
 
 ## Upgrade Status Legend
 
