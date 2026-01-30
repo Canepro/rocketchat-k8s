@@ -218,15 +218,16 @@ resource "azurerm_automation_job_schedule" "stop_weekday" {
   schedule_name           = azurerm_automation_schedule.stop_weekday_evening[0].name # Schedule name (from schedule resource above)
   runbook_name            = azurerm_automation_runbook.stop_aks[0].name              # Runbook name (from runbook resource above)
 
+  # Azure Automation requires lowercase parameter names (azure-sdk-for-go#4780)
   parameters = merge(
     {
       resourcegroupname = azurerm_resource_group.main.name
       clustername       = azurerm_kubernetes_cluster.main.name
     },
     var.jenkins_graceful_disconnect_url != "" && var.jenkins_graceful_disconnect_user != "" ? {
-      JenkinsUrl       = var.jenkins_graceful_disconnect_url
-      JenkinsApiUser   = var.jenkins_graceful_disconnect_user
-      JenkinsAgentName = var.jenkins_graceful_disconnect_agent_name
+      jenkinsurl       = var.jenkins_graceful_disconnect_url
+      jenkinsapiuser   = var.jenkins_graceful_disconnect_user
+      jenkinsagentname = var.jenkins_graceful_disconnect_agent_name
     } : {}
   )
 }
