@@ -31,7 +31,7 @@ resource "azurerm_role_assignment" "automation_aks_contributor" {
 }
 
 # Runbook to stop AKS cluster: PowerShell script to stop the AKS cluster
-# Runbook to stop AKS cluster
+# Phase 4: If Jenkins URL and token are set, disable the static aks-agent node first, wait, then stop AKS.
 resource "azurerm_automation_runbook" "stop_aks" {
   count                   = var.enable_auto_shutdown ? 1 : 0       # Only create if auto-shutdown is enabled
   name                    = "Stop-AKS-Cluster"                     # Runbook name (for identification in Azure Portal)
@@ -45,22 +45,26 @@ resource "azurerm_automation_runbook" "stop_aks" {
   content = <<-POWERSHELL
     # Stop AKS Cluster Runbook
     # This runbook stops the AKS cluster to save costs during off-peak hours.
+    # Phase 4: If Jenkins URL and API token are set, disables the static aks-agent node first (graceful disconnect), waits 60s, then stops AKS.
     param(
         [Parameter(Mandatory=$true)]
-        [string]$ResourceGroupName,  # Resource group name (passed from Job Schedule)
-        
+        [string]$ResourceGroupName,
         [Parameter(Mandatory=$true)]
-        [string]$ClusterName  # Cluster name (passed from Job Schedule)
+        [string]$ClusterName,
+        [Parameter(Mandatory=$false)]
+        [string]$JenkinsUrl = "",
+        [Parameter(Mandatory=$false)]
+        [string]$JenkinsApiUser = "",
+        [Parameter(Mandatory=$false)]
+        [string]$JenkinsAgentName = "aks-agent"
     )
 
-    # Use the current subscription id from Terraform runner
     $SubscriptionId = "${data.azurerm_client_config.current.subscription_id}"
 
     Write-Output "Authenticating to Azure with System-Assigned Managed Identity..."
     try {
         Import-Module Az.Accounts -ErrorAction Stop
         Import-Module Az.Aks -ErrorAction Stop
-
         Connect-AzAccount -Identity -ErrorAction Stop | Out-Null
         Set-AzContext -SubscriptionId $SubscriptionId -ErrorAction Stop | Out-Null
     }
@@ -69,12 +73,41 @@ resource "azurerm_automation_runbook" "stop_aks" {
         throw
     }
 
+    # Phase 4: Graceful disconnect — put Jenkins aks-agent offline before stopping AKS
+    if ($JenkinsUrl -and $JenkinsApiUser) {
+        try {
+            $token = Get-AutomationVariable -Name 'JenkinsAksAgentDisconnectToken' -ErrorAction SilentlyContinue
+            if ($token) {
+                $jenkinsBase = $JenkinsUrl.TrimEnd('/')
+                $pair = "$JenkinsApiUser`:$token"
+                $bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+                $base64 = [Convert]::ToBase64String($bytes)
+                $headers = @{ Authorization = "Basic $base64" }
+
+                Write-Output "Getting Jenkins crumb..."
+                $crumbResp = Invoke-RestMethod -Uri "$jenkinsBase/crumbIssuer/api/json" -Headers $headers -Method Get -ErrorAction Stop
+                $headers[$crumbResp.crumbRequestField] = $crumbResp.crumb
+
+                Write-Output "Disabling Jenkins node $JenkinsAgentName (graceful disconnect)..."
+                Invoke-RestMethod -Uri "$jenkinsBase/computer/$JenkinsAgentName/disable" -Headers $headers -Method Post -ErrorAction Stop
+                Write-Output "Waiting 60 seconds for Jenkins to drain..."
+                Start-Sleep -Seconds 60
+            }
+            else {
+                Write-Output "JenkinsAksAgentDisconnectToken not set; skipping graceful disconnect."
+            }
+        }
+        catch {
+            Write-Output "Graceful disconnect failed (non-fatal): $($_.Exception.Message). Proceeding to stop AKS."
+        }
+    }
+
     Write-Output "Stopping AKS cluster $ClusterName in resource group $ResourceGroupName..."
-    Stop-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName -ErrorAction Stop  # Stop AKS cluster
+    Stop-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName -ErrorAction Stop
     Write-Output "AKS cluster stopped successfully."
   POWERSHELL
 
-  tags = var.tags # Tags for Runbook (from variables.tf)
+  tags = var.tags
 }
 
 # Runbook to start AKS cluster: PowerShell script to start the AKS cluster
@@ -177,8 +210,7 @@ resource "azurerm_automation_schedule" "start_weekday_morning" {
 }
 
 # Link stop runbook to weekday evening schedule: Connect Runbook to Schedule
-# This Job Schedule links the stop runbook to the weekday evening schedule.
-# Link stop runbook to weekday evening schedule
+# Pass Jenkins URL/user/agent when set (Phase 4 graceful disconnect). Token: create Automation Variable 'JenkinsAksAgentDisconnectToken' in Azure.
 resource "azurerm_automation_job_schedule" "stop_weekday" {
   count                   = var.enable_auto_shutdown ? 1 : 0                         # Only create if auto-shutdown is enabled
   resource_group_name     = azurerm_resource_group.main.name                         # Resource group (from main.tf)
@@ -186,11 +218,17 @@ resource "azurerm_automation_job_schedule" "stop_weekday" {
   schedule_name           = azurerm_automation_schedule.stop_weekday_evening[0].name # Schedule name (from schedule resource above)
   runbook_name            = azurerm_automation_runbook.stop_aks[0].name              # Runbook name (from runbook resource above)
 
-  parameters = {
-    # Runbook parameters: Passed to runbook when schedule triggers it
-    resourcegroupname = azurerm_resource_group.main.name     # Resource group name (for Stop-AzAksCluster cmdlet)
-    clustername       = azurerm_kubernetes_cluster.main.name # Cluster name (for Stop-AzAksCluster cmdlet)
-  }
+  parameters = merge(
+    {
+      resourcegroupname = azurerm_resource_group.main.name
+      clustername       = azurerm_kubernetes_cluster.main.name
+    },
+    var.jenkins_graceful_disconnect_url != "" && var.jenkins_graceful_disconnect_user != "" ? {
+      JenkinsUrl       = var.jenkins_graceful_disconnect_url
+      JenkinsApiUser   = var.jenkins_graceful_disconnect_user
+      JenkinsAgentName = var.jenkins_graceful_disconnect_agent_name
+    } : {}
+  )
 }
 
 # Link start runbook to weekday morning schedule: Connect Runbook to Schedule
