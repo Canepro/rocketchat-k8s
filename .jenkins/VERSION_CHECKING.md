@@ -83,3 +83,13 @@ See `.jenkins/GITHUB_CREDENTIALS_SETUP.md` for setup + troubleshooting.
 - **If you see a breaking issue**: treat it as the “one open ticket for breaking upgrades”. Close it when handled.
 - **If you see a version updates PR**: review/merge (or close) when you’re ready. Keeping it open is fine; the job will update it daily.
 - **If the cluster is off**: the job won’t run successfully until the cluster is back (scheduled window).
+
+## Pipeline implementation notes
+
+For maintainers: the version-check pipeline uses the following behavior and safeguards:
+
+- **Terraform provider versions**: Provider constraints (e.g. `~> 3.0`) are parsed via a `parseMajorVersion` helper; only the major version is compared for breaking vs non-breaking. Extracted versions are validated (non-empty) before use.
+- **Git operations**: All git commands run in the repo workspace via a `gitw()` helper (`git -C "$WORKSPACE" ...`). Push uses `GIT_ASKPASS` so the GitHub token is never stored in `.git/config`; a temporary askpass script is used and cleaned up on exit.
+- **GitHub comments**: Comment bodies are built with `printf` and passed to `jq` to avoid shell quoting issues. Optional build-URL lines are constructed in shell before `jq`.
+- **Validation**: Invalid or missing issue/PR numbers from GitHub API responses cause the script to skip commenting/updating rather than failing the build.
+- **Failure notifications**: On unexpected job failure, the pipeline creates or updates a "CI Failure" GitHub issue so failures are visible in the repo.

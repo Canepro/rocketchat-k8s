@@ -38,6 +38,8 @@ Automated version checking pipeline:
 - **Non-breaking updates**: one open PR (updated by pushing to the same branch + commenting)
 - **Job failures**: GitHub issue notification (so you don't need to log into Jenkins daily)
 
+**Implementation**: Uses secure Git push (`GIT_ASKPASS`, no token in config), workspace-scoped git commands, and validated Terraform version extraction. See [VERSION_CHECKING.md](VERSION_CHECKING.md#pipeline-implementation-notes).
+
 ### `security-validation.Jenkinsfile`
 Automated security validation pipeline:
 - Scans Terraform code (tfsec, checkov)
