@@ -25,6 +25,13 @@ shutdown_timezone    = "Europe/London"      # UK timezone (IANA format required 
 shutdown_time        = "23:00"              # 11 PM stop
 startup_time         = "16:00"              # 4 PM start (evening-only schedule for maximum cost savings)
 
+# Phase 4: Jenkins graceful disconnect (optional)
+# Before stopping AKS, the stop runbook disables the Jenkins aks-agent node so builds don't get stuck.
+# Create Automation Variable 'JenkinsAksAgentDisconnectToken' in Azure (Jenkins API token) — never put token in tfvars.
+# jenkins_graceful_disconnect_url  = "https://jenkins-oke.canepro.me"
+# jenkins_graceful_disconnect_user = "admin"
+# jenkins_graceful_disconnect_agent_name = "aks-agent"
+
 # Tags
 tags = {
   Environment = "production"

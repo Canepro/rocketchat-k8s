@@ -107,7 +107,42 @@ Operational expectation:
 
 ### Jenkins Split-Agent (Controller on OKE, Agent on AKS)
 
-When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS), follow the shutdown/startup procedure in the **hub-docs** runbook (`JENKINS-SPLIT-AGENT-RUNBOOK.md`): before stopping AKS, check for running builds on the `aks-agent` node, put the node offline (UI, API, or CLI), wait 30–60 seconds, then run the AKS stop. This avoids Jenkins marking builds as failed and reduces risk of Terraform state lock. On startup, the agent reconnects; bring the node back online in Jenkins if it was left offline.
+When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS):
+
+- **Phase 4 – Automated graceful disconnect:** The Azure Automation **stop runbook** (`Stop-AKS-Cluster`) can disable the Jenkins `aks-agent` node before stopping AKS. Set `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` in `terraform.tfvars` (e.g. `https://jenkins-oke.canepro.me` and `admin`), then create an Automation Variable **`JenkinsAksAgentDisconnectToken`** in the same Automation Account (see below). The runbook will call the Jenkins API to disable the node, wait 60 seconds, then stop AKS. No token in Terraform/tfvars.
+- **Manual procedure:** If not using Phase 4, follow the **hub-docs** runbook (`JENKINS-SPLIT-AGENT-RUNBOOK.md`): before stopping AKS, check for running builds on `aks-agent`, put the node offline (UI, API, or CLI), wait 30–60 seconds, then run the AKS stop. On startup, the agent reconnects; bring the node back online in Jenkins if it was left offline.
+
+**How to set `JenkinsAksAgentDisconnectToken` in Azure Automation**
+
+The stop runbook reads the Jenkins API token from an Automation Variable so the token is never stored in Terraform. Create the variable in the same Automation Account that runs the stop runbook (e.g. `aa-aks-canepro` in resource group `rg-canepro-aks`).
+
+1. **Get a Jenkins API token**
+   - In Jenkins (OKE): **Manage Jenkins** → **Users** → select the user (e.g. `admin`) → **Configure** → **Add new Token** → name it (e.g. `aks-stop-runbook`) → **Generate** → copy the token. Store it somewhere safe; you won’t see it again.
+
+2. **Create the variable in Azure Portal**
+   - **Azure Portal** → **Automation Accounts** → open your account (e.g. `aa-aks-canepro`).
+   - In the left menu: **Shared resources** → **Variables**.
+   - **+ Add a variable**.
+   - **Name:** `JenkinsAksAgentDisconnectToken` (exactly this; the runbook expects this name).
+   - **Value:** paste the Jenkins API token.
+   - **Type:** **Encrypted** (so it’s stored as a secure string).
+   - **Save.**
+
+3. **Create the variable via Azure CLI** (alternative)
+   ```bash
+   # Replace with your resource group, automation account name, and the actual token
+   RESOURCE_GROUP="rg-canepro-aks"
+   AUTOMATION_ACCOUNT="aa-aks-canepro"
+   TOKEN="your-jenkins-api-token-here"
+
+   az automation variable create \
+     --resource-group "$RESOURCE_GROUP" \
+     --automation-account-name "$AUTOMATION_ACCOUNT" \
+     --name "JenkinsAksAgentDisconnectToken" \
+     --value "$TOKEN" \
+     --encrypted
+   ```
+   The token is not shown in the portal after creation; only the runbook can read it at runtime.
 
 ### Manual Cluster Control
 

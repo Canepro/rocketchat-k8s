@@ -73,6 +73,25 @@ variable "startup_time" {
   default     = "07:00" # Default: 7:00 AM (can be overridden in terraform.tfvars)
 }
 
+# Jenkins graceful disconnect (Phase 4: put aks-agent offline before AKS stop)
+variable "jenkins_graceful_disconnect_url" {
+  description = "Jenkins base URL for graceful disconnect (e.g. https://jenkins-oke.canepro.me). If set, stop runbook will disable the static agent node before stopping AKS. Store API token in Automation Variable 'JenkinsAksAgentDisconnectToken'."
+  type        = string
+  default     = "" # Empty = skip Jenkins step (current behaviour)
+}
+
+variable "jenkins_graceful_disconnect_user" {
+  description = "Jenkins username for API (used with JenkinsAksAgentDisconnectToken). Only used when jenkins_graceful_disconnect_url is set."
+  type        = string
+  default     = "" # Empty = skip Jenkins step
+}
+
+variable "jenkins_graceful_disconnect_agent_name" {
+  description = "Jenkins agent node name to disable before AKS stop (static AKS agent)."
+  type        = string
+  default     = "aks-agent"
+}
+
 # Resource Tags Configuration
 variable "tags" {
   description = "Tags to apply to resources" # Tags for resource organization and cost allocation

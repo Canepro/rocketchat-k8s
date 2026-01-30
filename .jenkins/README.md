@@ -74,39 +74,58 @@ When the Jenkins controller runs on OKE and a static agent runs on AKS, see [JEN
 
 ## Setup in Jenkins
 
-1. Create a **Multibranch Pipeline** job named `rocketchat-k8s`
-2. **Branch Sources** section:
+1. **Create the `github-token` credential first** (Manage Jenkins → Credentials). Use the same credential ID so job config and Jenkinsfiles keep working. On OKE you can add it in the UI or feed it from a K8s secret; see [GITHUB_CREDENTIALS_SETUP.md](GITHUB_CREDENTIALS_SETUP.md) if needed.
+2. Create a **Multibranch Pipeline** job named `rocketchat-k8s`
+3. **Branch Sources** section:
    - Click **"Add source"** button (at the top of Branch Sources section)
    - Select **"GitHub"** from the dropdown
-3. Configure the GitHub branch source:
+4. Configure the GitHub branch source:
    - **Repository HTTPS URL**: `https://github.com/Canepro/rocketchat-k8s`
-   - **Credentials**: Select `github-token` from dropdown (required for PR status reporting)
+   - **Credentials**: Select **`github-token`** from dropdown (required for PR status reporting)
    - **Behaviours** (click "Add" to configure):
      - **Discover branches**: Strategy = "Exclude branches that are also filed as PRs"
      - **Discover pull requests from origin**: Strategy = "The current pull request revision"
      - **Trust**: "From users with Admin or Write permission"
-3. **Build Configuration**:
+5. **Build Configuration**:
    - **Mode**: "by Jenkinsfile"
    - **Script Path**: `.jenkins/terraform-validation.Jenkinsfile` (or `.jenkins/helm-validation.Jenkinsfile`)
      - This is the path relative to the repository root
-4. **Save** → **Scan Multibranch Pipeline Now**
+6. **Save** → **Scan Multibranch Pipeline Now**
+
+**UI:** Go to Jenkins UI (e.g. OKE: `https://jenkins-oke.canepro.me` or production: `https://jenkins.canepro.me`) and use credential ID **`github-token`** for the GitHub branch source.
 
 ### CLI setup (when UI is painful)
-Use the repo script which handles CSRF + session cookies:
+Use the repo script which handles CSRF + session cookies. Create `github-token` on the target Jenkins first.
 
 ```bash
-# Recommended to run via port-forward to avoid ingress/TLS issues while debugging:
+# OKE (before domain cutover):
+export JENKINS_URL="https://jenkins-oke.canepro.me"
+export JOB_NAME="rocketchat-k8s"
+export CONFIG_FILE=".jenkins/job-config.xml"
+bash .jenkins/scripts/create-job.sh
+
+# Production (after cutover):
+export JENKINS_URL="https://jenkins.canepro.me"
+# ... same JOB_NAME and CONFIG_FILE ...
+
+# Debugging via port-forward (AKS or local):
 kubectl -n jenkins port-forward pod/jenkins-0 8080:8080
 export JENKINS_URL="http://127.0.0.1:8080"
-
 bash .jenkins/scripts/create-job.sh
 ```
+
+**Migrating from AKS Jenkins:** See [JENKINS-SPLIT-AGENT-PLAN-aks.md](JENKINS-SPLIT-AGENT-PLAN-aks.md) (Jobs, pipelines, multibranch, and credentials) and hub-docs plan §8.1 for recreate/export/import options and credential checklist.
 
 ## GitHub Webhook
 
 Configure webhook in repository settings:
-- **URL**: `https://jenkins.canepro.me/github-webhook/`
-- **Events**: Pull requests, Pushes
+
+| When        | Webhook URL |
+|-------------|-------------|
+| OKE (before cutover) | `https://jenkins-oke.canepro.me/github-webhook/` |
+| After cutover       | `https://jenkins.canepro.me/github-webhook/`     |
+
+- **Events**: Pull requests, Pushes  
 - **Content type**: `application/json`
 
 ## Jenkins UI login

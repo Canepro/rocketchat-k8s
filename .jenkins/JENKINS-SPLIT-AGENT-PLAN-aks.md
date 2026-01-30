@@ -4,7 +4,29 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
 
 **Phase 0 (E1 — free 50GB for Jenkins):** Done in hub repo. Grafana on emptyDir; Grafana PVC removed; 50GB freed for Jenkins on OKE.
 
-**Phase 1 (Jenkins on OKE with HTTPS):** Done. Controller at https://jenkins-oke.canepro.me; TLS and admin login OK; aks-agent node in JCasC (inbound launcher). Next: Phase 2 — connect AKS static agent.
+**Phase 1 (Jenkins on OKE with HTTPS):** Done. Controller at https://jenkins-oke.canepro.me; TLS and admin login OK; aks-agent node in JCasC (inbound launcher).
+
+**Phase 2 (AKS static agent):** Done. Secret `jenkins-agent-secret` created on AKS; agent manifest deployed via `aks-rocketchat-ops`; pod connects via WebSocket to https://jenkins-oke.canepro.me/ and shows "Connected" in logs. Phase 3 (job routing) done for this repo; next: Phase 4 (graceful disconnect), Phase 5 (domain cutover).
+
+**OKE parity (controller):** Jenkins on OKE is up with Kubernetes plugin restored (`kubernetes:latest`), OKE Kubernetes cloud configured via JCasC (`oke-kubernetes-cloud`), and static `aks-agent` still defined. Dynamic pods spin up on OKE; `agent { kubernetes { ... } }` in Jenkinsfiles works. Access: **https://jenkins-oke.canepro.me**
+
+**Phase status**
+
+| Phase | Status |
+|-------|--------|
+| 0. E1 — Free 50GB | Done |
+| 1. OKE — Jenkins Controller | Done |
+| 2. AKS — Static Agent | Done |
+| 3. Job routing | **Done (this repo)** — OKE cloud runs dynamic pods for this repo’s labels; no Jenkinsfile changes needed here. **Ops repo:** Azure jobs still need `agent { label 'aks-agent' }`. |
+| 4. Graceful disconnect | **Done (this repo)** — Stop runbook extended; optional Jenkins URL/user + Automation Variable `JenkinsAksAgentDisconnectToken`. |
+| 5. Migration / domain cutover | Pending |
+
+**Job routing (Phase 3) — this repo vs ops repo**
+
+| Repo | Job type | Labels | Runs on |
+|------|----------|--------|---------|
+| **This repo (rocketchat-k8s / GrafanaLocal)** | OKE/OCI jobs | terraform-azure, terraform, version-checker, security, helm, default | OKE Kubernetes cloud (dynamic pods) — already configured; no changes needed. |
+| **Ops repo** | Azure jobs | Need `aks-agent` | Static AKS agent — update Jenkinsfiles from `agent { kubernetes { label 'terraform-azure' ... } }` to `agent { label 'aks-agent' }` in the ops repo. |
 
 ---
 
@@ -26,9 +48,9 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
 
 - **aks-jenkins ArgoCD app** (`GrafanaLocal/argocd/applications/aks-jenkins.yaml`): Still present. Remove when the controller is live on OKE and you no longer deploy Jenkins from this repo.
 
-- **Jenkinsfiles:** Still use labels `terraform`, `version-checker`, `security`. Relabel to `aks-agent` at cutover (see Phase 3 below).
+- **Jenkinsfiles (this repo):** Phase 3 complete. Pipelines keep `agent { kubernetes { label '...' } }`; OKE cloud runs dynamic pods. No changes needed. (Ops repo Azure jobs need `agent { label 'aks-agent' }` — change in ops repo.)
 
-- **Graceful disconnect:** Azure Automation stop runbook in `terraform/automation.tf` is not extended. Follow hub-docs runbook manually (or automate later).
+- **Graceful disconnect (Phase 4):** Done. Stop runbook in `terraform/automation.tf` disables Jenkins `aks-agent` via API (when `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` are set and Automation Variable `JenkinsAksAgentDisconnectToken` exists), waits 60s, then stops AKS. See OPERATIONS.md and tfvars.example.
 
 ---
 
@@ -60,8 +82,8 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
 ## Remaining steps (when you cut over)
 
 
-5. **Optional – Relabel Jenkinsfiles**  
-   Before removing the controller from AKS, relabel the four pipelines to `aks-agent` so they run on the static agent:
+5. **Optional – Relabel Jenkinsfiles to aks-agent**  
+   OKE already has the Kubernetes plugin and dynamic agents (pods on OKE), so existing Jenkinsfiles work as-is. If you want specific pipelines to run only on the static AKS agent (e.g. Azure Workload Identity for Terraform), relabel those to `aks-agent`:
    - `.jenkins/terraform-validation.Jenkinsfile`
    - `.jenkins/version-check.Jenkinsfile`
    - `.jenkins/security-validation.Jenkinsfile`
@@ -73,7 +95,28 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
    Point GitHub/GitLab webhooks to OKE Jenkins URL. Remove or repurpose `GrafanaLocal/argocd/applications/aks-jenkins.yaml` so the Jenkins controller is no longer deployed on AKS.
 
 7. **Shutdown / startup**  
-   Follow hub-docs `JENKINS-SPLIT-AGENT-RUNBOOK.md`: before 23:00 stop, check for running builds on `aks-agent`, put node offline, wait 30–60 s, then run Azure Automation stop. On startup, agent reconnects; bring node back online in Jenkins if it was left offline.
+   **Automated (Phase 4):** If `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` are set and `JenkinsAksAgentDisconnectToken` exists in Automation, the stop runbook disables the node, waits 60s, then stops AKS. **Manual:** Follow hub-docs `JENKINS-SPLIT-AGENT-RUNBOOK.md`: before 23:00 stop, put node offline, wait 30–60 s, then run Azure Automation stop. On startup, agent reconnects; bring node back online in Jenkins if it was left offline.
+
+---
+
+## Jobs, pipelines, multibranch, and credentials (from AKS Jenkins)
+
+When moving from the old AKS Jenkins controller to OKE, jobs and credentials must be recreated or migrated. Full detail is in **hub-docs** `JENKINS-SPLIT-AGENT-PLAN.md` §8.1. Summary:
+
+- **Jobs and pipelines**
+  - **A. Recreate from Git (recommended):** Use `scripts/create-job.sh` with `JENKINS_URL=https://jenkins-oke.canepro.me` (or your OKE URL) and the same `job-config.xml` to create the multibranch on OKE. Or in the UI: New Item → Multibranch Pipeline, same repo and Script Path. No build history copy.
+  - **B. Export/import:** Get job config from AKS (`GET .../job/<name>/config.xml`), create job on OKE and POST the same XML. Credentials must exist on OKE with the same IDs.
+  - **C. Full JENKINS_HOME copy:** Copy `jobs/`, `credentials.xml`, credential store from AKS PVC to OKE; only if you need full state and can match plugin versions.
+
+- **Multibranch:** Recreate on OKE (UI or `create-job.sh` with OKE URL). Same branch source, same Script Path (e.g. `.jenkins/terraform-validation.Jenkinsfile`). Create the `github-token` credential on OKE first.
+
+- **Credentials and secrets**
+  - On AKS: admin + GitHub token from Azure Key Vault via ESO.
+  - On OKE: Recreate with the **same credential IDs** so job config and Jenkinsfiles keep working.
+  - Options: (1) Add in Jenkins UI (Manage Jenkins → Credentials) with same IDs; (2) OCI Vault + ESO and bind to Jenkins (e.g. admin via `existingSecret`; GitHub token can stay in UI or be fed from a K8s secret).
+  - **Checklist of IDs to recreate:** `github-token`, `admin`, `oci-api-key`, `oci-s3-access-key`, `oci-s3-secret-key`, `oci-ssh-public-key`, and the five OCI Secret text IDs (if used).
+
+- **Order of work:** Create `github-token` (and admin if needed) → recreate multibranch/jobs → create folder/OCI credentials with same IDs → point webhooks to OKE → test → retire AKS Jenkins.
 
 ---
 
@@ -86,7 +129,8 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
 | Kustomization     | `ops/kustomization.yaml` |
 | ArgoCD (remove at cutover) | `GrafanaLocal/argocd/applications/aks-jenkins.yaml` |
 | Jenkinsfiles (relabel at cutover) | `.jenkins/terraform-validation.Jenkinsfile`, `.jenkins/version-check.Jenkinsfile`, `.jenkins/security-validation.Jenkinsfile` |
-| Graceful stop     | `terraform/automation.tf` (optional: extend stop runbook) |
+| **Jobs / credentials migration** | `.jenkins/scripts/create-job.sh`, `.jenkins/job-config.xml`, `.jenkins/README.md`, hub-docs §8.1 |
+| **Graceful disconnect (Phase 4)** | `terraform/automation.tf` (stop runbook), `terraform/variables.tf` (jenkins_graceful_disconnect_*), Automation Variable `JenkinsAksAgentDisconnectToken` |
 | Docs              | `JENKINS_DEPLOYMENT.md`, `OPERATIONS.md` |
 
 ---
