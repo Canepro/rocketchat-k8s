@@ -105,6 +105,10 @@ Operational expectation:
 - If the AKS cluster is **stopped**, these scheduled jobs won’t run until the next start window.
 - Leave the issue/PR open if you’re not ready; the jobs will append comments/updates rather than spamming duplicates.
 
+### Jenkins Split-Agent (Controller on OKE, Agent on AKS)
+
+When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS), follow the shutdown/startup procedure in the **hub-docs** runbook (`JENKINS-SPLIT-AGENT-RUNBOOK.md`): before stopping AKS, check for running builds on the `aks-agent` node, put the node offline (UI, API, or CLI), wait 30–60 seconds, then run the AKS stop. This avoids Jenkins marking builds as failed and reduces risk of Terraform state lock. On startup, the agent reconnects; bring the node back online in Jenkins if it was left offline.
+
 ### Manual Cluster Control
 
 If you need the cluster during off-hours:

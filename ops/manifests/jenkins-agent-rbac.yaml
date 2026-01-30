@@ -1,0 +1,21 @@
+# Jenkins namespace and ServiceAccount for static agent (OKE Controller + AKS Agent hybrid)
+# The static agent pod uses this SA to retain Azure Workload Identity for Terraform/Key Vault.
+# Controller runs on OKE; this namespace and SA exist on AKS for the agent only.
+# See JENKINS_DEPLOYMENT.md and .jenkins/WORKLOAD_IDENTITY_SETUP.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins
+  labels:
+    app.kubernetes.io/name: jenkins
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+  labels:
+    app.kubernetes.io/name: jenkins
+  annotations:
+    azure.workload.identity/client-id: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
+    azure.workload.identity/tenant-id: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"

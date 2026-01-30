@@ -44,3 +44,7 @@ resources:
   
   # TLS: Certificate management
   - manifests/clusterissuer.yaml  # cert-manager ClusterIssuer for Let's Encrypt TLS certificates
+
+  # Jenkins static agent (OKE Controller + AKS Agent hybrid)
+  - manifests/jenkins-agent-rbac.yaml  # Namespace jenkins + ServiceAccount with Workload Identity
+  - manifests/jenkins-static-agent.yaml  # Static agent pod connecting to OKE controller

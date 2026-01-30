@@ -48,6 +48,14 @@ GitHub PR → Webhook → Jenkins → Dynamic K8s Agents → PR Status Check
                               (terraform/helm/default)
 ```
 
+### Split-Agent Hybrid (Controller on OKE, Agent on AKS)
+
+When the Jenkins **controller** runs on OKE (always-on) and a **static agent** runs on AKS (only when the cluster is up), Azure jobs keep using Workload Identity on AKS; webhooks and the controller no longer depend on AKS availability.
+
+- **Connection**: WebSocket over HTTPS (443) is the chosen method: the controller is reachable at `https://jenkins.canepro.me` with no need to expose JNLP port 50000. The AKS static agent in this repo uses `-webSocket` to that URL.
+- **AKS-side manifest**: Static agent pod and Workload Identity RBAC are in `ops/manifests/jenkins-static-agent.yaml` and `ops/manifests/jenkins-agent-rbac.yaml` (deployed by `aks-rocketchat-ops`). Create Secret `jenkins-agent-secret` in namespace `jenkins` with the agent secret from the OKE Jenkins UI.
+- **Plan and runbook**: Full design, phases, and shutdown/startup procedure are in the **hub-docs** repo: `JENKINS-SPLIT-AGENT-PLAN.md` and `JENKINS-SPLIT-AGENT-RUNBOOK.md`. Before stopping AKS, follow the runbook: check for running builds on the `aks-agent` node, put the node offline, then run the existing AKS stop (e.g. Azure Automation at 23:00).
+
 ---
 
 ## 🚀 Quick Deployment (5 Steps)

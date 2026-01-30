@@ -1,0 +1,54 @@
+# Jenkins static agent (AKS) for OKE Controller + AKS Agent hybrid
+# Connects to Jenkins controller on OKE via WebSocket (HTTPS only).
+# Uses same jenkins ServiceAccount for Azure Workload Identity (Terraform, Key Vault).
+# One-time: create Secret jenkins-agent-secret with key "secret" (agent secret from OKE Jenkins UI).
+# URL: jenkins-oke.canepro.me during Phase 2; after domain cutover change to jenkins.canepro.me.
+# See JENKINS_DEPLOYMENT.md and .jenkins/JENKINS-SPLIT-AGENT-PLAN-aks.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-static-agent
+  namespace: jenkins
+  labels:
+    app: jenkins-static-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-static-agent
+  template:
+    metadata:
+      labels:
+        app: jenkins-static-agent
+    spec:
+      serviceAccountName: jenkins
+      restartPolicy: Always
+      containers:
+        - name: agent
+          image: jenkins/inbound-agent:latest
+          imagePullPolicy: Always
+          env:
+            - name: JENKINS_URL
+              value: "https://jenkins-oke.canepro.me/"
+            - name: JENKINS_AGENT_NAME
+              value: "aks-agent"
+            - name: JENKINS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-agent-secret
+                  key: secret
+          args:
+            - "-url"
+            - "$(JENKINS_URL)"
+            - "-webSocket"
+            - "-name"
+            - "$(JENKINS_AGENT_NAME)"
+            - "-secret"
+            - "$(JENKINS_SECRET)"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"

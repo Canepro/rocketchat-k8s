@@ -68,6 +68,10 @@ The version-check and security-validation pipelines run as scheduled jobs:
 
 **Setup**: See `.jenkins/SETUP_AUTOMATED_JOBS.md` (single source of truth).
 
+### Split-agent hybrid (Controller on OKE, Agent on AKS)
+
+When the Jenkins controller runs on OKE and a static agent runs on AKS, see [JENKINS-SPLIT-AGENT-PLAN-aks.md](JENKINS-SPLIT-AGENT-PLAN-aks.md) for the AKS-side plan, manifest locations, and cutover steps. Canonical plan and runbook are in the hub-docs repo.
+
 ## Setup in Jenkins
 
 1. Create a **Multibranch Pipeline** job named `rocketchat-k8s`
