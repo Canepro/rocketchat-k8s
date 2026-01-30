@@ -16,12 +16,13 @@ spec:
   serviceAccountName: jenkins
   containers:
   - name: terraform
+    # Use full registry path for OKE (short name mode); MCR is already qualified
     image: mcr.microsoft.com/azure-cli:latest
     command: ['sleep', '3600']
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "200m"
+        memory: "384Mi"
+        cpu: "100m"
       limits:
         memory: "1Gi"
         cpu: "1000m"

@@ -40,6 +40,8 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
   - Both included in `ops/kustomization.yaml`; deployed by ArgoCD app `aks-rocketchat-ops`.
   - **Manual step:** Create Secret `jenkins-agent-secret` in namespace `jenkins` with key `secret` (value = agent secret from OKE Jenkins UI: Manage Jenkins → Nodes → aks-agent → Secret).
 
+- **Cleanup scripts (OKE):** Any script that deletes stale Jenkins agents must **skip** the `aks-agent` node (and e.g. `Nodes` if the API returns it). `aks-agent` is the static AKS agent and must stay. It is defined in JCasC (e.g. hub-docs/GrafanaLocal `helm/jenkins-values.yaml`); if it is removed, reload Configuration as Code or restart the Jenkins pod and it will reappear (offline until AKS is up).
+
 - **Docs**
   - `JENKINS_DEPLOYMENT.md`: Split-agent section (connection method WebSocket/443, manifest locations, hub-docs references).
   - `OPERATIONS.md`: Shutdown/startup procedure and reference to hub-docs runbook.
@@ -91,10 +93,107 @@ This document is the **AKS-side** summary of the Jenkins split-agent hybrid: con
   
    Then run a test job on the static agent.
 
-6. **Cutover**  
-   Point GitHub/GitLab webhooks to OKE Jenkins URL. Remove or repurpose `GrafanaLocal/argocd/applications/aks-jenkins.yaml` so the Jenkins controller is no longer deployed on AKS.
+---
 
-7. **Shutdown / startup**  
+## Phase 5: Domain cutover — remaining steps
+
+**Short checklist**
+
+| # | Step | Where / what |
+|---|------|---------------|
+| 1 | Migrate jobs to OKE | Credentials + multibranch (see below). |
+| 2 | DNS | Point `jenkins.canepro.me` → OKE LB IP. |
+| 3 | Jenkins URL (OKE) | Update Jenkins values for production domain (hub-docs / helm). |
+| 4 | AKS agent | This repo: `ops/manifests/jenkins-static-agent.yaml` → `JENKINS_URL=https://jenkins.canepro.me/`; sync ops. |
+| 5 | Webhooks | GitHub etc.: `https://jenkins.canepro.me/github-webhook/`. |
+| 6 | Retire AKS Jenkins | Remove `GrafanaLocal/argocd/applications/aks-jenkins.yaml`. |
+| (optional) | Phase 4 URL | `terraform.tfvars`: `jenkins_graceful_disconnect_url = "https://jenkins.canepro.me"`; re-apply. |
+
+After step 4, the static agent on AKS connects to OKE via `jenkins.canepro.me`. After step 6, AKS no longer runs a Jenkins controller.
+
+---
+
+**Step 1: Migrate jobs to OKE (before DNS cutover)**
+
+1a. **Create credentials on OKE Jenkins** (https://jenkins-oke.canepro.me)  
+Manage Jenkins → Credentials → System → Global credentials → Add Credentials. Use the **same IDs** so job config and Jenkinsfiles keep working:
+
+| Credential ID         | Type                         | Value / note                |
+|-----------------------|------------------------------|-----------------------------|
+| github-token          | Secret text or User/password | GitHub PAT                  |
+| oci-api-key           | Secret file                  | OCI API private key PEM     |
+| oci-s3-access-key     | Secret text                  | OCI S3 access key           |
+| oci-s3-secret-key     | Secret text                  | OCI S3 secret key           |
+| oci-tenancy-ocid      | Secret text                  | OCI tenancy OCID            |
+| oci-user-ocid         | Secret text                  | OCI user OCID               |
+| oci-fingerprint       | Secret text                  | OCI API key fingerprint     |
+| oci-region            | Secret text                  | e.g. us-ashburn-1           |
+| tf-var-compartment-id | Secret text                  | OCI compartment OCID        |
+| oci-ssh-public-key    | Secret text                  | SSH public key              |
+
+1b. **Recreate multibranch jobs on OKE**
+
+**GrafanaLocal repo** (from that repo root):
+
+Use OKE Jenkins credentials: `JENKINS_USER=admin` and `JENKINS_PASSWORD` from the OKE `jenkins-admin` secret (or the token that works for the crumb API).
+
+```bash
+cd /path/to/GrafanaLocal
+export JENKINS_URL="https://jenkins-oke.canepro.me"
+export JOB_NAME="GrafanaLocal"
+export CONFIG_FILE=".jenkins/job-config.xml"
+export JENKINS_USER="admin"
+export JENKINS_PASSWORD="<from OKE jenkins-admin secret or token>"
+bash .jenkins/create-job.sh
+```
+
+Or in Jenkins UI: **New Item** → name `GrafanaLocal` → Multibranch Pipeline → Branch Sources → GitHub, Credentials `github-token`, Repository `Canepro/central-observability-hub-stack` → Build Configuration → Script Path `.jenkins/terraform-validation.Jenkinsfile` → Save.
+
+**rocketchat-k8s** (this repo, from repo root):
+
+Use the **same** OKE Jenkins credentials that worked for GrafanaLocal.
+
+```bash
+export JENKINS_URL="https://jenkins-oke.canepro.me"
+export JOB_NAME="rocketchat-k8s"
+export CONFIG_FILE=".jenkins/job-config.xml"
+export JENKINS_USER="admin"
+export JENKINS_PASSWORD="<same value you used for GrafanaLocal create-job>"
+bash .jenkins/scripts/create-job.sh
+```
+
+**Other repos (e.g. ops):** Same pattern: use that repo’s `job-config.xml` and create-job script path; use the same OKE credentials.
+
+1c. **Test a build on OKE before DNS cutover**  
+Once jobs are created, trigger a build to verify:
+- Dynamic pods spin up on OKE
+- Credentials work
+- Pipeline completes
+
+---
+
+**Step 2: DNS cutover**
+
+Point `jenkins.canepro.me` to the OKE load balancer IP. Get the IP with:
+
+```bash
+kubectl --context oke-cluster get svc -n ingress-nginx -o wide | grep LoadBalancer
+```
+
+Then in your DNS provider (Cloudflare, Route53, etc.):
+
+- **Record:** `jenkins.canepro.me`  **Type:** A  **Value:** \<OKE LB IP\>  
+  (Example: `141.148.16.227` if that is your current OKE LB IP.)
+
+---
+
+**Step 3: Update Jenkins values for production domain**
+
+On the OKE side (hub-docs / helm): set Jenkins base URL (and any Jenkins system config) to `https://jenkins.canepro.me` so links and webhooks use the production domain. See hub-docs `jenkins-values.yaml` or equivalent.
+
+---
+
+7. **Shutdown / startup** (ongoing)  
    **Automated (Phase 4):** If `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` are set and `JenkinsAksAgentDisconnectToken` exists in Automation, the stop runbook disables the node, waits 60s, then stops AKS. **Manual:** Follow hub-docs `JENKINS-SPLIT-AGENT-RUNBOOK.md`: before 23:00 stop, put node offline, wait 30–60 s, then run Azure Automation stop. On startup, agent reconnects; bring node back online in Jenkins if it was left offline.
 
 ---
