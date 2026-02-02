@@ -46,13 +46,18 @@ fi
 
 # Get CSRF token
 echo "Getting CSRF token..."
-CRUMB_JSON=$(curl -sS -L \
+CRUMB_RESPONSE=$(curl -sS -L -w "\n%{http_code}" \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
   -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
   "$JENKINS_URL/crumbIssuer/api/json")
+CRUMB_JSON=$(echo "$CRUMB_RESPONSE" | head -n-1)
+CRUMB_HTTP_CODE=$(echo "$CRUMB_RESPONSE" | tail -n1)
 
-if [ -z "$CRUMB_JSON" ] || echo "$CRUMB_JSON" | grep -q "Error\|401\|403"; then
-  echo "❌ Failed to get CSRF token. Check credentials."
+if [ -z "$CRUMB_JSON" ] || echo "$CRUMB_JSON" | grep -qE "Error|401|403|Authentication|Forbidden"; then
+  echo "❌ Failed to get CSRF token (HTTP $CRUMB_HTTP_CODE)."
+  echo "   If 401: use Jenkins API token (Manage Jenkins → Users → Configure → API Token), set JENKINS_PASSWORD to it."
+  echo "   If 000: $JENKINS_URL may be unreachable (VPN, DNS, or port-forward)."
+  echo "   You can set JENKINS_USER and JENKINS_PASSWORD manually and re-run."
   exit 1
 fi
 
