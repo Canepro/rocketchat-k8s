@@ -24,63 +24,76 @@ pipeline {
   }
   
   stages {
-    // Stage 1: Install Security Scanning Tools
+    // Stage 1: Install Security Scanning Tools (all tools to WORKDIR so no root needed; supports Alpine, Debian, RHEL/Mariner)
     stage('Install Security Tools') {
       steps {
         sh '''
-          # Install required tools
-          # Alpine-based agent: install dependencies via apk
-          apk add --no-cache \
-            bash ca-certificates curl git jq python3 py3-pip tar wget gzip coreutils yq || true
+          set -e
+          WORKDIR="${WORKSPACE:-$(pwd)}"
+          export WORKDIR
+          export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${PATH}"
+          cd "$WORKDIR"
 
-          update-ca-certificates || true
-          
-          # Install tfsec (Terraform security scanner) - pinned version, binary from release with checksum verification (no install script from master)
+          # Base tools: try package managers
+          if command -v apk >/dev/null 2>&1; then
+            apk add --no-cache bash ca-certificates curl git jq python3 py3-pip tar wget gzip coreutils 2>/dev/null || true
+          elif command -v apt-get >/dev/null 2>&1; then
+            (apt-get update -qq && apt-get install -y bash curl git jq python3 python3-pip python3-venv tar wget gzip coreutils) 2>/dev/null || true
+          elif command -v yum >/dev/null 2>&1; then
+            yum install -y bash curl git jq python3 tar wget gzip coreutils 2>/dev/null || true
+          elif command -v tdnf >/dev/null 2>&1; then
+            tdnf install -y bash curl git jq python3 tar wget gzip coreutils 2>/dev/null || true
+          fi
+          update-ca-certificates 2>/dev/null || true
+
+          # jq: if still missing, download to WORKDIR
+          if ! command -v jq >/dev/null 2>&1; then
+            curl -fsSL "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64" -o "$WORKDIR/jq"
+            chmod +x "$WORKDIR/jq"
+          fi
+
+          # tfsec - pinned version, checksum verified, install to WORKDIR
           TFSEC_VERSION="v1.28.14"
           curl -fsSL -o /tmp/tfsec-linux-amd64 "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec-linux-amd64"
           curl -fsSL -o /tmp/tfsec_checksums.txt "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec_checksums.txt"
           (cd /tmp && grep "tfsec-linux-amd64" tfsec_checksums.txt | grep -v checkgen | sha256sum -c -)
-          chmod +x /tmp/tfsec-linux-amd64 && mv /tmp/tfsec-linux-amd64 /usr/local/bin/tfsec
+          chmod +x /tmp/tfsec-linux-amd64 && mv /tmp/tfsec-linux-amd64 "$WORKDIR/tfsec"
           rm -f /tmp/tfsec_checksums.txt
-          
-          # Install checkov (Infrastructure as Code security scanner) - pinned version
-          # Alpine uses PEP-668 "externally managed" Python; install into a venv.
+
+          # checkov - pinned version, venv in WORKDIR
           CHECKOV_VERSION="3.2.499"
-          python3 -m venv /tmp/checkov-venv || true
-          if [ -f /tmp/checkov-venv/bin/activate ]; then
-            . /tmp/checkov-venv/bin/activate
+          python3 -m venv "$WORKDIR/checkov-venv" 2>/dev/null || true
+          if [ -f "$WORKDIR/checkov-venv/bin/activate" ]; then
+            . "$WORKDIR/checkov-venv/bin/activate"
             pip install --quiet --no-cache-dir "checkov==${CHECKOV_VERSION}" || true
             deactivate || true
-            ln -sf /tmp/checkov-venv/bin/checkov /usr/local/bin/checkov || true
           fi
-          
-          # Install trivy (Container image scanner) - pinned version, binary from release with checksum verification (no install script from main)
+
+          # trivy - pinned version, checksum verified, install to WORKDIR
           TRIVY_VERSION="0.54.0"
           curl -fsSL -o /tmp/trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           curl -fsSL -o /tmp/trivy_checksums.txt "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
           (cd /tmp && grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksums.txt | sha256sum -c -)
           tar -xzf /tmp/trivy.tar.gz -C /tmp
-          mv /tmp/trivy /usr/local/bin/trivy 2>/dev/null || mv /tmp/trivy_${TRIVY_VERSION}_Linux-64bit/trivy /usr/local/bin/trivy
-          chmod +x /usr/local/bin/trivy
+          mv /tmp/trivy "$WORKDIR/trivy" 2>/dev/null || mv /tmp/trivy_${TRIVY_VERSION}_Linux-64bit/trivy "$WORKDIR/trivy"
+          chmod +x "$WORKDIR/trivy"
           rm -f /tmp/trivy.tar.gz /tmp/trivy_checksums.txt
           rm -rf /tmp/trivy_${TRIVY_VERSION}_Linux-64bit 2>/dev/null || true
-          
-          # Install kube-score (Kubernetes manifest security scanner) - pinned version with checksum verification
+
+          # kube-score - pinned version, checksum verified, install to WORKDIR
           KUBE_SCORE_VERSION="1.20.0"
-          mkdir -p /usr/local/bin
-          apk add --no-cache kube-score 2>/dev/null || true
+          if command -v apk >/dev/null 2>&1; then apk add --no-cache kube-score 2>/dev/null || true; fi
           if ! command -v kube-score >/dev/null 2>&1; then
             curl -fsSL -o /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz"
             curl -fsSL -o /tmp/kube-score_checksums.txt "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/checksums.txt"
             (cd /tmp && grep "kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz" kube-score_checksums.txt | sha256sum -c -)
             tar -xzf /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz -C /tmp
-            mv /tmp/kube-score /usr/local/bin/ 2>/dev/null || mv /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64/kube-score /usr/local/bin/
-            chmod +x /usr/local/bin/kube-score
+            mv /tmp/kube-score "$WORKDIR/kube-score" 2>/dev/null || mv /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64/kube-score "$WORKDIR/kube-score"
+            chmod +x "$WORKDIR/kube-score"
             rm -f /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz /tmp/kube-score_checksums.txt
             rm -rf /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64 2>/dev/null || true
           fi
-          
-          # Verify installations
+
           tfsec --version || echo "tfsec not installed"
           checkov --version || echo "checkov not installed"
           trivy --version || echo "trivy not installed"
@@ -94,6 +107,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
             # Run tfsec scan and output JSON results
             tfsec . --format json --out ${WORKSPACE}/${TFSEC_OUTPUT} || true
             
@@ -109,6 +123,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
             # Run checkov scan on Terraform files
             checkov -d . --framework terraform --output json --output-file ${WORKSPACE}/${CHECKOV_OUTPUT} || true
             
@@ -123,6 +138,7 @@ pipeline {
     stage('Kubernetes Security Scan') {
       steps {
         sh '''
+          export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
           # Scan Kubernetes manifests in ops/manifests/
           if [ -d "ops/manifests" ] && command -v kube-score >/dev/null 2>&1; then
             kube-score score ops/manifests/*.yaml --output-format json > kube-score-results.json || true
@@ -176,6 +192,7 @@ pipeline {
               if (line.contains(':')) {
                 def image = line.trim()
                 sh """
+                  export PATH="\${WORKSPACE}/checkov-venv/bin:\${WORKSPACE}:\${PATH}"
                   echo "Scanning image: ${image}"
                   trivy image --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
                   trivy image ${image} || true
@@ -323,6 +340,7 @@ pipeline {
               sh '''
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
+                export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${PATH}"
                 ISSUE_TITLE="Security: automated scan findings"
                 ensure_label() {
                   LABEL_JSON=$(jq -n --arg name "$1" --arg color "$2" '{name:$name,color:$color}')
@@ -413,6 +431,10 @@ pipeline {
           sh '''
             set +e
             WORKDIR="${WORKSPACE:-$(pwd)}"
+            export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${PATH}"
+            if ! command -v jq >/dev/null 2>&1; then
+              curl -fsSL "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64" -o "$WORKDIR/jq" 2>/dev/null && chmod +x "$WORKDIR/jq" || true
+            fi
             ISSUE_TITLE="CI Failure: ${JOB_NAME}"
             ensure_label() {
               LABEL_JSON=$(jq -n --arg name "$1" --arg color "$2" '{name:$name,color:$color}')

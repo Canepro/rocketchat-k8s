@@ -15,6 +15,7 @@ pipeline {
   stages {
     // Stage 1: Install Tools
     // WORKDIR: use for all manifest updates and curl -d @... so paths work regardless of cwd.
+    // Supports Alpine (apk), Debian/Ubuntu (apt), RHEL/Mariner (yum/tdnf). If pkg install fails (e.g. no root), jq/yq/helm are installed into WORKDIR and PATH is set so no root needed.
     // yq: mikefarah/yq (in-place YAML edits); verify download with release checksums.
     // ensure_label: single script created here, sourced in PR/issue and post blocks.
     stage('Install Tools') {
@@ -24,12 +25,28 @@ pipeline {
           WORKDIR="${WORKSPACE:-$(pwd)}"
           export WORKDIR
           cd "$WORKDIR"
+          export PATH="${WORKDIR}:${PATH}"
 
-          # apk: curl, jq, git, bash, wget (no apk yq — we use mikefarah/yq below)
-          apk add --no-cache curl jq git bash python3 py3-pip wget
-          apk add --no-cache github-cli 2>/dev/null || true
+          # Base tools: try package managers (agent may be Alpine, Debian, or RHEL/Mariner)
+          if command -v apk >/dev/null 2>&1; then
+            apk add --no-cache curl jq git bash python3 py3-pip wget 2>/dev/null || true
+            apk add --no-cache github-cli 2>/dev/null || true
+          elif command -v apt-get >/dev/null 2>&1; then
+            (apt-get update -qq && apt-get install -y curl jq git bash python3 python3-pip wget) 2>/dev/null || true
+          elif command -v yum >/dev/null 2>&1; then
+            yum install -y curl jq git bash python3 wget 2>/dev/null || true
+          elif command -v tdnf >/dev/null 2>&1; then
+            tdnf install -y curl jq git bash python3 wget 2>/dev/null || true
+          fi
 
-          # mikefarah/yq (required for in-place manifest updates; apk yq is kislyuk, different tool)
+          # jq: if still missing (e.g. no root for apt), download to WORKDIR
+          if ! command -v jq >/dev/null 2>&1; then
+            JQ_VERSION="jq-1.7.1"
+            curl -fsSL "https://github.com/jqlang/jq/releases/download/${JQ_VERSION}/jq-linux-amd64" -o "$WORKDIR/jq"
+            chmod +x "$WORKDIR/jq"
+          fi
+
+          # mikefarah/yq (required for in-place manifest updates) — install to WORKDIR so no root needed
           YQ_VERSION="v4.35.1"
           YQ_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz"
           YQ_SHA_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/checksums_sha256"
@@ -37,16 +54,16 @@ pipeline {
           curl -fsSL -o "$WORKDIR/checksums_sha256" "$YQ_SHA_URL"
           (cd "$WORKDIR" && grep "yq_linux_amd64.tar.gz" checksums_sha256 | sha256sum -c -)
           tar -xzf "$WORKDIR/yq.tar.gz" -C "$WORKDIR"
-          mv "$WORKDIR/yq_linux_amd64" /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
+          mv "$WORKDIR/yq_linux_amd64" "$WORKDIR/yq"
+          chmod +x "$WORKDIR/yq"
           rm -f "$WORKDIR/yq.tar.gz" "$WORKDIR/checksums_sha256"
           yq --version
 
-          # Helm: pin installer to version tag for reproducibility
+          # Helm: pin installer; install to WORKDIR so no root needed
           HELM_VERSION="v3.14.0"
           curl -fsSL "https://raw.githubusercontent.com/helm/helm/${HELM_VERSION}/scripts/get-helm-3" -o "$WORKDIR/get-helm-3"
           chmod +x "$WORKDIR/get-helm-3"
-          HELM_INSTALL_PREFIX=/usr/local "$WORKDIR/get-helm-3" --no-sudo || { echo "⚠️ WARNING: Helm install failed; chart checks may use curl+yq only."; }
+          HELM_INSTALL_PREFIX="$WORKDIR" "$WORKDIR/get-helm-3" --no-sudo 2>/dev/null || { echo "⚠️ WARNING: Helm install failed; chart checks may use curl+yq only."; }
           helm version --short 2>/dev/null || true
 
           # ensure_label.sh: single script for PR/issue/post blocks to source.
@@ -84,6 +101,7 @@ ENSURE_LABEL_EOF
           sh '''
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
+            export PATH="${WORKDIR}:${PATH}"
             cd "$WORKDIR"
             if [ ! -f terraform/main.tf ]; then
               echo "terraform/main.tf not found; cannot check Azure provider version."
@@ -132,6 +150,7 @@ ENSURE_LABEL_EOF
           sh '''
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
+            export PATH="${WORKDIR}:${PATH}"
             cd "$WORKDIR"
             # Extract current repo + tag from values.yaml (mikefarah/yq)
             if command -v yq >/dev/null 2>&1; then
@@ -204,6 +223,7 @@ ENSURE_LABEL_EOF
           def chartLines = sh(
             script: '''
               set +e
+              export PATH="${WORKSPACE}:${PATH}"
               for app in GrafanaLocal/argocd/applications/*.yaml; do
                 if command -v yq >/dev/null 2>&1; then
                   yq -r '.spec.sources // [ .spec.source ] | .[] | select(has("chart")) | [.chart, .repoURL, (.targetRevision|tostring)] | @tsv' "$app" 2>/dev/null | \
@@ -357,6 +377,7 @@ ENSURE_LABEL_EOF
                 sh '''
                   set -e
                   WORKDIR="${WORKSPACE:-$(pwd)}"
+                  export PATH="${WORKDIR}:${PATH}"
                   cd "$WORKDIR"
                   [ -f "$WORKDIR/ensure_label.sh" ] && . "$WORKDIR/ensure_label.sh" || true
                   ensure_label "dependencies" "0366d6"
@@ -435,6 +456,7 @@ ENSURE_LABEL_EOF
               sh '''
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
+                export PATH="${WORKDIR}:${PATH}"
                 cd "$WORKDIR"
                 if [ ! -d .git ]; then
                   echo "Workspace is not a git repository: $WORKDIR"
@@ -665,6 +687,7 @@ EOF
           sh '''
             set +e
             WORKDIR="${WORKSPACE:-$(pwd)}"
+            export PATH="${WORKDIR}:${PATH}"
             ISSUE_TITLE="CI Failure: ${JOB_NAME}"
             if [ -f "$WORKDIR/ensure_label.sh" ]; then
               . "$WORKDIR/ensure_label.sh"

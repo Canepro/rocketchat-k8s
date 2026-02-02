@@ -13,23 +13,16 @@ pipeline {
   }
   
   stages {
-    // Stage 1: Install Terraform
+    // Stage 1: Install Terraform (extract to workspace with Python so no unzip/root needed)
     stage('Setup') {
       steps {
         sh '''
-          # Install unzip (agent may be Mariner/tdnf, RHEL/yum, Alpine/apk, or Debian/apt)
-          if ! command -v unzip >/dev/null 2>&1; then
-            (tdnf install -y unzip 2>/dev/null) || \
-            (yum install -y unzip 2>/dev/null) || \
-            (apk add --no-cache unzip 2>/dev/null) || \
-            (apt-get update -qq && apt-get install -y unzip 2>/dev/null) || \
-            { echo "Could not install unzip (tried tdnf, yum, apk, apt-get). Agent image may need unzip pre-installed."; exit 1; }
-          fi
-          
           TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*' | cut -d'"' -f4)
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
-          unzip -o terraform.zip -d /usr/local/bin/
-          rm terraform.zip
+          python3 -c "import zipfile; zipfile.ZipFile('terraform.zip').extractall('.')"
+          rm -f terraform.zip
+          chmod +x terraform
+          export PATH="${WORKSPACE}:${PATH}"
           terraform version
         '''
       }
@@ -59,7 +52,7 @@ pipeline {
     stage('Terraform Format') {
       steps {
         dir('terraform') {
-          sh 'terraform fmt -check -recursive'
+          sh 'export PATH="${WORKSPACE}:${PATH}" && terraform fmt -check -recursive'
         }
       }
     }
@@ -69,6 +62,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            export PATH="${WORKSPACE}:${PATH}"
             # Initialize with backend (uses Workload Identity for auth)
             terraform init \
               -backend-config="resource_group_name=rg-terraform-state" \
@@ -92,6 +86,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            export PATH="${WORKSPACE}:${PATH}"
             # Use example file for CI validation (contains placeholder values)
             # Real secrets are never stored in blob storage
             echo "INFO: Using example tfvars for validation (placeholder values)"
@@ -106,6 +101,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            export PATH="${WORKSPACE}:${PATH}"
             terraform plan \
               -no-color \
               -input=false \
@@ -131,7 +127,7 @@ pipeline {
     always {
       // Archive plan for review
       dir('terraform') {
-        sh 'terraform show -no-color tfplan > tfplan.txt 2>/dev/null || true'
+        sh 'export PATH="${WORKSPACE}:${PATH}" && terraform show -no-color tfplan > tfplan.txt 2>/dev/null || true'
         archiveArtifacts artifacts: 'tfplan.txt', allowEmptyArchive: true
       }
       cleanWs()
