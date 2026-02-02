@@ -49,7 +49,8 @@ pipeline {
           HELM_INSTALL_PREFIX=/usr/local "$WORKDIR/get-helm-3" --no-sudo || { echo "⚠️ WARNING: Helm install failed; chart checks may use curl+yq only."; }
           helm version --short 2>/dev/null || true
 
-          # ensure_label.sh: single script for PR/issue/post blocks to source
+          # ensure_label.sh: single script for PR/issue/post blocks to source.
+          # Note: label names with spaces/special chars would need URL encoding in the API path; current labels (e.g. dependencies, automated) are safe.
           cat > "$WORKDIR/ensure_label.sh" << 'ENSURE_LABEL_EOF'
 ensure_label() {
   local LABEL_NAME="$1"
@@ -88,7 +89,7 @@ ENSURE_LABEL_EOF
               echo "terraform/main.tf not found; cannot check Azure provider version."
               exit 1
             fi
-            # Get current version from main.tf (may be constraint e.g. ~>3.0)
+            # Get current version from main.tf (may be constraint e.g. ~>3.0). Pattern depends on provider block format; consider terraform providers or hcl2json for robustness.
             CURRENT_AZURERM=$(grep -A2 "azurerm = {" terraform/main.tf | grep "version" | sed 's/.*version = "\\(.*\\)".*/\\1/' | tr -d ' ')
             if [ -z "${CURRENT_AZURERM}" ]; then
               echo "Failed to extract current Azure provider version from terraform/main.tf (grep pattern did not match)."
@@ -542,8 +543,9 @@ ENSURE_LABEL_EOF
                 HIGH_COUNT=$(jq '.high | length' "$WORKDIR/updates-to-apply.json" 2>/dev/null || echo "0")
                 MEDIUM_COUNT=$(jq '.medium | length' "$WORKDIR/updates-to-apply.json" 2>/dev/null || echo "0")
 
-                VERSION_UPDATES_BODY=$(jq -n --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" \
-                  "# Version Updates\n\nThis PR includes automated version updates detected by Jenkins.\n\n## Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n## Files Updated\n- **VERSIONS.md**: Version tracking automatically updated\n- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)\n\n## Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl)
+                VERSION_UPDATES_BODY=$(jq -rn --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" '\''
+                  "# Version Updates\n\nThis PR includes automated version updates detected by Jenkins.\n\n## Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n## Files Updated\n- **VERSIONS.md**: Version tracking automatically updated\n- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)\n\n## Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl
+                '\'')
                 printf '%s' "$VERSION_UPDATES_BODY" > "$WORKDIR/VERSION_UPDATES.md"
 
                 gitw add VERSIONS.md VERSION_UPDATES.md values.yaml terraform/main.tf ops/manifests/*.yaml 2>/dev/null || true
@@ -593,8 +595,9 @@ EOF
                 ensure_label "upgrade" "fbca04"
                 
                 # Create PR
-                PR_BODY=$(jq -n --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" \
-                  "## Automated Version Updates\n\nThis PR includes version updates detected by automated checks.\n\n### Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n### Files Updated\n- **VERSIONS.md**: Automatically updated with new versions\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\n\n### Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl + "\n\n---\n*This PR was automatically created by Jenkins version check pipeline.*")
+                PR_BODY=$(jq -rn --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" '\''
+                  "## Automated Version Updates\n\nThis PR includes version updates detected by automated checks.\n\n### Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n### Files Updated\n- **VERSIONS.md**: Automatically updated with new versions\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\n\n### Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl + "\n\n---\n*This PR was automatically created by Jenkins version check pipeline.*"
+                '\'')
                 jq -n --arg title "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium" --arg head "${BRANCH_NAME}" --arg base "master" --arg body "$PR_BODY" \
                   '{title:$title, head:$head, base:$base, body:$body}' > "$WORKDIR/pr-body.json"
 
