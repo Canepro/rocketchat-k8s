@@ -2,7 +2,12 @@
 # Connects to Jenkins controller on OKE via WebSocket (HTTPS only).
 # Uses same jenkins ServiceAccount for Azure Workload Identity (Terraform, Key Vault).
 # One-time: create Secret jenkins-agent-secret with key "secret" (agent secret from OKE Jenkins UI).
-# URL: jenkins-oke.canepro.me during Phase 2; after domain cutover change to jenkins.canepro.me.
+# URL: jenkins.canepro.me (production; DNS cutover complete).
+#
+# AKS job routing: repo push (terraform, helm), version-check, and security-validation run on
+# this agent (agent { label 'aks-agent' }). For those jobs to succeed, use a custom image that
+# includes Terraform, Azure CLI, helm, kubeconform, and version/security tools; default
+# jenkins/inbound-agent only has the agent JAR and will fail those pipelines.
 # See JENKINS_DEPLOYMENT.md and .jenkins/JENKINS-SPLIT-AGENT-PLAN-aks.md.
 apiVersion: apps/v1
 kind: Deployment
@@ -29,7 +34,7 @@ spec:
           imagePullPolicy: Always
           env:
             - name: JENKINS_URL
-              value: "https://jenkins-oke.canepro.me/"
+              value: "https://jenkins.canepro.me/"
             - name: JENKINS_AGENT_NAME
               value: "aks-agent"
             - name: JENKINS_SECRET
@@ -37,6 +42,19 @@ spec:
                 secretKeyRef:
                   name: jenkins-agent-secret
                   key: secret
+            # Azure Workload Identity (terraform-validation and other AKS jobs)
+            - name: ARM_USE_OIDC
+              value: "true"
+            - name: ARM_OIDC_TOKEN_FILE_PATH
+              value: "/var/run/secrets/azure/tokens/azure-identity-token"
+            - name: AZURE_FEDERATED_TOKEN_FILE
+              value: "/var/run/secrets/azure/tokens/azure-identity-token"
+            - name: ARM_TENANT_ID
+              value: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"
+            - name: ARM_CLIENT_ID
+              value: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
+            - name: ARM_SUBSCRIPTION_ID
+              value: "1c6e2ceb-7310-4193-ab4d-95120348b934"
           command:
             - /bin/sh
             - -c

@@ -109,7 +109,7 @@ Operational expectation:
 
 When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS):
 
-- **Phase 4 – Automated graceful disconnect:** The Azure Automation **stop runbook** (`Stop-AKS-Cluster`) can disable the Jenkins `aks-agent` node before stopping AKS. Set `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` in `terraform.tfvars` (e.g. `https://jenkins-oke.canepro.me` and `admin`), then create an Automation Variable **`JenkinsAksAgentDisconnectToken`** in the same Automation Account (see below). The runbook will call the Jenkins API to disable the node, wait 60 seconds, then stop AKS. No token in Terraform/tfvars.
+- **Phase 4 – Automated graceful disconnect:** The Azure Automation **stop runbook** (`Stop-AKS-Cluster`) can disable the Jenkins `aks-agent` node before stopping AKS. Set `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` in `terraform.tfvars` (e.g. `https://jenkins.canepro.me` and `admin`; production URL now that domain cutover is complete), then create an Automation Variable **`JenkinsAksAgentDisconnectToken`** in the same Automation Account (see below). The runbook will call the Jenkins API to disable the node, wait 60 seconds, then stop AKS. No token in Terraform/tfvars.
 - **Manual procedure:** If not using Phase 4, follow the **hub-docs** runbook (`JENKINS-SPLIT-AGENT-RUNBOOK.md`): before stopping AKS, check for running builds on `aks-agent`, put the node offline (UI, API, or CLI), wait 30–60 seconds, then run the AKS stop. On startup, the agent reconnects; bring the node back online in Jenkins if it was left offline.
 
 **How to set `JenkinsAksAgentDisconnectToken` in Azure Automation**
@@ -117,7 +117,7 @@ When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS):
 The stop runbook reads the Jenkins API token from an Automation Variable so the token is never stored in Terraform. Create the variable in the same Automation Account that runs the stop runbook (e.g. `aa-aks-canepro` in resource group `rg-canepro-aks`).
 
 1. **Get a Jenkins API token**
-   - In Jenkins (OKE): **Manage Jenkins** → **Users** → select the user (e.g. `admin`) → **Configure** → **Add new Token** → name it (e.g. `aks-stop-runbook`) → **Generate** → copy the token. Store it somewhere safe; you won’t see it again.
+   - In Jenkins: **Manage Jenkins** → **Users** → select the user (e.g. `admin`) → **Configure** → **Add new Token** → name it (e.g. `aks-stop-runbook`) → **Generate** → copy the token. Store it somewhere safe; you won’t see it again.
 
 2. **Create the variable in Azure Portal**
    - **Azure Portal** → **Automation Accounts** → open your account (e.g. `aa-aks-canepro`).
