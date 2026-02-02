@@ -10,7 +10,7 @@ Validates Terraform infrastructure code using **Azure Workload Identity** for au
 - Syntax validation (`terraform validate`)
 - Plan generation (`terraform plan`) with Azure state backend
 
-**Agent**: `terraform-azure` (Azure CLI image with Terraform installed)
+**Agent**: `aks-agent` (static AKS agent; uses Azure Workload Identity via `jenkins` service account)
 **Authentication**: Uses Azure Workload Identity (federated credentials via `jenkins` service account)
 
 **Note**: The pipeline uses `terraform.tfvars.example` for CI validation (placeholder values). Real secrets are never stored in blob storage or git.
@@ -21,7 +21,7 @@ Validates Helm charts and Kubernetes manifests:
 - Kubeconform validation
 - YAML linting
 
-**Agent**: `helm` (Alpine Helm image with kubectl and kubeconform)
+**Agent**: `aks-agent` (static AKS agent; repo push / PR validation)
 
 ### `version-check.Jenkinsfile`
 Automated version checking pipeline:
@@ -30,7 +30,7 @@ Automated version checking pipeline:
 - Creates/updates GitHub Issues and PRs for updates based on risk assessment (de-duped)
 - Automatically updates `VERSIONS.md` and code files
 
-**Agent**: `version-checker` (Alpine with version checking tools)
+**Agent**: `aks-agent` (static AKS agent)
 **Schedule**: Weekdays at 5 PM (`H 17 * * 1-5`, after cluster auto-start at 16:00)
 
 **GitHub output (summary)**:
@@ -45,14 +45,16 @@ Automated security validation pipeline:
 - Scans Terraform code (tfsec, checkov)
 - Scans container images (trivy)
 - Assesses risk levels
-- Creates/updates PRs/issues for remediation (de-duped) and notifies on job failures
+- **Issues only** (no PRs): one canonical issue title **"Security: automated scan findings"**; de-dupe by finding that open issue and adding a comment; create the issue only if it doesn’t exist. Bodies built with jq; API failures are not hidden (`if ! curl ...; then echo "⚠️ WARNING: ..."; fi`).
 
-**Agent**: `security` (Alpine with security scanning tools)
+**Agent**: `aks-agent` (static AKS agent)
 **Schedule**: Weekdays at 6 PM (`H 18 * * 1-5`, after cluster auto-start at 16:00)
 
 ## Usage
 
 ### CI Validation Pipelines (Multibranch)
+
+The **repo job** (multibranch pipeline, e.g. `rocketchat-k8s`) uses a **single** Script Path: `.jenkins/terraform-validation.Jenkinsfile`. So every branch and PR runs **Terraform validation** only. Helm validation (`.jenkins/helm-validation.Jenkinsfile`) does **not** run automatically on the same branches/PRs unless you add a second multibranch job with Script Path `.jenkins/helm-validation.Jenkinsfile`, or a multi-pipeline setup. See [WORKFLOWS-AND-STAGES.md](WORKFLOWS-AND-STAGES.md).
 
 These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatically:
 - Discover branches and pull requests
@@ -67,6 +69,10 @@ The version-check and security-validation pipelines run as scheduled jobs:
 - Update code and documentation
 
 **Setup**: See `.jenkins/SETUP_AUTOMATED_JOBS.md` (single source of truth).
+
+**Version-check PR logic:** **HIGH→issue**, **MEDIUM≥1→PR**. Breaking (major) updates open/update a single issue; non-breaking (high/medium) open/update a single PR. Uses **mikefarah/yq** (not apk/kislyuk yq) with **checksum verification**; **WORKDIR** and absolute paths for manifest updates and `curl -d @...` payloads. Single **ensure_label.sh** created in Install Tools and sourced in PR/issue/post blocks (minimal inline fallback in post if script missing). Update loop uses process substitution and **UPDATE_FAILED** so failed yq exits the main shell. Helm installer pinned to a version tag. See [STATIC-AGENT-REPO-SUGGESTIONS.md](STATIC-AGENT-REPO-SUGGESTIONS.md) and [WORKFLOWS-AND-STAGES.md](WORKFLOWS-AND-STAGES.md).
+
+**Security:** Issues only (no PRs). One canonical issue title (e.g. "Security: automated scan findings"); de-dupe by finding that open issue and adding a comment; create the issue only if it doesn’t exist. Bodies built with jq; API failures are not hidden. See [STATIC-AGENT-REPO-SUGGESTIONS.md](STATIC-AGENT-REPO-SUGGESTIONS.md) for details.
 
 ### Split-agent hybrid (Controller on OKE, Agent on AKS)
 
@@ -92,23 +98,19 @@ When the Jenkins controller runs on OKE and a static agent runs on AKS, see [JEN
      - This is the path relative to the repository root
 6. **Save** → **Scan Multibranch Pipeline Now**
 
-**UI:** Go to Jenkins UI (e.g. OKE: `https://jenkins-oke.canepro.me` or production: `https://jenkins.canepro.me`) and use credential ID **`github-token`** for the GitHub branch source.
+**UI:** Go to Jenkins at **https://jenkins.canepro.me** (production; controller on OKE) and use credential ID **`github-token`** for the GitHub branch source.
 
 ### CLI setup (when UI is painful)
 Use the repo script which handles CSRF + session cookies. Create `github-token` on the target Jenkins first.
 
 ```bash
-# OKE (before domain cutover):
-export JENKINS_URL="https://jenkins-oke.canepro.me"
+# Production (Jenkins on OKE; domain cutover complete):
+export JENKINS_URL="https://jenkins.canepro.me"
 export JOB_NAME="rocketchat-k8s"
 export CONFIG_FILE=".jenkins/job-config.xml"
 bash .jenkins/scripts/create-job.sh
 
-# Production (after cutover):
-export JENKINS_URL="https://jenkins.canepro.me"
-# ... same JOB_NAME and CONFIG_FILE ...
-
-# Debugging via port-forward (AKS or local):
+# Debugging via port-forward (when Jenkins pod is reachable):
 kubectl -n jenkins port-forward pod/jenkins-0 8080:8080
 export JENKINS_URL="http://127.0.0.1:8080"
 bash .jenkins/scripts/create-job.sh
@@ -120,10 +122,9 @@ bash .jenkins/scripts/create-job.sh
 
 Configure webhook in repository settings:
 
-| When        | Webhook URL |
+| Environment | Webhook URL |
 |-------------|-------------|
-| OKE (before cutover) | `https://jenkins-oke.canepro.me/github-webhook/` |
-| After cutover       | `https://jenkins.canepro.me/github-webhook/`     |
+| Production  | `https://jenkins.canepro.me/github-webhook/`     |
 
 - **Events**: Pull requests, Pushes  
 - **Content type**: `application/json`

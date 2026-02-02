@@ -1,15 +1,9 @@
 // Helm Chart Validation Pipeline for rocketchat-k8s
 // This pipeline validates Helm charts and Kubernetes manifests without deploying.
 // Purpose: CI validation only - ArgoCD handles actual deployments via GitOps.
+// Runs on the static AKS agent (aks-agent) as part of repo push / PR validation.
 pipeline {
-  // Use the 'helm' Kubernetes agent (Alpine Helm image with kubectl and kubeconform)
-  // This agent has Helm, kubectl, and kubeconform pre-installed
-  agent {
-    kubernetes {
-      label 'helm'
-      defaultContainer 'helm'
-    }
-  }
+  agent { label 'aks-agent' }
   
   stages {
     // Stage 1: Helm Template Rendering

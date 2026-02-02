@@ -1,54 +1,9 @@
 // Terraform Validation Pipeline for rocketchat-k8s
 // This pipeline validates Terraform infrastructure code including plan generation.
 // Uses Azure Workload Identity for authentication.
+// Runs on the static AKS agent (aks-agent) so it uses AKS Workload Identity and avoids OKE; AKS has auto-shutdown.
 pipeline {
-  agent {
-    kubernetes {
-      label 'terraform-azure'
-      defaultContainer 'terraform'
-      yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    azure.workload.identity/use: "true"
-spec:
-  serviceAccountName: jenkins
-  containers:
-  - name: jnlp
-    image: docker.io/jenkins/inbound-agent:3302.v1cfe4e081049-1-jdk21
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-  - name: terraform
-    # Use full registry path for OKE (short name mode); MCR is already qualified
-    image: mcr.microsoft.com/azure-cli:latest
-    command: ['sleep', '3600']
-    resources:
-      requests:
-        memory: "384Mi"
-        cpu: "100m"
-      limits:
-        memory: "1Gi"
-        cpu: "1000m"
-    env:
-    - name: ARM_USE_OIDC
-      value: "true"
-    - name: ARM_OIDC_TOKEN_FILE_PATH
-      value: "/var/run/secrets/azure/tokens/azure-identity-token"
-    - name: ARM_TENANT_ID
-      value: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"
-    - name: ARM_CLIENT_ID
-      value: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
-    - name: ARM_SUBSCRIPTION_ID
-      value: "1c6e2ceb-7310-4193-ab4d-95120348b934"
-"""
-    }
-  }
+  agent { label 'aks-agent' }
   
   environment {
     // Azure Storage for tfvars

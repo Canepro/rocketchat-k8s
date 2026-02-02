@@ -1,38 +1,9 @@
 // Version Check Pipeline for rocketchat-k8s
 // This pipeline checks for latest versions of all components and creates PRs/issues for updates.
 // Purpose: Automated dependency management with risk-based PR/Issue creation.
+// Runs on the static AKS agent (aks-agent); AKS has auto-shutdown so controller lives on OKE.
 pipeline {
-  agent {
-    kubernetes {
-      label 'version-checker'
-      defaultContainer 'version-checker'
-      yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: jnlp
-    image: docker.io/jenkins/inbound-agent:3302.v1cfe4e081049-1-jdk21
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-  - name: version-checker
-    image: docker.io/library/alpine:3.20
-    command: ['sleep', '3600']
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
-      limits:
-        memory: "512Mi"
-        cpu: "250m"
-"""
-    }
-  }
+  agent { label 'aks-agent' }
   
   environment {
     GITHUB_REPO = 'Canepro/rocketchat-k8s'
@@ -43,26 +14,60 @@ spec:
   
   stages {
     // Stage 1: Install Tools
+    // WORKDIR: use for all manifest updates and curl -d @... so paths work regardless of cwd.
+    // yq: mikefarah/yq (in-place YAML edits); verify download with release checksums.
+    // ensure_label: single script created here, sourced in PR/issue and post blocks.
     stage('Install Tools') {
       steps {
         sh '''
-          # Alpine-based agent: install tools via apk (allow fallback if github-cli unavailable)
-          set +e
-          apk add --no-cache curl jq git bash python3 py3-pip wget yq github-cli
-          if [ $? -ne 0 ]; then
-            apk add --no-cache curl jq git bash python3 py3-pip wget yq
-          fi
           set -e
+          WORKDIR="${WORKSPACE:-$(pwd)}"
+          export WORKDIR
+          cd "$WORKDIR"
 
-          # Verify critical tools exist; fail fast if any are missing
+          # apk: curl, jq, git, bash, wget (no apk yq — we use mikefarah/yq below)
+          apk add --no-cache curl jq git bash python3 py3-pip wget
+          apk add --no-cache github-cli 2>/dev/null || true
+
+          # mikefarah/yq (required for in-place manifest updates; apk yq is kislyuk, different tool)
+          YQ_VERSION="v4.35.1"
+          YQ_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz"
+          YQ_SHA_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/checksums_sha256"
+          curl -fsSL -o "$WORKDIR/yq.tar.gz" "$YQ_URL"
+          curl -fsSL -o "$WORKDIR/checksums_sha256" "$YQ_SHA_URL"
+          (cd "$WORKDIR" && grep "yq_linux_amd64.tar.gz" checksums_sha256 | sha256sum -c -)
+          tar -xzf "$WORKDIR/yq.tar.gz" -C "$WORKDIR"
+          mv "$WORKDIR/yq_linux_amd64" /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+          rm -f "$WORKDIR/yq.tar.gz" "$WORKDIR/checksums_sha256"
+          yq --version
+
+          # Helm: pin installer to version tag for reproducibility
+          HELM_VERSION="v3.14.0"
+          curl -fsSL "https://raw.githubusercontent.com/helm/helm/${HELM_VERSION}/scripts/get-helm-3" -o "$WORKDIR/get-helm-3"
+          chmod +x "$WORKDIR/get-helm-3"
+          HELM_INSTALL_PREFIX=/usr/local "$WORKDIR/get-helm-3" --no-sudo || { echo "⚠️ WARNING: Helm install failed; chart checks may use curl+yq only."; }
+          helm version --short 2>/dev/null || true
+
+          # ensure_label.sh: single script for PR/issue/post blocks to source
+          cat > "$WORKDIR/ensure_label.sh" << 'ENSURE_LABEL_EOF'
+ensure_label() {
+  local LABEL_NAME="$1"
+  local LABEL_COLOR="$2"
+  local LABEL_JSON
+  LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
+  if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1; then return 0; fi
+  if ! curl -fsSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/labels" -d "$LABEL_JSON" >/dev/null 2>&1; then echo "⚠️ WARNING: Failed to create label ${LABEL_NAME}"; fi
+}
+ENSURE_LABEL_EOF
+          chmod +x "$WORKDIR/ensure_label.sh"
+
           for tool in curl jq git bash yq; do
             if ! command -v "$tool" >/dev/null 2>&1; then
               echo "Critical tool $tool not installed"
               exit 1
             fi
           done
-
-          # GitHub CLI is optional (pipeline uses curl for API calls); log if missing
           command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
         '''
       }
@@ -77,6 +82,8 @@ spec:
           // Check Azure Provider version
           sh '''
             set -e
+            WORKDIR="${WORKSPACE:-$(pwd)}"
+            cd "$WORKDIR"
             if [ ! -f terraform/main.tf ]; then
               echo "terraform/main.tf not found; cannot check Azure provider version."
               exit 1
@@ -96,12 +103,12 @@ spec:
               exit 1
             fi
             echo "Latest Azure Provider: ${LATEST_AZURERM}"
-            echo "AZURERM_CURRENT=${CURRENT_AZURERM}" >> versions.env
-            echo "AZURERM_LATEST=${LATEST_AZURERM}" >> versions.env
+            echo "AZURERM_CURRENT=${CURRENT_AZURERM}" >> "$WORKDIR/versions.env"
+            echo "AZURERM_LATEST=${LATEST_AZURERM}" >> "$WORKDIR/versions.env"
           '''
           
-          def azurermCurrent = sh(script: 'grep AZURERM_CURRENT versions.env | cut -d= -f2', returnStdout: true).trim()
-          def azurermLatest = sh(script: 'grep AZURERM_LATEST versions.env | cut -d= -f2', returnStdout: true).trim()
+          def azurermCurrent = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_CURRENT "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
+          def azurermLatest = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_LATEST "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
           
           terraformVersions['azurerm'] = [
             current: azurermCurrent,
@@ -122,13 +129,16 @@ spec:
           
           // Check Rocket.Chat image version (prefer Docker Hub tags; fallback to GitHub releases)
           sh '''
-            # Extract current repo + tag from values.yaml
+            set -e
+            WORKDIR="${WORKSPACE:-$(pwd)}"
+            cd "$WORKDIR"
+            # Extract current repo + tag from values.yaml (mikefarah/yq)
             if command -v yq >/dev/null 2>&1; then
-              RC_REPO=$(yq -r '.image.repository // ""' values.yaml 2>/dev/null | sed 's/#.*$//' | xargs || true)
-              RC_TAG=$(yq -r '.image.tag // ""' values.yaml 2>/dev/null | sed 's/#.*$//' | xargs || true)
+              RC_REPO=$(yq -r '.image.repository // ""' "$WORKDIR/values.yaml" 2>/dev/null | sed 's/#.*$//' | xargs || true)
+              RC_TAG=$(yq -r '.image.tag // ""' "$WORKDIR/values.yaml" 2>/dev/null | sed 's/#.*$//' | xargs || true)
             else
-              RC_REPO=$(grep -E '^\\s*repository:' values.yaml | head -1 | sed 's/.*repository:\\s*//' | sed 's/#.*$//' | xargs || true)
-              RC_TAG=$(grep -E '^\\s*tag:' values.yaml | head -1 | sed 's/.*tag:\\s*\"\\{0,1\\}\\([^\"#]*\\)\"\\{0,1\\}.*/\\1/' | sed 's/#.*$//' | xargs || true)
+              RC_REPO=$(grep -E '^\\s*repository:' "$WORKDIR/values.yaml" | head -1 | sed 's/.*repository:\\s*//' | sed 's/#.*$//' | xargs || true)
+              RC_TAG=$(grep -E '^\\s*tag:' "$WORKDIR/values.yaml" | head -1 | sed 's/.*tag:\\s*\"\\{0,1\\}\\([^\"#]*\\)\"\\{0,1\\}.*/\\1/' | sed 's/#.*$//' | xargs || true)
             fi
             echo "Current Rocket.Chat image: ${RC_REPO}:${RC_TAG}"
             
@@ -148,15 +158,15 @@ spec:
               LATEST_RC_IMAGE=$(curl -s "https://registry.hub.docker.com/v2/repositories/${REPO_PATH}/tags?page_size=100" | jq -r '.results[].name' 2>/dev/null | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | sort -V | tail -1)
             fi
             
-            echo "RC_REPO=${RC_REPO}" >> versions.env
-            echo "RC_CURRENT=${RC_TAG}" >> versions.env
-            echo "RC_LATEST_RELEASE=${LATEST_RC_RELEASE}" >> versions.env
-            echo "RC_LATEST_IMAGE=${LATEST_RC_IMAGE}" >> versions.env
+            echo "RC_REPO=${RC_REPO}" >> "$WORKDIR/versions.env"
+            echo "RC_CURRENT=${RC_TAG}" >> "$WORKDIR/versions.env"
+            echo "RC_LATEST_RELEASE=${LATEST_RC_RELEASE}" >> "$WORKDIR/versions.env"
+            echo "RC_LATEST_IMAGE=${LATEST_RC_IMAGE}" >> "$WORKDIR/versions.env"
           '''
           
-          def rcCurrent = sh(script: 'grep RC_CURRENT versions.env | cut -d= -f2', returnStdout: true).trim()
-          def rcLatestRelease = sh(script: 'grep RC_LATEST_RELEASE versions.env | cut -d= -f2', returnStdout: true).trim()
-          def rcLatestImage = sh(script: 'grep RC_LATEST_IMAGE versions.env | cut -d= -f2', returnStdout: true).trim()
+          def rcCurrent = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep RC_CURRENT "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
+          def rcLatestRelease = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep RC_LATEST_RELEASE "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
+          def rcLatestImage = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep RC_LATEST_IMAGE "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
           def rcLatest = rcLatestImage ?: rcLatestRelease
           def rcSource = rcLatestImage ? 'docker-hub' : 'github-release'
           
@@ -339,43 +349,27 @@ spec:
             def createdBreakingIssue = false
 
             if (criticalUpdates.size() > 0) {
-              // Create Issue for breaking (major) updates
+              // HIGH→issue: Create Issue for breaking (major) updates
               echo "🚨 Creating GitHub issue for BREAKING version updates..."
-              // Use REAL newlines so GitHub markdown renders bullet lists correctly.
-              // (Using '\\n' would embed the two characters '\' and 'n' into the issue body.)
               def criticalSummary = criticalUpdates.collect { "- ${it.component}: ${it.current} → ${it.latest}" }.join('\n')
               withEnv(["CRITICAL_UPDATES=${criticalSummary}"]) {
                 sh '''
-                  ensure_label() {
-                    LABEL_NAME="$1"
-                    LABEL_COLOR="$2"
-                    LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
-                    curl -fsSL \
-                      -H "Authorization: token ${GITHUB_TOKEN}" \
-                      -H "Accept: application/vnd.github.v3+json" \
-                      "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1 && return 0
-                    curl -fsSL -X POST \
-                      -H "Authorization: token ${GITHUB_TOKEN}" \
-                      -H "Accept: application/vnd.github.v3+json" \
-                      "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                      -d "$LABEL_JSON" >/dev/null 2>&1 || true
-                  }
-                  
+                  set -e
+                  WORKDIR="${WORKSPACE:-$(pwd)}"
+                  cd "$WORKDIR"
+                  [ -f "$WORKDIR/ensure_label.sh" ] && . "$WORKDIR/ensure_label.sh" || true
                   ensure_label "dependencies" "0366d6"
                   ensure_label "breaking" "b60205"
                   ensure_label "automated" "0e8a16"
                   ensure_label "upgrade" "fbca04"
-                  
-                  # Build JSON with jq so newlines are escaped correctly
-                  # Write updates to a file to safely preserve newlines.
-                  printf "%s" "${CRITICAL_UPDATES}" > critical-updates.md
+
+                  printf "%s" "${CRITICAL_UPDATES}" > "$WORKDIR/critical-updates.md"
                   ISSUE_BODY_JSON=$(jq -n \
                     --arg title "🚨 Breaking: Major version updates available" \
-                    --rawfile updates critical-updates.md \
+                    --rawfile updates "$WORKDIR/critical-updates.md" \
                     '{title:$title, body:("## Version Update Alert\n\n**Risk Level:** BREAKING (major version)\n\n**Updates Available:**\n" + $updates + "\n\n## Action Required\n\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\n\n## Next Steps\n\n1. Review breaking changes in release notes\n2. Test in staging environment\n3. Create upgrade plan\n4. Schedule maintenance window if needed\n\n---\n*This issue was automatically created by Jenkins version check pipeline.*"), labels:["dependencies","breaking","automated","upgrade"]}')
-                  echo "$ISSUE_BODY_JSON" > issue-body.json
+                  echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
 
-                  # De-duplicate: if an open breaking issue already exists, comment on it instead of creating a new one.
                   ISSUE_TITLE="🚨 Breaking: Major version updates available"
                   ISSUE_LIST_JSON=$(curl -fsSL \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -383,35 +377,35 @@ spec:
                     "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=dependencies,breaking,automated,upgrade&per_page=100" \
                     || echo '[]')
                   EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
-                  # Validate issue number is numeric; if invalid, skip comment and create new issue below
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     case "${EXISTING_ISSUE_NUMBER}" in
-                      *[!0-9]*) echo "Invalid EXISTING_ISSUE_NUMBER; skipping comment." ; EXISTING_ISSUE_NUMBER="" ;;
+                      *[!0-9]*) EXISTING_ISSUE_NUMBER="" ;;
                     esac
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                    # Build optional build line in shell so jq receives a single safe string (avoids jq ternary quoting issues)
                     BUILD_LINE=""
-                    if [ -n "${BUILD_URL:-}" ]; then
-                      BUILD_LINE=$(printf '\nBuild: %s' "${BUILD_URL}")
-                    fi
-                    COMMENT_JSON=$(jq -n --rawfile updates critical-updates.md --arg ts "$TS" --arg buildline "$BUILD_LINE" \
+                    [ -n "${BUILD_URL:-}" ] && BUILD_LINE=$(printf '\nBuild: %s' "${BUILD_URL}")
+                    COMMENT_JSON=$(jq -n --rawfile updates "$WORKDIR/critical-updates.md" --arg ts "$TS" --arg buildline "$BUILD_LINE" \
                       '{body:("## New breaking updates detected\n\nTime: " + $ts + $buildline + "\n\n**Updates Available:**\n" + $updates)}')
-                    curl -fsSL -X POST \
+                    if ! curl -fsSL -X POST \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
                       "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_ISSUE_NUMBER}/comments" \
-                      -d "$COMMENT_JSON" >/dev/null 2>&1 || true
+                      -d "$COMMENT_JSON" >/dev/null 2>&1; then
+                      echo "⚠️ WARNING: Failed to add comment to existing breaking issue #${EXISTING_ISSUE_NUMBER}"
+                    fi
                     echo "Updated existing breaking issue #${EXISTING_ISSUE_NUMBER}"
                     exit 0
                   fi
-                  
-                  curl -X POST \
+
+                  if ! curl -sS -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${GITHUB_REPO}/issues" \
-                    -d @issue-body.json
+                    -d @"$WORKDIR/issue-body.json" >/dev/null 2>&1; then
+                    echo "⚠️ WARNING: Failed to create breaking-updates issue"
+                  fi
                 '''
               }
               createdBreakingIssue = true
@@ -438,25 +432,19 @@ spec:
               writeJSON file: 'updates-to-apply.json', json: updatesToApply
               
               sh '''
-                # Ensure we run git operations inside the checked-out workspace
-                if [ -n "$WORKSPACE" ]; then
-                  cd "$WORKSPACE" || { echo "Failed to change to workspace directory: $WORKSPACE"; exit 1; }
-                fi
+                set -e
+                WORKDIR="${WORKSPACE:-$(pwd)}"
+                cd "$WORKDIR"
                 if [ ! -d .git ]; then
-                  echo "Workspace is not a git repository: $(pwd)"
+                  echo "Workspace is not a git repository: $WORKDIR"
                   exit 1
                 fi
+                [ -f "$WORKDIR/ensure_label.sh" ] && . "$WORKDIR/ensure_label.sh" || true
 
-                # Run git against a known working directory (avoids "not in a git directory" when cwd shifts)
                 gitw() {
-                  if [ -n "${WORKSPACE:-}" ]; then
-                    git -C "${WORKSPACE}" "$@"
-                  else
-                    git "$@"
-                  fi
+                  git -C "${WORKDIR}" "$@"
                 }
 
-                # De-duplicate: re-use an existing open "Version Updates" PR if present.
                 PR_LIST_JSON=$(curl -fsSL \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
                   -H "Accept: application/vnd.github.v3+json" \
@@ -465,7 +453,7 @@ spec:
                 EXISTING_PR_NUMBER=$(echo "$PR_LIST_JSON" | jq -r '[.[] | select(.pull_request != null) | select(.title | startswith("⬆️ Version Updates:"))][0].number // empty' 2>/dev/null || true)
                 if [ -n "${EXISTING_PR_NUMBER}" ]; then
                   case "${EXISTING_PR_NUMBER}" in
-                    *[!0-9]*) EXISTING_PR_NUMBER="" ;;  # invalid; treat as no existing PR
+                    *[!0-9]*) EXISTING_PR_NUMBER="" ;;
                   esac
                 fi
                 if [ -n "${EXISTING_PR_NUMBER}" ]; then
@@ -496,95 +484,68 @@ spec:
                   gitw checkout -b "${BRANCH_NAME}"
                 fi
                 
-                # Process updates and apply to VERSIONS.md and code files
                 echo "Applying version updates to files..."
-                
-                # Update images/charts/providers from high/medium risk updates
-                jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)|\\(.chart // \"\")"' updates-to-apply.json 2>/dev/null | while IFS='|' read -r component current latest location chart; do
-                  if [ -n "$component" ] && [ -n "$latest" ] && [ "$current" != "$latest" ]; then
-                    echo "Updating $component: $current → $latest in $location"
-                    
-                    # Update VERSIONS.md (handle different table formats)
-                    # Avoid backtick-escaping (Groovy+shell) by not matching/printing backticks.
-                    # Replace the component row's version cell(s) using a loose table-cell match.
-                    sed -i "s/| \\*\\*${component}\\*\\* | [^|]* |/| **${component}** | ${latest} |/g" VERSIONS.md || true
-                    sed -i "s/| \\*\\*${component}\\*\\* | [^|]* | [^|]* |.*⚠️/| **${component}** | ${latest} | ${latest} | ✅ **Up to date**/g" VERSIONS.md || true
-                    
-                    # Update actual code files
-                    if [ -f "$location" ]; then
-                      case "$location" in
-                        values.yaml)
-                          sed -i "s/tag: \"${current}\"/tag: \"${latest}\"/g" "$location" || true
-                          ;;
-                        terraform/main.tf)
-                          sed -i "s/version = \"~> ${current}\"/version = \"~> ${latest}\"/g" "$location" || true
-                          ;;
-                        GrafanaLocal/argocd/applications/*.yaml)
-                          if command -v yq >/dev/null 2>&1 && [ -n "$chart" ]; then
-                            yq -i '
-                              if .spec.sources then
-                                .spec.sources |= map( if (.chart // "") == "'"$chart"'" then .targetRevision = "'"$latest"'" else . end )
-                              else
-                                if (.spec.source.chart // "") == "'"$chart"'" then .spec.source.targetRevision = "'"$latest"'" else . end
-                              end
-                            ' "$location" || true
-                          else
-                            sed -i "s/targetRevision: ${current}/targetRevision: ${latest}/g" "$location" || true
-                          fi
-                          # Keep values.yaml chart comment in sync for Rocket.Chat
-                          if [ "$chart" = "rocketchat" ]; then
-                            sed -i "s/Chart: rocketchat\\/rocketchat ${current}/Chart: rocketchat\\/rocketchat ${latest}/g" values.yaml || true
-                          fi
-                          ;;
-                        ops/manifests/*.yaml)
-                          sed -i "s/:${current}/:${latest}/g" "$location" || true
-                          ;;
-                      esac
-                    fi
+                UPDATE_FAILED=0
+                while IFS='|' read -r component current latest location chart; do
+                  [ -z "$component" ] || [ -z "$latest" ] || [ "$current" = "$latest" ] && continue
+                  echo "Updating $component: $current → $latest in $location"
+                  FULL_LOCATION="$WORKDIR/$location"
+                  sed -i "s/| \\*\\*${component}\\*\\* | [^|]* |/| **${component}** | ${latest} |/g" "$WORKDIR/VERSIONS.md" 2>/dev/null || UPDATE_FAILED=1
+                  sed -i "s/| \\*\\*${component}\\*\\* | [^|]* | [^|]* |.*⚠️/| **${component}** | ${latest} | ${latest} | ✅ **Up to date**/g" "$WORKDIR/VERSIONS.md" 2>/dev/null || true
+                  if [ -f "$FULL_LOCATION" ]; then
+                    case "$location" in
+                      values.yaml)
+                        sed -i "s/tag: \"${current}\"/tag: \"${latest}\"/g" "$FULL_LOCATION" 2>/dev/null || UPDATE_FAILED=1
+                        ;;
+                      terraform/main.tf)
+                        sed -i "s/version = \"~> ${current}\"/version = \"~> ${latest}\"/g" "$FULL_LOCATION" 2>/dev/null || UPDATE_FAILED=1
+                        ;;
+                      GrafanaLocal/argocd/applications/*.yaml)
+                        if command -v yq >/dev/null 2>&1 && [ -n "$chart" ]; then
+                          yq -i "
+                            if .spec.sources then
+                              .spec.sources |= map( if (.chart // \"\") == \"$chart\" then .targetRevision = \"$latest\" else . end )
+                            else
+                              if (.spec.source.chart // \"\") == \"$chart\" then .spec.source.targetRevision = \"$latest\" else . end
+                            end
+                          " "$FULL_LOCATION" 2>/dev/null || UPDATE_FAILED=1
+                        else
+                          sed -i "s/targetRevision: ${current}/targetRevision: ${latest}/g" "$FULL_LOCATION" 2>/dev/null || UPDATE_FAILED=1
+                        fi
+                        if [ "$chart" = "rocketchat" ]; then
+                          sed -i "s/Chart: rocketchat\\/rocketchat ${current}/Chart: rocketchat\\/rocketchat ${latest}/g" "$WORKDIR/values.yaml" 2>/dev/null || true
+                        fi
+                        ;;
+                      ops/manifests/*.yaml)
+                        sed -i "s/:${current}/:${latest}/g" "$FULL_LOCATION" 2>/dev/null || UPDATE_FAILED=1
+                        ;;
+                    esac
                   fi
-                done
-                
-                # Update Terraform provider if needed
-                if [ "$(jq -r '.terraform.azurerm.needsUpdate // false' updates-to-apply.json 2>/dev/null)" = "true" ]; then
-                  TF_RISK=$(jq -r '.terraform.azurerm.risk // ""' updates-to-apply.json 2>/dev/null || echo "")
+                done < <(jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)|\\(.chart // \"\")"' "$WORKDIR/updates-to-apply.json" 2>/dev/null)
+                [ "$UPDATE_FAILED" -ne 0 ] && { echo "⚠️ WARNING: One or more manifest updates failed."; exit 1; }
+
+                if [ "$(jq -r '.terraform.azurerm.needsUpdate // false' "$WORKDIR/updates-to-apply.json" 2>/dev/null)" = "true" ]; then
+                  TF_RISK=$(jq -r '.terraform.azurerm.risk // ""' "$WORKDIR/updates-to-apply.json" 2>/dev/null || echo "")
                   if [ "$TF_RISK" = "CRITICAL" ]; then
                     echo "Terraform azurerm update is breaking (major); skipping PR update."
                   else
-                  CURRENT_TF=$(jq -r '.terraform.azurerm.current' updates-to-apply.json 2>/dev/null | sed 's/~>//' | tr -d ' ')
-                  LATEST_TF=$(jq -r '.terraform.azurerm.latest' updates-to-apply.json 2>/dev/null)
-                  if [ -n "$CURRENT_TF" ] && [ -n "$LATEST_TF" ] && [ "$CURRENT_TF" != "$LATEST_TF" ]; then
-                    echo "Updating Terraform Azure Provider: $CURRENT_TF → $LATEST_TF"
-                    sed -i "s/| \\*\\*Azure Provider\\*\\* | [^|]* |/| **Azure Provider** | ~> ${LATEST_TF} |/g" VERSIONS.md || true
-                    sed -i "s/version = \"~> ${CURRENT_TF}\"/version = \"~> ${LATEST_TF}\"/g" terraform/main.tf || true
-                  fi
+                    CURRENT_TF=$(jq -r '.terraform.azurerm.current' "$WORKDIR/updates-to-apply.json" 2>/dev/null | sed 's/~>//' | tr -d ' ')
+                    LATEST_TF=$(jq -r '.terraform.azurerm.latest' "$WORKDIR/updates-to-apply.json" 2>/dev/null)
+                    if [ -n "$CURRENT_TF" ] && [ -n "$LATEST_TF" ] && [ "$CURRENT_TF" != "$LATEST_TF" ]; then
+                      echo "Updating Terraform Azure Provider: $CURRENT_TF → $LATEST_TF"
+                      sed -i "s/| \\*\\*Azure Provider\\*\\* | [^|]* |/| **Azure Provider** | ~> ${LATEST_TF} |/g" "$WORKDIR/VERSIONS.md" || true
+                      sed -i "s/version = \"~> ${CURRENT_TF}\"/version = \"~> ${LATEST_TF}\"/g" "$WORKDIR/terraform/main.tf" || true
+                    fi
                   fi
                 fi
                 
-                # Create update summary
-                HIGH_COUNT=$(jq '.high | length' updates-to-apply.json 2>/dev/null || echo "0")
-                MEDIUM_COUNT=$(jq '.medium | length' updates-to-apply.json 2>/dev/null || echo "0")
-                
-                cat > VERSION_UPDATES.md << EOF
-                # Version Updates
-                
-                This PR includes automated version updates detected by Jenkins.
-                
-                ## Updates Summary
-                - High Risk: ${HIGH_COUNT}
-                - Medium Risk: ${MEDIUM_COUNT}
-                
-                ## Files Updated
-                - **VERSIONS.md**: Version tracking automatically updated
-                - **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)
-                
-                ## Review Checklist
-                - [ ] Review all version changes in VERSIONS.md
-                - [ ] Verify code file changes are correct
-                - [ ] Check release notes for breaking changes
-                - [ ] Test in staging if applicable
-EOF
-                
-                # Stage all changes
+                HIGH_COUNT=$(jq '.high | length' "$WORKDIR/updates-to-apply.json" 2>/dev/null || echo "0")
+                MEDIUM_COUNT=$(jq '.medium | length' "$WORKDIR/updates-to-apply.json" 2>/dev/null || echo "0")
+
+                VERSION_UPDATES_BODY=$(jq -n --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" \
+                  "# Version Updates\n\nThis PR includes automated version updates detected by Jenkins.\n\n## Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n## Files Updated\n- **VERSIONS.md**: Version tracking automatically updated\n- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)\n\n## Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl)
+                printf '%s' "$VERSION_UPDATES_BODY" > "$WORKDIR/VERSION_UPDATES.md"
+
                 gitw add VERSIONS.md VERSION_UPDATES.md values.yaml terraform/main.tf ops/manifests/*.yaml 2>/dev/null || true
 
                 # If there is nothing to commit, skip pushing/PR creation
@@ -627,48 +588,33 @@ EOF
 
                 # Keep xtrace disabled for subsequent commands that include secrets (curl Authorization headers).
 
-                ensure_label() {
-                  LABEL_NAME="$1"
-                  LABEL_COLOR="$2"
-                  LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
-                  curl -fsSL \
-                    -H "Authorization: token ${GITHUB_TOKEN}" \
-                    -H "Accept: application/vnd.github.v3+json" \
-                    "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1 && return 0
-                  curl -fsSL -X POST \
-                    -H "Authorization: token ${GITHUB_TOKEN}" \
-                    -H "Accept: application/vnd.github.v3+json" \
-                    "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                    -d "$LABEL_JSON" >/dev/null 2>&1 || true
-                }
-                
                 ensure_label "dependencies" "0366d6"
                 ensure_label "automated" "0e8a16"
                 ensure_label "upgrade" "fbca04"
                 
                 # Create PR
-                cat > pr-body.json << EOF
-                {
-                  "title": "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium",
-                  "head": "${BRANCH_NAME}",
-                  "base": "master",
-                  "body": "## Automated Version Updates\\n\\nThis PR includes version updates detected by automated checks.\\n\\n### Updates Summary\\n- High Risk: ${HIGH_COUNT}\\n- Medium Risk: ${MEDIUM_COUNT}\\n\\n### Files Updated\\n- **VERSIONS.md**: Automatically updated with new versions\\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\\n\\n### Review Required\\n\\nPlease review all changes and test before merging.\\n\\n---\\n*This PR was automatically created by Jenkins version check pipeline.*"
-                }
-EOF
-                
-                PR_CREATE_JSON=$(curl -sS -X POST \\
-                  -H "Authorization: token ${GITHUB_TOKEN}" \\
-                  -H "Accept: application/vnd.github.v3+json" \\
-                  "https://api.github.com/repos/${GITHUB_REPO}/pulls" \\
-                  -d @pr-body.json || echo '{}')
-                
+                PR_BODY=$(jq -n --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" \
+                  "## Automated Version Updates\n\nThis PR includes version updates detected by automated checks.\n\n### Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n### Files Updated\n- **VERSIONS.md**: Automatically updated with new versions\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\n\n### Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl + "\n\n---\n*This PR was automatically created by Jenkins version check pipeline.*")
+                jq -n --arg title "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium" --arg head "${BRANCH_NAME}" --arg base "master" --arg body "$PR_BODY" \
+                  '{title:$title, head:$head, base:$base, body:$body}' > "$WORKDIR/pr-body.json"
+
+                PR_CREATE_JSON=$(curl -sS -X POST \
+                  -H "Authorization: token ${GITHUB_TOKEN}" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/repos/${GITHUB_REPO}/pulls" \
+                  -d @"$WORKDIR/pr-body.json" 2>/dev/null || echo '{}')
+                if ! echo "$PR_CREATE_JSON" | jq -e '.number' >/dev/null 2>&1; then
+                  echo "⚠️ WARNING: Failed to create PR (response may contain errors)"
+                fi
                 PR_CREATED_NUMBER=$(echo "$PR_CREATE_JSON" | jq -r '.number // empty' 2>/dev/null || true)
                 if [ -n "${PR_CREATED_NUMBER}" ]; then
-                  curl -sS -X POST \\
-                    -H "Authorization: token ${GITHUB_TOKEN}" \\
-                    -H "Accept: application/vnd.github.v3+json" \\
-                    "https://api.github.com/repos/${GITHUB_REPO}/issues/${PR_CREATED_NUMBER}/labels" \\
-                    -d '{"labels":["dependencies","automated","upgrade"]}' >/dev/null 2>&1 || true
+                  if ! curl -sS -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues/${PR_CREATED_NUMBER}/labels" \
+                    -d '{"labels":["dependencies","automated","upgrade"]}' >/dev/null 2>&1; then
+                    echo "⚠️ WARNING: Failed to add labels to PR #${PR_CREATED_NUMBER}"
+                  fi
                 fi
 
                 # If we updated an existing PR branch, add a comment so changes aren’t missed.
@@ -681,11 +627,13 @@ EOF
                   fi
                   COMMENT_JSON=$(jq -n --arg ts "$TS" --arg buildline "$BUILD_LINE" --arg high "${HIGH_COUNT}" --arg med "${MEDIUM_COUNT}" \
                     '{body:("## PR updated by Jenkins\n\nTime: " + $ts + $buildline + "\n\nUpdates summary:\n- High Risk: " + $high + "\n- Medium Risk: " + $med)}')
-                  curl -fsSL -X POST \
+                  if ! curl -fsSL -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_PR_NUMBER}/comments" \
-                    -d "$COMMENT_JSON" >/dev/null 2>&1 || true
+                    -d "$COMMENT_JSON" >/dev/null 2>&1; then
+                    echo "⚠️ WARNING: Failed to add comment to existing PR #${EXISTING_PR_NUMBER}"
+                  fi
                 fi
               '''
             } else if (!createdBreakingIssue) {
@@ -713,65 +661,54 @@ EOF
           }
           sh '''
             set +e
+            WORKDIR="${WORKSPACE:-$(pwd)}"
             ISSUE_TITLE="CI Failure: ${JOB_NAME}"
-            
-            ensure_label() {
-              LABEL_NAME="$1"
-              LABEL_COLOR="$2"
-              LABEL_JSON=$(jq -n --arg name "$LABEL_NAME" --arg color "$LABEL_COLOR" '{name:$name,color:$color}')
-              curl -fsSL \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/${GITHUB_REPO}/labels/${LABEL_NAME}" >/dev/null 2>&1 && return 0
-              curl -fsSL -X POST \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/${GITHUB_REPO}/labels" \
-                -d "$LABEL_JSON" >/dev/null 2>&1 || true
-            }
-            
+            if [ -f "$WORKDIR/ensure_label.sh" ]; then
+              . "$WORKDIR/ensure_label.sh"
+            else
+              ensure_label() {
+                LABEL_JSON=$(jq -n --arg name "$1" --arg color "$2" '{name:$name,color:$color}')
+                curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/labels/$1" >/dev/null 2>&1 && return 0
+                curl -fsSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/labels" -d "$LABEL_JSON" >/dev/null 2>&1 || true
+              }
+            fi
             ensure_label "ci" "6a737d"
             ensure_label "jenkins" "5319e7"
             ensure_label "failure" "b60205"
             ensure_label "automated" "0e8a16"
-            
+
             ISSUE_LIST_JSON=$(curl -fsSL \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=ci,jenkins,failure,automated&per_page=100" \
               || echo '[]')
-            
             ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
             ISSUE_URL=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
-            
+
             if [ -n "${ISSUE_NUMBER}" ]; then
-              cat > issue-comment.json << EOF
-            {
-              "body": "## Jenkins job failed\\n\\nJob: ${JOB_NAME}\\nBuild: ${BUILD_URL}\\nCommit: ${GIT_COMMIT}\\n\\n(Automated update on existing issue.)"
-            }
-EOF
-              curl -X POST \
+              COMMENT_JSON=$(jq -n --arg job "${JOB_NAME}" --arg build "${BUILD_URL}" --arg commit "${GIT_COMMIT}" \
+                '{body:("## Jenkins job failed\n\nJob: " + $job + "\nBuild: " + $build + "\nCommit: " + $commit + "\n\n(Automated update on existing issue.)")}')
+              if ! curl -sS -X POST \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${GITHUB_REPO}/issues/${ISSUE_NUMBER}/comments" \
-                -d @issue-comment.json >/dev/null 2>&1 || true
+                -d "$COMMENT_JSON" >/dev/null 2>&1; then
+                echo "⚠️ WARNING: Failed to add comment to existing failure issue #${ISSUE_NUMBER}"
+              fi
               echo "Updated existing failure issue: ${ISSUE_URL}"
               exit 0
             fi
-            
-            cat > issue-body.json << EOF
-            {
-              "title": "${ISSUE_TITLE}",
-              "body": "## Jenkins job failed\\n\\nJob: ${JOB_NAME}\\nBuild: ${BUILD_URL}\\nCommit: ${GIT_COMMIT}\\n\\nPlease check Jenkins logs for details.\\n\\n---\\n*This issue was automatically created by Jenkins.*",
-              "labels": ["ci", "jenkins", "failure", "automated"]
-            }
-EOF
-            
-            curl -X POST \
+
+            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg job "${JOB_NAME}" --arg build "${BUILD_URL}" --arg commit "${GIT_COMMIT}" \
+              '{title:$title, body:("## Jenkins job failed\n\nJob: " + $job + "\nBuild: " + $build + "\nCommit: " + $commit + "\n\nPlease check Jenkins logs for details.\n\n---\n*This issue was automatically created by Jenkins.*"), labels:["ci","jenkins","failure","automated"]}')
+            echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body-failure.json"
+            if ! curl -sS -X POST \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${GITHUB_REPO}/issues" \
-              -d @issue-body.json >/dev/null 2>&1 || true
+              -d @"$WORKDIR/issue-body-failure.json" >/dev/null 2>&1; then
+              echo "⚠️ WARNING: Failed to create failure issue"
+            fi
           '''
         }
       }
