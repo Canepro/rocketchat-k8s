@@ -30,7 +30,8 @@ spec:
       restartPolicy: Always
       containers:
         - name: agent
-          image: jenkins/inbound-agent:latest
+          # Pinned for reproducibility; use a custom image with Terraform/Azure CLI/helm when running pipelines.
+          image: jenkins/inbound-agent:3206.vb_15dcf73f6a_9-2
           imagePullPolicy: Always
           env:
             - name: JENKINS_URL

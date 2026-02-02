@@ -35,33 +35,50 @@ pipeline {
 
           update-ca-certificates || true
           
-          # Install tfsec (Terraform security scanner)
-          curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+          # Install tfsec (Terraform security scanner) - pinned version, binary from release with checksum verification (no install script from master)
+          TFSEC_VERSION="v1.28.14"
+          curl -fsSL -o /tmp/tfsec-linux-amd64 "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec-linux-amd64"
+          curl -fsSL -o /tmp/tfsec_checksums.txt "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec_checksums.txt"
+          (cd /tmp && grep "tfsec-linux-amd64" tfsec_checksums.txt | grep -v checkgen | sha256sum -c -)
+          chmod +x /tmp/tfsec-linux-amd64 && mv /tmp/tfsec-linux-amd64 /usr/local/bin/tfsec
+          rm -f /tmp/tfsec_checksums.txt
           
-          # Install checkov (Infrastructure as Code security scanner)
+          # Install checkov (Infrastructure as Code security scanner) - pinned version
           # Alpine uses PEP-668 "externally managed" Python; install into a venv.
+          CHECKOV_VERSION="3.2.499"
           python3 -m venv /tmp/checkov-venv || true
           if [ -f /tmp/checkov-venv/bin/activate ]; then
             . /tmp/checkov-venv/bin/activate
-            pip install --quiet --no-cache-dir checkov || true
+            pip install --quiet --no-cache-dir "checkov==${CHECKOV_VERSION}" || true
             deactivate || true
             ln -sf /tmp/checkov-venv/bin/checkov /usr/local/bin/checkov || true
           fi
           
-          # Install trivy (Container image scanner)
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          # Install trivy (Container image scanner) - pinned version, binary from release with checksum verification (no install script from main)
+          TRIVY_VERSION="0.54.0"
+          curl -fsSL -o /tmp/trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL -o /tmp/trivy_checksums.txt "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
+          (cd /tmp && grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksums.txt | sha256sum -c -)
+          tar -xzf /tmp/trivy.tar.gz -C /tmp
+          mv /tmp/trivy /usr/local/bin/trivy 2>/dev/null || mv /tmp/trivy_${TRIVY_VERSION}_Linux-64bit/trivy /usr/local/bin/trivy
+          chmod +x /usr/local/bin/trivy
+          rm -f /tmp/trivy.tar.gz /tmp/trivy_checksums.txt
+          rm -rf /tmp/trivy_${TRIVY_VERSION}_Linux-64bit 2>/dev/null || true
           
-          # Install kube-score (Kubernetes manifest security scanner)
+          # Install kube-score (Kubernetes manifest security scanner) - pinned version with checksum verification
+          KUBE_SCORE_VERSION="1.20.0"
           mkdir -p /usr/local/bin
-          # Prefer Alpine package if available
           apk add --no-cache kube-score 2>/dev/null || true
-          # GitHub sometimes serves HTML (rate-limit/redirect). Download to file and validate.
           if ! command -v kube-score >/dev/null 2>&1; then
-            if curl -fsSL -o /tmp/kube-score.tgz https://github.com/zegl/kube-score/releases/latest/download/kube-score_linux_amd64.tar.gz; then
-              tar -tzf /tmp/kube-score.tgz >/dev/null 2>&1 && tar -xzf /tmp/kube-score.tgz -C /usr/local/bin/ || true
-            fi
+            curl -fsSL -o /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz"
+            curl -fsSL -o /tmp/kube-score_checksums.txt "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/checksums.txt"
+            (cd /tmp && grep "kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz" kube-score_checksums.txt | sha256sum -c -)
+            tar -xzf /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz -C /tmp
+            mv /tmp/kube-score /usr/local/bin/ 2>/dev/null || mv /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64/kube-score /usr/local/bin/
+            chmod +x /usr/local/bin/kube-score
+            rm -f /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz /tmp/kube-score_checksums.txt
+            rm -rf /tmp/kube-score_${KUBE_SCORE_VERSION}_linux_amd64 2>/dev/null || true
           fi
-          chmod +x /usr/local/bin/kube-score 2>/dev/null || true
           
           # Verify installations
           tfsec --version || echo "tfsec not installed"
