@@ -17,9 +17,14 @@ pipeline {
     stage('Setup') {
       steps {
         sh '''
-          # Install Terraform on Mariner Linux (Azure CLI image)
-          # Mariner uses tdnf package manager
-          tdnf install -y unzip 2>/dev/null || yum install -y unzip 2>/dev/null || true
+          # Install unzip (agent may be Mariner/tdnf, RHEL/yum, Alpine/apk, or Debian/apt)
+          if ! command -v unzip >/dev/null 2>&1; then
+            (tdnf install -y unzip 2>/dev/null) || \
+            (yum install -y unzip 2>/dev/null) || \
+            (apk add --no-cache unzip 2>/dev/null) || \
+            (apt-get update -qq && apt-get install -y unzip 2>/dev/null) || \
+            { echo "Could not install unzip (tried tdnf, yum, apk, apt-get). Agent image may need unzip pre-installed."; exit 1; }
+          fi
           
           TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*' | cut -d'"' -f4)
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip

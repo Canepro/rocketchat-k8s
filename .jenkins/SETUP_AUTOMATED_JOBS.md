@@ -126,6 +126,33 @@ JOB_NAME="version-check" bash .jenkins/scripts/check-job.sh
 JOB_NAME="security-validation" bash .jenkins/scripts/check-job.sh
 ```
 
+## Troubleshooting: "Failed to get CSRF token"
+
+The create-job scripts read Jenkins admin credentials from the Kubernetes secret `jenkins-admin` in namespace `jenkins`. If you see **Failed to get CSRF token (HTTP 401)** or **(HTTP 000)**:
+
+1. **HTTP 401 (Unauthorized)**  
+   Jenkins often requires an **API token** for scripted auth, not the login password.  
+   - In Jenkins: **Manage Jenkins** → **Users** → your user → **Configure** → **Add new Token** (API Token).  
+   - Then run:  
+     `export JENKINS_PASSWORD="your-api-token"`  
+     `bash .jenkins/create-version-check-job.sh`  
+   - Or ensure the secret `jenkins-admin` contains the API token in the `password` field (not the web login password).
+
+2. **HTTP 000 or connection errors**  
+   - Check that `JENKINS_URL` is reachable from your machine (VPN, DNS, firewall).  
+   - If Jenkins is only reachable via port-forward:  
+     `kubectl -n jenkins port-forward pod/jenkins-0 8080:8080`  
+     `export JENKINS_URL="http://127.0.0.1:8080"`  
+     then run the create-job script.
+
+3. **kubectl / secret**  
+   - Ensure your kube context can access the `jenkins` namespace:  
+     `kubectl get secret jenkins-admin -n jenkins`  
+   - If the secret is missing or wrong, set credentials manually:  
+     `export JENKINS_USER="your-username"`  
+     `export JENKINS_PASSWORD="your-api-token"`  
+     then run the script.
+
 ## Manual Trigger
 
 You can trigger jobs manually:
