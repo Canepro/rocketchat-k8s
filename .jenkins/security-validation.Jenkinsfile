@@ -2,6 +2,12 @@
 // This pipeline performs security scanning and risk assessment, then creates PRs/issues based on findings.
 // Purpose: Automated security checks with risk-based remediation workflows.
 // Runs on the static AKS agent (aks-agent); AKS has auto-shutdown so controller lives on OKE.
+import groovy.json.JsonSlurperClassic
+
+def parseJsonFile(String path) {
+  return new JsonSlurperClassic().parseText(readFile(path))
+}
+
 pipeline {
   agent { label 'aks-agent' }
   
@@ -60,13 +66,20 @@ pipeline {
           chmod +x /tmp/tfsec-linux-amd64 && mv /tmp/tfsec-linux-amd64 "$WORKDIR/tfsec"
           rm -f /tmp/tfsec_checksums.txt
 
-          # checkov - pinned version, venv in WORKDIR
+          # checkov - pinned version, venv in WORKDIR (fallback to user install)
           CHECKOV_VERSION="3.2.499"
           python3 -m venv "$WORKDIR/checkov-venv" 2>/dev/null || true
           if [ -f "$WORKDIR/checkov-venv/bin/activate" ]; then
             . "$WORKDIR/checkov-venv/bin/activate"
             pip install --quiet --no-cache-dir "checkov==${CHECKOV_VERSION}" || true
             deactivate || true
+          elif command -v python3 >/dev/null 2>&1; then
+            python3 -m pip install --quiet --no-cache-dir --user "checkov==${CHECKOV_VERSION}" || true
+          fi
+
+          # Ensure user-level bin is on PATH for checkov fallback
+          if [ -d "${HOME:-/tmp}/.local/bin" ]; then
+            export PATH="${HOME:-/tmp}/.local/bin:${PATH}"
           fi
 
           # trivy - pinned version, checksum verified, install to WORKDIR
@@ -224,7 +237,7 @@ pipeline {
           // tfsec: { results: [ { severity: "CRITICAL|HIGH|MEDIUM|LOW", ... }, ... ] }
           if (fileExists(env.TFSEC_OUTPUT)) {
             try {
-              def tfsec = readJSON file: env.TFSEC_OUTPUT
+              def tfsec = parseJsonFile(env.TFSEC_OUTPUT)
               def results = (tfsec?.results instanceof List) ? tfsec.results : []
               tfsecCritical = results.count { it?.severity == 'CRITICAL' }
               tfsecHigh = results.count { it?.severity == 'HIGH' }
@@ -238,7 +251,7 @@ pipeline {
           // checkov output formats vary. We count FAILED checks; if severity missing, treat as MEDIUM.
           if (fileExists(env.CHECKOV_OUTPUT)) {
             try {
-              def checkov = readJSON file: env.CHECKOV_OUTPUT
+              def checkov = parseJsonFile(env.CHECKOV_OUTPUT)
               def failed = []
 
               if (checkov instanceof Map) {
@@ -315,7 +328,7 @@ pipeline {
             echo "No ${env.RISK_REPORT} found; skipping."
             return
           }
-          def riskReport = readJSON file: "${env.RISK_REPORT}"
+          def riskReport = parseJsonFile("${env.RISK_REPORT}")
           def riskLevel = riskReport.risk_level
           def critical = riskReport.critical
           def high = riskReport.high
@@ -400,7 +413,7 @@ pipeline {
       archiveArtifacts artifacts: '*.json,*.md', allowEmptyArchive: true
       script {
         if (fileExists(env.RISK_REPORT)) {
-          def riskReport = readJSON file: "${env.RISK_REPORT}"
+          def riskReport = parseJsonFile("${env.RISK_REPORT}")
           echo """
           ========================================
           Security Scan Summary
