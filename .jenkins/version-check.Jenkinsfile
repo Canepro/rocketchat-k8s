@@ -451,18 +451,29 @@ ENSURE_LABEL_EOF
                     --arg body "$ISSUE_BODY" \
                     '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
                   printf '%s' "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
-                  ISSUE_LIST_JSON=$(curl -fsSL \
+                  SEARCH_QUERY="repo:${GITHUB_REPO} type:issue state:open in:title \"${ISSUE_TITLE}\""
+                  SEARCH_Q_ENC=$(jq -rn --arg q "$SEARCH_QUERY" '$q|@uri')
+                  ISSUE_SEARCH_JSON=$(curl -fsSL \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
-                    "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=dependencies,breaking,automated,upgrade&per_page=100" \
-                    || echo '[]')
-                  EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+                    "https://api.github.com/search/issues?q=${SEARCH_Q_ENC}" \
+                    || echo '{"items": []}')
+                  EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_SEARCH_JSON" | jq -r '.items[0].number // empty' 2>/dev/null || true)
+                  EXISTING_ISSUE_URL=$(echo "$ISSUE_SEARCH_JSON" | jq -r '.items[0].html_url // empty' 2>/dev/null || true)
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     case "${EXISTING_ISSUE_NUMBER}" in
                       *[!0-9]*) EXISTING_ISSUE_NUMBER="" ;;
                     esac
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
+                    LABELS_JSON='{"labels":["dependencies","breaking","automated","upgrade"]}'
+                    if ! curl -fsSL -X POST \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_ISSUE_NUMBER}/labels" \
+                      -d "$LABELS_JSON" >/dev/null 2>&1; then
+                      echo "⚠️ WARNING: Failed to add labels to existing breaking issue #${EXISTING_ISSUE_NUMBER}"
+                    fi
                     UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
                     COMMENT_BODY=$(jq -rn --arg run_at "$RUN_AT" --arg build "${BUILD_URL:-}" --arg updates "$UPDATES_BULLETS" '
                       "## New breaking updates detected\n\n" +
