@@ -432,7 +432,7 @@ ENSURE_LABEL_EOF
                   fi
                   UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
 
-                  ISSUE_MARKDOWN=$(cat <<EOF
+                  cat > "$WORKDIR/issue-body.md" <<EOF
 ## Version Update Alert
 
 - **Risk Level:** BREAKING (major version)
@@ -450,11 +450,9 @@ ${UPDATES_BULLETS}
 
 This issue was automatically created by Jenkins version check pipeline.
 EOF
-)
-
                   ISSUE_BODY_JSON=$(jq -n \
                     --arg title "Breaking: Major version updates available" \
-                    --arg body "$ISSUE_MARKDOWN" \
+                    --rawfile body "$WORKDIR/issue-body.md" \
                     '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
                   echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
 
@@ -472,7 +470,7 @@ EOF
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
-                    COMMENT_MARKDOWN=$(cat <<EOF
+                    cat > "$WORKDIR/comment-body.md" <<EOF
 ## New breaking updates detected
 
 - **Time:** ${RUN_AT}
@@ -481,8 +479,7 @@ EOF
 **Updates Available:**
 ${UPDATES_BULLETS}
 EOF
-)
-                    COMMENT_JSON=$(jq -n --arg body "$COMMENT_MARKDOWN" '{body:$body}')
+                    COMMENT_JSON=$(jq -n --rawfile body "$WORKDIR/comment-body.md" '{body:$body}')
                     if ! curl -fsSL -X POST \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \

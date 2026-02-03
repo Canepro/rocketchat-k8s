@@ -424,7 +424,7 @@ EOF
 - trivy results: See Jenkins build artifacts"
                 fi
 
-                COMMENT_MARKDOWN=$(cat <<EOF
+                cat > "$WORKDIR/security-comment-body.md" <<EOF
 ## New security scan results
 
 - **Build:** ${BUILD_URL}
@@ -433,9 +433,7 @@ EOF
 
 (De-dupe enabled: this comment updates an existing open issue.)
 EOF
-)
-
-                COMMENT_BODY=$(jq -n --arg body "$COMMENT_MARKDOWN" '{body:$body}')
+                COMMENT_BODY=$(jq -n --rawfile body "$WORKDIR/security-comment-body.md" '{body:$body}')
                 if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                   if ! curl -fsSL -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -448,7 +446,7 @@ EOF
                   exit 0
                 fi
 
-                ISSUE_MARKDOWN=$(cat <<EOF
+                cat > "$WORKDIR/security-issue-body.md" <<EOF
 ## Security Scan Results
 
 - **Risk Level:** ${RISK_LEVEL}
@@ -470,8 +468,7 @@ ${artifact_lines}
 
 This issue was automatically created by Jenkins security validation pipeline.
 EOF
-)
-                ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$ISSUE_MARKDOWN" --arg risk "$RISK_LEVEL" \
+                ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --rawfile body "$WORKDIR/security-issue-body.md" --arg risk "$RISK_LEVEL" \
                   '{title:$title, body:$body, labels:(["security","automated"] + (if $risk == "CRITICAL" then ["critical"] else [] end))}')
                 echo "$ISSUE_BODY_JSON" > "$WORKDIR/security-issue-body.json"
                 if ! curl -sS -X POST \
