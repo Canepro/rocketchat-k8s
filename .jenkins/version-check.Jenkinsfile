@@ -58,7 +58,11 @@ pipeline {
             if curl -fsSL -o "$WORKDIR/yq_checksums" "${YQ_BASE_URL}/${YQ_SUM_FILE}"; then
               if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" >/dev/null 2>&1; then
                 # Support both "<hash>  filename" and "SHA256 (filename) = <hash>" formats.
-                YQ_EXPECTED_SHA=$(grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | grep -Eo '[0-9a-fA-F]{64}' | head -1 || true)
+                # Match the exact asset name to avoid picking tar.gz or other variants.
+                YQ_EXPECTED_SHA=$(grep -E "^[0-9a-fA-F]{64}[[:space:]]+${YQ_ASSET}([[:space:]]|\$)" "$WORKDIR/yq_checksums" | awk '{print $1}' | head -1 || true)
+                if [ -z "$YQ_EXPECTED_SHA" ]; then
+                  YQ_EXPECTED_SHA=$(grep -E "SHA256 \\(${YQ_ASSET}\\)" "$WORKDIR/yq_checksums" | grep -Eo '[0-9a-fA-F]{64}' | head -1 || true)
+                fi
                 if [ -n "$YQ_EXPECTED_SHA" ]; then
                   if [ "$YQ_EXPECTED_SHA" = "$YQ_ACTUAL_SHA" ]; then
                     CHECKSUM_OK=1
