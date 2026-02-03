@@ -71,13 +71,14 @@ pipeline {
 
           # trivy - pinned version, checksum verified, install to WORKDIR
           TRIVY_VERSION="0.54.0"
-          curl -fsSL -o /tmp/trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          TRIVY_TGZ="/tmp/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL -o "${TRIVY_TGZ}" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           curl -fsSL -o /tmp/trivy_checksums.txt "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
           (cd /tmp && grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksums.txt | sha256sum -c -)
-          tar -xzf /tmp/trivy.tar.gz -C /tmp
+          tar -xzf "${TRIVY_TGZ}" -C /tmp
           mv /tmp/trivy "$WORKDIR/trivy" 2>/dev/null || mv /tmp/trivy_${TRIVY_VERSION}_Linux-64bit/trivy "$WORKDIR/trivy"
           chmod +x "$WORKDIR/trivy"
-          rm -f /tmp/trivy.tar.gz /tmp/trivy_checksums.txt
+          rm -f "${TRIVY_TGZ}" /tmp/trivy_checksums.txt
           rm -rf /tmp/trivy_${TRIVY_VERSION}_Linux-64bit 2>/dev/null || true
 
           # kube-score - pinned version, checksum verified, install to WORKDIR

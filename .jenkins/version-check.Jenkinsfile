@@ -48,15 +48,25 @@ pipeline {
 
           # mikefarah/yq (required for in-place manifest updates) — install to WORKDIR so no root needed
           YQ_VERSION="v4.35.1"
-          YQ_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz"
-          YQ_SHA_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/checksums_sha256"
-          curl -fsSL -o "$WORKDIR/yq.tar.gz" "$YQ_URL"
-          curl -fsSL -o "$WORKDIR/checksums_sha256" "$YQ_SHA_URL"
-          (cd "$WORKDIR" && grep "yq_linux_amd64.tar.gz" checksums_sha256 | sha256sum -c -)
-          tar -xzf "$WORKDIR/yq.tar.gz" -C "$WORKDIR"
-          mv "$WORKDIR/yq_linux_amd64" "$WORKDIR/yq"
+          YQ_BASE_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}"
+          YQ_ASSET="yq_linux_amd64"
+          curl -fsSL -o "$WORKDIR/yq" "${YQ_BASE_URL}/${YQ_ASSET}"
+          # Try known checksum filenames across releases.
+          CHECKSUM_OK=0
+          for YQ_SUM_FILE in checksums_sha256 checksums.txt checksums; do
+            if curl -fsSL -o "$WORKDIR/yq_checksums" "${YQ_BASE_URL}/${YQ_SUM_FILE}"; then
+              if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | sha256sum -c -; then
+                CHECKSUM_OK=1
+                break
+              fi
+            fi
+          done
+          rm -f "$WORKDIR/yq_checksums"
+          if [ "$CHECKSUM_OK" -ne 1 ]; then
+            echo "Failed to verify yq checksum for ${YQ_VERSION}"
+            exit 1
+          fi
           chmod +x "$WORKDIR/yq"
-          rm -f "$WORKDIR/yq.tar.gz" "$WORKDIR/checksums_sha256"
           yq --version
 
           # Helm: pin installer; install to WORKDIR so no root needed
