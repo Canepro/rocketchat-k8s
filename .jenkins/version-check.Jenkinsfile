@@ -61,7 +61,7 @@ pipeline {
                   CHECKSUM_OK=1
                   break
                 fi
-                if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | sed -n 's/^.*= *\([0-9a-fA-F]\{64\}\).*$/\1  '"${YQ_ASSET}"'/p' | sha256sum -c -; then
+                if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | awk -v f="${YQ_ASSET}" 'match($0, /[0-9a-fA-F]{64}/) { print substr($0, RSTART, RLENGTH) "  " f }' | sha256sum -c -; then
                   CHECKSUM_OK=1
                   break
                 fi

@@ -2,12 +2,6 @@
 // This pipeline performs security scanning and risk assessment, then creates PRs/issues based on findings.
 // Purpose: Automated security checks with risk-based remediation workflows.
 // Runs on the static AKS agent (aks-agent); AKS has auto-shutdown so controller lives on OKE.
-import groovy.json.JsonSlurperClassic
-
-def parseJsonFile(String path) {
-  return new JsonSlurperClassic().parseText(readFile(path))
-}
-
 pipeline {
   agent { label 'aks-agent' }
   
@@ -121,7 +115,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
-            export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
+            export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${HOME:-/tmp}/.local/bin:${PATH}"
             # Run tfsec scan and output JSON results
             tfsec . --format json --out ${WORKSPACE}/${TFSEC_OUTPUT} || true
             
@@ -137,7 +131,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
-            export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
+            export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${HOME:-/tmp}/.local/bin:${PATH}"
             # Run checkov scan on Terraform files
             checkov -d . --framework terraform --output json --output-file ${WORKSPACE}/${CHECKOV_OUTPUT} || true
             
@@ -224,95 +218,75 @@ pipeline {
     stage('Risk Assessment') {
       steps {
         script {
-          int tfsecCritical = 0
-          int tfsecHigh = 0
-          int tfsecMedium = 0
-          int tfsecLow = 0
+          // Use jq so we don't depend on pipeline-utility-steps or script approvals.
+          sh '''
+            set -e
+            WORKDIR="${WORKSPACE:-$(pwd)}"
+            export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"
 
-          int checkovCritical = 0
-          int checkovHigh = 0
-          int checkovMedium = 0
-          int checkovLow = 0
+            tfsec_critical=0; tfsec_high=0; tfsec_medium=0; tfsec_low=0
+            checkov_critical=0; checkov_high=0; checkov_medium=0; checkov_low=0
 
-          // tfsec: { results: [ { severity: "CRITICAL|HIGH|MEDIUM|LOW", ... }, ... ] }
-          if (fileExists(env.TFSEC_OUTPUT)) {
-            try {
-              def tfsec = parseJsonFile(env.TFSEC_OUTPUT)
-              def results = (tfsec?.results instanceof List) ? tfsec.results : []
-              tfsecCritical = results.count { it?.severity == 'CRITICAL' }
-              tfsecHigh = results.count { it?.severity == 'HIGH' }
-              tfsecMedium = results.count { it?.severity == 'MEDIUM' }
-              tfsecLow = results.count { it?.severity == 'LOW' }
-            } catch (err) {
-              echo "WARN: Unable to parse ${env.TFSEC_OUTPUT}: ${err}"
-            }
-          }
+            if [ -f "${TFSEC_OUTPUT}" ]; then
+              tfsec_critical=$(jq '[.results[]? | select(.severity=="CRITICAL")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+              tfsec_high=$(jq '[.results[]? | select(.severity=="HIGH")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+              tfsec_medium=$(jq '[.results[]? | select(.severity=="MEDIUM")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+              tfsec_low=$(jq '[.results[]? | select(.severity=="LOW")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+            fi
 
-          // checkov output formats vary. We count FAILED checks; if severity missing, treat as MEDIUM.
-          if (fileExists(env.CHECKOV_OUTPUT)) {
-            try {
-              def checkov = parseJsonFile(env.CHECKOV_OUTPUT)
-              def failed = []
+            if [ -f "${CHECKOV_OUTPUT}" ]; then
+              read -r checkov_critical checkov_high checkov_medium checkov_low <<EOF || true
+            $(jq -r '
+              def failed:
+                if type=="object" then
+                  if .results? and (.results.check_results? | type=="array") then [.results.check_results[] | select(.check_result.result=="FAILED")]
+                  elif .results? and (.results.failed_checks? | type=="array") then .results.failed_checks
+                  elif .failed_checks? then .failed_checks
+                  else [] end
+                elif type=="array" then
+                  [ .[] | if .results? and (.results.failed_checks? | type=="array") then .results.failed_checks[] elif .results? and (.results.check_results? | type=="array") then .results.check_results[] | select(.check_result.result=="FAILED") else empty end ]
+                else [] end;
+              def sev(v): (v.check_result.severity // v.severity // "MEDIUM") | ascii_upcase;
+              def count(s): failed | map(sev(.)) | map(select(.==s)) | length;
+              "\(count(\"CRITICAL\")) \(count(\"HIGH\")) \(count(\"MEDIUM\")) \(count(\"LOW\"))"
+            ' "${CHECKOV_OUTPUT}" 2>/dev/null || echo "0 0 0 0")
+EOF
+            fi
 
-              if (checkov instanceof Map) {
-                if (checkov?.results?.check_results instanceof List) {
-                  failed = checkov.results.check_results.findAll { it?.check_result?.result == 'FAILED' }
-                } else if (checkov?.results?.failed_checks instanceof List) {
-                  failed = checkov.results.failed_checks
-                } else if (checkov?.failed_checks instanceof List) {
-                  failed = checkov.failed_checks
-                }
-              } else if (checkov instanceof List) {
-                checkov.each { rep ->
-                  if (rep?.results?.failed_checks instanceof List) {
-                    failed.addAll(rep.results.failed_checks)
-                  } else if (rep?.results?.check_results instanceof List) {
-                    failed.addAll(rep.results.check_results.findAll { it?.check_result?.result == 'FAILED' })
-                  }
-                }
-              }
+            critical=$((tfsec_critical + checkov_critical))
+            high=$((tfsec_high + checkov_high))
+            medium=$((tfsec_medium + checkov_medium))
+            low=$((tfsec_low + checkov_low))
 
-              failed.each { item ->
-                def sev = (item?.check_result?.severity ?: item?.severity)
-                if (sev == 'CRITICAL') {
-                  checkovCritical++
-                } else if (sev == 'HIGH') {
-                  checkovHigh++
-                } else if (sev == 'MEDIUM') {
-                  checkovMedium++
-                } else if (sev == 'LOW') {
-                  checkovLow++
-                } else {
-                  // Many checkov checks don't include severity; treat as MEDIUM for reporting.
-                  checkovMedium++
-                }
-              }
-            } catch (err) {
-              echo "WARN: Unable to parse ${env.CHECKOV_OUTPUT}: ${err}"
-            }
-          }
+            if [ "$critical" -gt 0 ]; then
+              risk_level="CRITICAL"
+            elif [ "$high" -gt 0 ]; then
+              risk_level="HIGH"
+            elif [ "$medium" -gt 0 ]; then
+              risk_level="MEDIUM"
+            else
+              risk_level="LOW"
+            fi
 
-          int critical = tfsecCritical + checkovCritical
-          int high = tfsecHigh + checkovHigh
-          int medium = tfsecMedium + checkovMedium
-          int low = tfsecLow + checkovLow
+            if [ "$critical" -gt 0 ] || [ "$high" -gt 0 ] || [ "$medium" -gt 0 ]; then
+              action_required=true
+            else
+              action_required=false
+            fi
 
-          // User intent: report always, issue for critical, PR for non-critical.
-          String riskLevel = (critical > 0) ? 'CRITICAL' : ((high > 0) ? 'HIGH' : ((medium > 0) ? 'MEDIUM' : 'LOW'))
-          boolean actionRequired = (critical > 0 || high > 0 || medium > 0)
-
-          def report = [
-            timestamp: sh(script: 'date -u +%Y-%m-%dT%H:%M:%SZ', returnStdout: true).trim(),
-            critical: critical,
-            high: high,
-            medium: medium,
-            low: low,
-            risk_level: riskLevel,
-            action_required: actionRequired
-          ]
-
-          writeJSON file: env.RISK_REPORT, json: report
-          echo "Risk Assessment: ${report}"
+            timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            jq -n \
+              --arg ts "$timestamp" \
+              --arg risk "$risk_level" \
+              --argjson critical "$critical" \
+              --argjson high "$high" \
+              --argjson medium "$medium" \
+              --argjson low "$low" \
+              --argjson action "$action_required" \
+              '{timestamp:$ts,critical:$critical,high:$high,medium:$medium,low:$low,risk_level:$risk,action_required:$action}' \
+              > "${RISK_REPORT}"
+            echo "Risk Assessment: $(cat "${RISK_REPORT}")"
+          '''
 
           // Never fail the build due to findings
           currentBuild.result = 'SUCCESS'
@@ -328,34 +302,29 @@ pipeline {
             echo "No ${env.RISK_REPORT} found; skipping."
             return
           }
-          def riskReport = parseJsonFile("${env.RISK_REPORT}")
-          def riskLevel = riskReport.risk_level
-          def critical = riskReport.critical
-          def high = riskReport.high
-          def medium = riskReport.medium
-          def low = riskReport.low
-          if (riskReport.action_required != true) {
-            echo "✅ No remediation needed (risk_level=${riskLevel})."
-            return
-          }
           withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
             if (!env.GITHUB_TOKEN?.trim()) {
               echo "⚠️ GitHub token is empty; skipping."
               return
             }
-            withEnv([
-              "RISK_LEVEL=${riskLevel}",
-              "CRITICAL_COUNT=${critical}",
-              "HIGH_COUNT=${high}",
-              "MEDIUM_COUNT=${medium}",
-              "LOW_COUNT=${low}",
-              "GITHUB_REPO=${env.GITHUB_REPO}"
-            ]) {
+            withEnv(["GITHUB_REPO=${env.GITHUB_REPO}"]) {
               sh '''
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
-                export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${PATH}"
+                export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"
                 ISSUE_TITLE="Security: automated scan findings"
+
+                RISK_LEVEL=$(jq -r '.risk_level' "${RISK_REPORT}")
+                CRITICAL_COUNT=$(jq -r '.critical' "${RISK_REPORT}")
+                HIGH_COUNT=$(jq -r '.high' "${RISK_REPORT}")
+                MEDIUM_COUNT=$(jq -r '.medium' "${RISK_REPORT}")
+                LOW_COUNT=$(jq -r '.low' "${RISK_REPORT}")
+                ACTION_REQUIRED=$(jq -r '.action_required' "${RISK_REPORT}")
+                if [ "${ACTION_REQUIRED}" != "true" ]; then
+                  echo "✅ No remediation needed (risk_level=${RISK_LEVEL})."
+                  exit 0
+                fi
+
                 ensure_label() {
                   LABEL_JSON=$(jq -n --arg name "$1" --arg color "$2" '{name:$name,color:$color}')
                   curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/labels/$1" >/dev/null 2>&1 && return 0
