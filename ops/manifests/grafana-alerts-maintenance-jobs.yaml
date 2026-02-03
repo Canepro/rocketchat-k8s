@@ -28,11 +28,11 @@ groups:
         annotations:
           summary: "Stale pod cleanup job hasn't run in > 25 hours"
           description: |
-            The aks-stale-pod-cleanup CronJob should run daily at 09:00 UTC but hasn't run in over 25 hours.
+            The aks-stale-pod-cleanup CronJob should run daily at 16:30 UTC but hasn't run in over 25 hours.
             This may indicate the CronJob is suspended or there's a scheduling issue.
             
             Current time since last run: {{ $value | humanizeDuration }}
-            Expected schedule: Daily at 09:00 UTC
+            Expected schedule: Daily at 16:30 UTC
             
             Actions:
             1. Check CronJob status: kubectl get cronjob aks-stale-pod-cleanup -n monitoring
