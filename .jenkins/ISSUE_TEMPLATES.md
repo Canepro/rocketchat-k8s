@@ -19,7 +19,7 @@ The goal is consistent, readable GitHub issues that contain **actionable context
 
 ## Security Scan Findings (Comment Update)
 
-When the issue already exists, the job adds a comment:
+When the issue already exists (de-duped by title), the job adds a comment and re-applies expected labels if missing:
 - **New security scan results** (heading)
 - Build link, Findings (counts), Artifacts link
 - “(De-dupe enabled: this comment updates an existing open issue.)”
@@ -38,7 +38,7 @@ When the issue already exists, the job adds a comment:
 
 ## Version Check – Breaking Updates (Comment Update)
 
-If the breaking issue already exists, the job adds a comment:
+If the breaking issue already exists (de-duped by title), the job adds a comment and re-applies expected labels if missing:
 - **New breaking updates detected** (heading)
 - Time (UTC), Build link
 - **Updates Available:** Same bullet list (Component: current → latest)

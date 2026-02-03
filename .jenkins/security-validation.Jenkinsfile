@@ -338,13 +338,15 @@ EOF
                 ensure_label "automated" "0e8a16"
                 [ "$RISK_LEVEL" = "CRITICAL" ] && ensure_label "critical" "b60205"
 
-                ISSUE_LIST_JSON=$(curl -fsSL \
+                SEARCH_QUERY="repo:${GITHUB_REPO} type:issue state:open in:title \"${ISSUE_TITLE}\""
+                SEARCH_Q_ENC=$(jq -rn --arg q "$SEARCH_QUERY" '$q|@uri')
+                ISSUE_SEARCH_JSON=$(curl -fsSL \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
                   -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=security,automated&per_page=100" \
-                  || echo '[]')
-                EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
-                EXISTING_ISSUE_URL=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
+                  "https://api.github.com/search/issues?q=${SEARCH_Q_ENC}" \
+                  || echo '{"items": []}')
+                EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_SEARCH_JSON" | jq -r '.items[0].number // empty' 2>/dev/null || true)
+                EXISTING_ISSUE_URL=$(echo "$ISSUE_SEARCH_JSON" | jq -r '.items[0].html_url // empty' 2>/dev/null || true)
 
                 RUN_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
                 BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
@@ -441,6 +443,15 @@ EOF
                 printf '%s' "$COMMENT_BODY" > "$WORKDIR/security-comment-body.md"
                 COMMENT_JSON=$(jq -n --arg body "$COMMENT_BODY" '{body:$body}')
                 if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
+                  LABELS_JSON=$(jq -n --arg risk "$RISK_LEVEL" \
+                    '{labels:(["security","automated"] + (if $risk == "CRITICAL" then ["critical"] else [] end))}')
+                  if ! curl -fsSL -X POST \
+                    -H "Authorization: token ${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_ISSUE_NUMBER}/labels" \
+                    -d "$LABELS_JSON" >/dev/null 2>&1; then
+                    echo "⚠️ WARNING: Failed to add labels to existing security issue #${EXISTING_ISSUE_NUMBER}"
+                  fi
                   if ! curl -fsSL -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
