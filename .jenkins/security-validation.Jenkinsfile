@@ -316,7 +316,7 @@ EOF
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
                 export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"
-                ISSUE_TITLE="Security: automated scan findings"
+                ISSUE_TITLE="Security: Critical vulnerabilities detected (automated)"
 
                 RISK_LEVEL=$(jq -r '.risk_level' "${RISK_REPORT}")
                 CRITICAL_COUNT=$(jq -r '.critical' "${RISK_REPORT}")
@@ -413,35 +413,25 @@ EOF
                   images_block=$(sed 's/^/- /' "$WORKDIR/trivy-images.txt")
                 fi
 
-                artifact_lines="(see Jenkins build artifacts)"
+                artifact_lines=""
                 if [ -n "$ARTIFACT_BASE" ]; then
-                  artifact_lines=$(cat <<EOF
-- ${ARTIFACT_BASE}${TFSEC_OUTPUT}
-- ${ARTIFACT_BASE}${CHECKOV_OUTPUT}
-- ${ARTIFACT_BASE}kube-score-results.json
-- ${ARTIFACT_BASE}helm-kube-score-results.json
-- ${ARTIFACT_BASE}trivy-*.json
-- ${ARTIFACT_BASE}risk-assessment.json
-EOF
-)
+                  artifact_lines="- tfsec results: ${ARTIFACT_BASE}${TFSEC_OUTPUT}
+- checkov results: ${ARTIFACT_BASE}${CHECKOV_OUTPUT}
+- trivy results: ${ARTIFACT_BASE}trivy-*.json"
+                else
+                  artifact_lines="- tfsec results: See Jenkins build artifacts
+- checkov results: See Jenkins build artifacts
+- trivy results: See Jenkins build artifacts"
                 fi
 
                 COMMENT_MARKDOWN=$(cat <<EOF
-## Security scan update
-- Risk level: ${RISK_LEVEL}
-- Findings: Critical ${CRITICAL_COUNT} | High ${HIGH_COUNT} | Medium ${MEDIUM_COUNT} | Low ${LOW_COUNT}
-- Build: ${BUILD_URL}
-- Commit: ${SHORT_COMMIT}
-- Timestamp (UTC): ${RUN_AT}
+## New security scan results
 
-**Tool results**
-- tfsec: ${tfsec_summary}
-- checkov: ${checkov_summary}
-- kube-score (ops/manifests): ${kube_score_summary}
-- kube-score (helm templates): ${helm_kube_score_summary}
-- trivy: ${trivy_summary}
+- **Build:** ${BUILD_URL}
+- **Findings:** Critical: ${CRITICAL_COUNT} | High: ${HIGH_COUNT} | Medium: ${MEDIUM_COUNT} | Low: ${LOW_COUNT}
+- **Artifacts:** ${ARTIFACT_BASE:-See Jenkins build artifacts}
 
-Artifacts: ${ARTIFACT_BASE:-see Jenkins build artifacts}
+(De-dupe enabled: this comment updates an existing open issue.)
 EOF
 )
 
@@ -459,39 +449,26 @@ EOF
                 fi
 
                 ISSUE_MARKDOWN=$(cat <<EOF
-## Summary
-- Risk level: ${RISK_LEVEL}
-- Findings: Critical ${CRITICAL_COUNT} | High ${HIGH_COUNT} | Medium ${MEDIUM_COUNT} | Low ${LOW_COUNT}
-- Job: ${JOB_NAME}
-- Build: ${BUILD_URL}
-- Branch: ${BRANCH}
-- Commit: ${SHORT_COMMIT}
-- Timestamp (UTC): ${RUN_AT}
+## Security Scan Results
 
-## Tool results
-- tfsec: ${tfsec_summary}
-- checkov: ${checkov_summary}
-- kube-score (ops/manifests): ${kube_score_summary}
-- kube-score (helm templates): ${helm_kube_score_summary}
-- trivy: ${trivy_summary}
+- **Risk Level:** ${RISK_LEVEL}
+- **Findings:**
+  - Critical: ${CRITICAL_COUNT}
+  - High: ${HIGH_COUNT}
+  - Medium: ${MEDIUM_COUNT}
+  - Low: ${LOW_COUNT}
 
-## Images scanned
-${images_block}
+**Action Required:** Please review the security scan results and address critical vulnerabilities immediately.
 
-## Artifacts
+**Scan Artifacts:**
 ${artifact_lines}
 
-## Best practices
-1. Triage Critical and High findings first.
-2. Use the artifact JSON to confirm exact counts and IDs.
-3. Avoid pasting secrets into issues; link to artifacts instead.
-4. Close this issue only after remediation is verified.
+**Next Steps:**
+1. Review all critical findings
+2. Create remediation PRs for each critical issue
+3. Update security policies if needed
 
-## Action required
-Review critical/high findings and remediate. Close when resolved.
-
----
-*Automated by Jenkins security validation pipeline.*
+This issue was automatically created by Jenkins security validation pipeline.
 EOF
 )
                 ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$ISSUE_MARKDOWN" --arg risk "$RISK_LEVEL" \

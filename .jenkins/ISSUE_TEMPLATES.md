@@ -8,38 +8,40 @@ The goal is consistent, readable GitHub issues that contain **actionable context
 
 ## Security Scan Findings (Issue)
 
-**Title**: `Security: automated scan findings`
+**Title**: `Security: Critical vulnerabilities detected (automated)`
 
 **Sections**:
-- Summary (risk level, findings counts, job/build/branch/commit/timestamp)
-- Tool results (tfsec, checkov, kube-score, trivy summaries)
-- Images scanned (from `trivy-images.txt` when available)
-- Artifacts (links to JSON outputs in build artifacts)
-- Action required
+- Security Scan Results (risk level, findings: Critical/High/Medium/Low counts)
+- Action Required (short paragraph)
+- Scan Artifacts (tfsec, checkov, trivy – links or “See Jenkins build artifacts”)
+- Next Steps (numbered: review critical findings, create remediation PRs, update policies)
+- Origin: “This issue was automatically created by Jenkins security validation pipeline.”
 
 ## Security Scan Findings (Comment Update)
 
-When the issue already exists, the job adds a concise update comment that includes:
-- Risk level + counts
-- Build + commit + timestamp
-- Tool results summary
-- Artifact link (build artifacts)
+When the issue already exists, the job adds a comment:
+- **New security scan results** (heading)
+- Build link, Findings (counts), Artifacts link
+- “(De-dupe enabled: this comment updates an existing open issue.)”
 
 ## Version Check – Breaking Updates (Issue)
 
-**Title**: `🚨 Breaking: Major version updates available`
+**Title**: `Breaking: Major version updates available`
 
 **Sections**:
-- Summary (risk level, job/build/branch/commit/timestamp)
-- Breaking updates table (Component, Current, Latest, Location, Source)
-- Artifacts (version report + per-scope JSON files)
-- Action required
+- Version Update Alert (section)
+- Risk Level: BREAKING (major version)
+- **Updates Available:** Bullet list of "Component: current → latest"
+- **Action Required:** Short paragraph (breaking changes, careful testing)
+- **Next Steps:** Numbered 1–4 (review release notes, test in staging, upgrade plan, maintenance window)
+- Origin: "This issue was automatically created by Jenkins version check pipeline."
 
 ## Version Check – Breaking Updates (Comment Update)
 
-If the breaking issue already exists, the job adds a comment with:
-- Job/build/branch/commit/timestamp
-- The breaking updates table
+If the breaking issue already exists, the job adds a comment:
+- **New breaking updates detected** (heading)
+- Time (UTC), Build link
+- **Updates Available:** Same bullet list (Component: current → latest)
 
 ## CI Failure (Issue)
 

@@ -144,8 +144,8 @@ ENSURE_LABEL_EOF
               echo "terraform/main.tf not found; cannot check Azure provider version."
               exit 1
             fi
-            # Get current version from main.tf (may be constraint e.g. ~>3.0). Pattern depends on provider block format; consider terraform providers or hcl2json for robustness.
-            CURRENT_AZURERM=$(grep -A2 "azurerm = {" terraform/main.tf | grep "version" | sed 's/.*version = "\\(.*\\)".*/\\1/' | tr -d ' ')
+            # Get current version from main.tf (may be constraint e.g. ~>3.0). Take first match only to avoid duplicate values.
+            CURRENT_AZURERM=$(grep -A2 "azurerm = {" terraform/main.tf | grep "version" | sed 's/.*version = "\\(.*\\)".*/\\1/' | tr -d ' ' | head -1)
             if [ -z "${CURRENT_AZURERM}" ]; then
               echo "Failed to extract current Azure provider version from terraform/main.tf (grep pattern did not match)."
               echo "Please verify the provider \"azurerm\" block and its version field format."
@@ -163,8 +163,8 @@ ENSURE_LABEL_EOF
             echo "AZURERM_LATEST=${LATEST_AZURERM}" >> "$WORKDIR/versions.env"
           '''
           
-          def azurermCurrent = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_CURRENT "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
-          def azurermLatest = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_LATEST "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
+          def azurermCurrent = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_CURRENT "$WORKDIR/versions.env" | head -1 | cut -d= -f2', returnStdout: true).trim()
+          def azurermLatest = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_LATEST "$WORKDIR/versions.env" | head -1 | cut -d= -f2', returnStdout: true).trim()
           
           terraformVersions['azurerm'] = [
             current: azurermCurrent,
@@ -403,17 +403,13 @@ ENSURE_LABEL_EOF
             def createdBreakingIssue = false
 
             if (criticalUpdates.size() > 0) {
-              // HIGH→issue: Create Issue for breaking (major) updates
+              // HIGH→issue: Create Issue for breaking (major) updates (format matches issue #5: bullet list "Component: current → latest")
               echo "🚨 Creating GitHub issue for BREAKING version updates..."
-              def criticalTable = [
-                "| Component | Current | Latest | Location | Source |",
-                "| --- | --- | --- | --- | --- |"
-              ] + criticalUpdates.collect { update ->
-                def location = update.location ?: "n/a"
-                def source = update.source ?: "n/a"
-                "| ${update.component} | ${update.current} | ${update.latest} | ${location} | ${source} |"
+              def criticalBullets = criticalUpdates.collect { update ->
+                def cell = { Object v -> (v?.toString() ?: 'n/a').replaceAll(/\r?\n/, ' ').trim() }
+                "- ${cell(update.component)}: ${cell(update.current)} → ${cell(update.latest)}"
               }
-              writeFile file: 'critical-updates.md', text: criticalTable.join('\n') + '\n'
+              writeFile file: 'critical-updates.md', text: criticalBullets.join('\n') + '\n'
               withEnv([]) {
                 sh '''
                   set -e
@@ -434,54 +430,35 @@ ENSURE_LABEL_EOF
                   if [ -n "${BUILD_URL:-}" ]; then
                     ARTIFACT_BASE="${BUILD_URL}artifact/"
                   fi
-                  UPDATES_TABLE=$(cat "$WORKDIR/critical-updates.md")
-                  ARTIFACT_LINES="(see Jenkins build artifacts)"
-                  if [ -n "$ARTIFACT_BASE" ]; then
-                    ARTIFACT_LINES=$(cat <<EOF
-- ${ARTIFACT_BASE}${UPDATE_REPORT}
-- ${ARTIFACT_BASE}terraform-versions.json
-- ${ARTIFACT_BASE}image-updates.json
-- ${ARTIFACT_BASE}chart-updates.json
-EOF
-)
-                  fi
+                  UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
 
                   ISSUE_MARKDOWN=$(cat <<EOF
-## Summary
-- Risk level: BREAKING (major)
-- Job: ${JOB_NAME}
-- Build: ${BUILD_URL}
-- Branch: ${BRANCH}
-- Commit: ${SHORT_COMMIT}
-- Timestamp (UTC): ${RUN_AT}
+## Version Update Alert
 
-## Breaking updates
-${UPDATES_TABLE}
+- **Risk Level:** BREAKING (major version)
 
-## Artifacts
-${ARTIFACT_LINES}
+**Updates Available:**
+${UPDATES_BULLETS}
 
-## Best practices
-1. Review breaking change notes before upgrading.
-2. Test in staging and capture rollout steps.
-3. Keep a rollback plan for major version bumps.
-4. Close this issue only when upgrades are complete and verified.
+**Action Required:** Major version updates detected. These are likely breaking changes and require careful testing before deployment.
 
-## Action required
-Review breaking changes, test in staging, and plan the upgrade.
+**Next Steps:**
+1. Review breaking changes in release notes
+2. Test in staging environment
+3. Create upgrade plan
+4. Schedule maintenance window if needed
 
----
-*Automated by Jenkins version check pipeline.*
+This issue was automatically created by Jenkins version check pipeline.
 EOF
 )
 
                   ISSUE_BODY_JSON=$(jq -n \
-                    --arg title "🚨 Breaking: Major version updates available" \
+                    --arg title "Breaking: Major version updates available" \
                     --arg body "$ISSUE_MARKDOWN" \
                     '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
                   echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
 
-                  ISSUE_TITLE="🚨 Breaking: Major version updates available"
+                  ISSUE_TITLE="Breaking: Major version updates available"
                   ISSUE_LIST_JSON=$(curl -fsSL \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
@@ -494,16 +471,15 @@ EOF
                     esac
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
-                    UPDATES_TABLE=$(cat "$WORKDIR/critical-updates.md")
+                    UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
                     COMMENT_MARKDOWN=$(cat <<EOF
-## Breaking updates detected
-- Job: ${JOB_NAME}
-- Build: ${BUILD_URL}
-- Branch: ${BRANCH}
-- Commit: ${SHORT_COMMIT}
-- Timestamp (UTC): ${RUN_AT}
+## New breaking updates detected
 
-${UPDATES_TABLE}
+- **Time:** ${RUN_AT}
+- **Build:** ${BUILD_URL}
+
+**Updates Available:**
+${UPDATES_BULLETS}
 EOF
 )
                     COMMENT_JSON=$(jq -n --arg body "$COMMENT_MARKDOWN" '{body:$body}')
