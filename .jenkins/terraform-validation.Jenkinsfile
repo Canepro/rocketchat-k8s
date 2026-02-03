@@ -30,6 +30,19 @@ pipeline {
               tdnf install -y python3 unzip 2>/dev/null || true
             fi
           fi
+          # Azure CLI (optional): try user install if python3 exists; no root required.
+          WORKDIR="${WORKSPACE:-$(pwd)}"
+          if ! command -v az >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+            python3 -m pip install --quiet --no-cache-dir --user azure-cli || true
+            export PATH="${HOME:-/tmp}/.local/bin:${PATH}"
+          fi
+          if command -v az >/dev/null 2>&1; then
+            echo "Azure CLI available"
+            touch "$WORKDIR/.az_available"
+          else
+            echo "Azure CLI not available; Azure Login stage will be skipped"
+            rm -f "$WORKDIR/.az_available"
+          fi
           WORKDIR="${WORKSPACE:-$(pwd)}"
           TF_BIN_DIR="${WORKDIR}/.bin"
           mkdir -p "$TF_BIN_DIR"
@@ -60,59 +73,44 @@ pipeline {
       }
     }
     
-    // Stage 2: Azure Authentication
-    stage('Azure Login') {
+    // Stage 2: Verify Azure Workload Identity
+    stage('Verify Azure Auth') {
       steps {
         sh '''
           set -e
-          WORKDIR="${WORKSPACE:-$(pwd)}"
-          AZ_BIN_DIR="${WORKDIR}/.bin"
-          mkdir -p "$AZ_BIN_DIR"
+          echo "=== Verifying Azure Workload Identity Configuration ==="
           
-          # Ensure python3 is available for Azure CLI
-          if ! command -v python3 >/dev/null 2>&1; then
-            echo "Installing python3 for Azure CLI..."
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq && apt-get install -y python3 python3-pip python3-venv 2>/dev/null || true
-            elif command -v apk >/dev/null 2>&1; then
-              apk add --no-cache python3 py3-pip 2>/dev/null || true
-            elif command -v yum >/dev/null 2>&1; then
-              yum install -y python3 python3-pip 2>/dev/null || true
-            fi
+          # Check required environment variables
+          if [ -z "${ARM_CLIENT_ID:-}" ]; then
+            echo "ERROR: ARM_CLIENT_ID not set"
+            exit 1
+          fi
+          if [ -z "${ARM_TENANT_ID:-}" ]; then
+            echo "ERROR: ARM_TENANT_ID not set"
+            exit 1
+          fi
+          if [ -z "${ARM_SUBSCRIPTION_ID:-}" ]; then
+            echo "ERROR: ARM_SUBSCRIPTION_ID not set"
+            exit 1
+          fi
+          if [ -z "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
+            echo "ERROR: AZURE_FEDERATED_TOKEN_FILE not set"
+            exit 1
           fi
           
-          # Install Azure CLI if not available
-          if ! command -v az >/dev/null 2>&1; then
-            echo "Installing Azure CLI..."
-            if command -v python3 >/dev/null 2>&1; then
-              python3 -m pip install --user --quiet azure-cli || {
-                echo "pip install failed, trying system install..."
-                curl -fsSL https://aka.ms/InstallAzureCLIDeb -o /tmp/azure-cli-install.sh
-                bash /tmp/azure-cli-install.sh 2>/dev/null || {
-                  echo "All Azure CLI installation methods failed"
-                  exit 1
-                }
-                rm -f /tmp/azure-cli-install.sh
-              }
-              export PATH="$HOME/.local/bin:${PATH}"
-            else
-              echo "Cannot install Azure CLI - Python not available after install attempt"
-              exit 1
-            fi
+          # Verify token file exists and is readable
+          if [ ! -f "$AZURE_FEDERATED_TOKEN_FILE" ]; then
+            echo "ERROR: Token file not found at $AZURE_FEDERATED_TOKEN_FILE"
+            exit 1
           fi
           
-          # Login using Workload Identity (federated token)
-          az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
-            --service-principal \
-            -u $ARM_CLIENT_ID \
-            -t $ARM_TENANT_ID || {
-            echo "Workload Identity login failed, trying managed identity..."
-            az login --identity --client-id $ARM_CLIENT_ID
-          }
-          
-          # Set subscription
-          az account set --subscription $ARM_SUBSCRIPTION_ID
-          az account show
+          echo "✓ Client ID: ${ARM_CLIENT_ID}"
+          echo "✓ Tenant ID: ${ARM_TENANT_ID}"
+          echo "✓ Subscription ID: ${ARM_SUBSCRIPTION_ID}"
+          echo "✓ Token file: ${AZURE_FEDERATED_TOKEN_FILE}"
+          echo "✓ Token file size: $(wc -c < $AZURE_FEDERATED_TOKEN_FILE) bytes"
+          echo ""
+          echo "Workload Identity is configured. Terraform will authenticate using OIDC token."
         '''
       }
     }
@@ -132,6 +130,9 @@ pipeline {
         dir('terraform') {
           sh '''
             export PATH="${WORKSPACE}/.bin:${PATH}"
+            if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
+              export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
+            fi
             # Initialize with backend (uses Workload Identity for auth)
             terraform init \
               -backend-config="resource_group_name=rg-terraform-state" \
@@ -171,6 +172,9 @@ pipeline {
         dir('terraform') {
           sh '''
             export PATH="${WORKSPACE}/.bin:${PATH}"
+            if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
+              export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
+            fi
             terraform plan \
               -no-color \
               -input=false \
