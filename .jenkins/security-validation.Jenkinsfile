@@ -106,6 +106,9 @@ pipeline {
           checkov --version || echo "checkov not installed"
           trivy --version || echo "trivy not installed"
           kube-score version || echo "kube-score not installed"
+          
+          # Clean up old scan results to prevent accumulation across runs
+          rm -f "$WORKDIR"/*.json "$WORKDIR"/*.txt "$WORKDIR"/*.md 2>/dev/null || true
         '''
       }
     }
