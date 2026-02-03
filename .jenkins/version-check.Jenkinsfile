@@ -136,6 +136,10 @@ ENSURE_LABEL_EOF
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}:${PATH}"
             cd "$WORKDIR"
+            
+            # Clear versions.env to avoid accumulating duplicates across runs
+            > "$WORKDIR/versions.env"
+            
             if [ ! -f terraform/main.tf ]; then
               echo "terraform/main.tf not found; cannot check Azure provider version."
               exit 1
