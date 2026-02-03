@@ -451,19 +451,43 @@ ENSURE_LABEL_EOF
                     --arg body "$ISSUE_BODY" \
                     '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
                   printf '%s' "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
-                  SEARCH_QUERY="repo:${GITHUB_REPO} type:issue state:open in:title \"${ISSUE_TITLE}\""
-                  SEARCH_Q_ENC=$(jq -rn --arg q "$SEARCH_QUERY" '$q|@uri')
-                  ISSUE_SEARCH_JSON=$(curl -fsSL \
-                    -H "Authorization: token ${GITHUB_TOKEN}" \
-                    -H "Accept: application/vnd.github.v3+json" \
-                    "https://api.github.com/search/issues?q=${SEARCH_Q_ENC}" \
-                    || echo '{"items": []}')
-                  EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_SEARCH_JSON" | jq -r '.items[0].number // empty' 2>/dev/null || true)
-                  EXISTING_ISSUE_URL=$(echo "$ISSUE_SEARCH_JSON" | jq -r '.items[0].html_url // empty' 2>/dev/null || true)
+                  JENKINSFILE_COMMIT=$(git -C "$WORKDIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+                  echo "Jenkinsfile commit: ${JENKINSFILE_COMMIT}"
+                  LOOKUP_FAILED=0
+                  MATCHING_ISSUES_FILE="$WORKDIR/matching-issues.json"
+                  echo '[]' > "$MATCHING_ISSUES_FILE"
+                  PAGE=1
+                  while [ "$PAGE" -le 5 ]; do
+                    set +e
+                    PAGE_JSON=$(curl -fsSL \
+                      -H "Authorization: token ${GITHUB_TOKEN}" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&per_page=100&page=${PAGE}")
+                    RC=$?
+                    set -e
+                    if [ "$RC" -ne 0 ]; then
+                      LOOKUP_FAILED=1
+                      break
+                    fi
+                    PAGE_COUNT=$(printf '%s' "$PAGE_JSON" | jq 'length' 2>/dev/null || echo 0)
+                    printf '%s' "$PAGE_JSON" | jq --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)]' > "$WORKDIR/matching-issues-page.json"
+                    jq -s '.[0]+.[1]' "$MATCHING_ISSUES_FILE" "$WORKDIR/matching-issues-page.json" > "$WORKDIR/matching-issues-next.json"
+                    mv "$WORKDIR/matching-issues-next.json" "$MATCHING_ISSUES_FILE"
+                    if [ "$PAGE_COUNT" -lt 100 ]; then
+                      break
+                    fi
+                    PAGE=$((PAGE + 1))
+                  done
+                  EXISTING_ISSUE_NUMBER=$(jq -r 'sort_by(.number) | .[0].number // empty' "$MATCHING_ISSUES_FILE" 2>/dev/null || true)
+                  EXISTING_ISSUE_URL=$(jq -r 'sort_by(.number) | .[0].html_url // empty' "$MATCHING_ISSUES_FILE" 2>/dev/null || true)
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     case "${EXISTING_ISSUE_NUMBER}" in
                       *[!0-9]*) EXISTING_ISSUE_NUMBER="" ;;
                     esac
+                  fi
+                  if [ "$LOOKUP_FAILED" -ne 0 ] && [ -z "${EXISTING_ISSUE_NUMBER}" ]; then
+                    echo "⚠️ Issue lookup failed; skipping issue creation to avoid duplicates."
+                    exit 0
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     LABELS_JSON='{"labels":["dependencies","breaking","automated","upgrade"]}'
