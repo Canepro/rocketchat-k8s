@@ -379,19 +379,33 @@ EOF
       archiveArtifacts artifacts: '*.json,*.md', allowEmptyArchive: true
       script {
         if (fileExists(env.RISK_REPORT)) {
-          def riskReport = new groovy.json.JsonSlurperClassic().parseText(readFile(env.RISK_REPORT))
-          echo """
-          ========================================
-          Security Scan Summary
-          ========================================
-          Critical: ${riskReport.critical}
-          High: ${riskReport.high}
-          Medium: ${riskReport.medium}
-          Low: ${riskReport.low}
-          Risk Level: ${riskReport.risk_level}
-          Action Required: ${riskReport.action_required}
-          ========================================
-          """
+          sh '''
+            set +e
+            WORKDIR="${WORKSPACE:-$(pwd)}"
+            export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${PATH}"
+            if ! command -v jq >/dev/null 2>&1; then
+              echo "Security Scan Summary: jq not available"
+              exit 0
+            fi
+            CRITICAL=$(jq -r '.critical' "${RISK_REPORT}")
+            HIGH=$(jq -r '.high' "${RISK_REPORT}")
+            MEDIUM=$(jq -r '.medium' "${RISK_REPORT}")
+            LOW=$(jq -r '.low' "${RISK_REPORT}")
+            RISK_LEVEL=$(jq -r '.risk_level' "${RISK_REPORT}")
+            ACTION_REQUIRED=$(jq -r '.action_required' "${RISK_REPORT}")
+            cat <<EOF
+========================================
+Security Scan Summary
+========================================
+Critical: ${CRITICAL}
+High: ${HIGH}
+Medium: ${MEDIUM}
+Low: ${LOW}
+Risk Level: ${RISK_LEVEL}
+Action Required: ${ACTION_REQUIRED}
+========================================
+EOF
+          '''
         } else {
           echo "Security Scan Summary: ${env.RISK_REPORT} not generated (earlier stage failed or was skipped)"
         }

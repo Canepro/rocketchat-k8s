@@ -1,7 +1,13 @@
+import com.cloudbees.groovy.cps.NonCPS
+
 // Version Check Pipeline for rocketchat-k8s
 // This pipeline checks for latest versions of all components and creates PRs/issues for updates.
 // Purpose: Automated dependency management with risk-based PR/Issue creation.
 // Runs on the static AKS agent (aks-agent); AKS has auto-shutdown so controller lives on OKE.
+def terraformVersions = [:]
+def imageUpdates = []
+def chartUpdates = []
+
 pipeline {
   agent { label 'aks-agent' }
   
@@ -122,7 +128,7 @@ ENSURE_LABEL_EOF
     stage('Check Terraform Versions') {
       steps {
         script {
-          def terraformVersions = [:]
+          terraformVersions = [:]
           
           // Check Azure Provider version
           sh '''
@@ -171,7 +177,7 @@ ENSURE_LABEL_EOF
     stage('Check Container Image Versions') {
       steps {
         script {
-          def imageUpdates = []
+          imageUpdates = []
           
           // Check Rocket.Chat image version (prefer Docker Hub tags; fallback to GitHub releases)
           sh '''
@@ -244,7 +250,7 @@ ENSURE_LABEL_EOF
     stage('Check Helm Chart Versions') {
       steps {
         script {
-          def chartUpdates = []
+          chartUpdates = []
           
           // Check Helm chart versions for all ArgoCD apps
           def chartLines = sh(
@@ -319,10 +325,6 @@ ENSURE_LABEL_EOF
         script {
           // Aggregate all updates
           def allUpdates = [:]
-          def terraformVersions = readJSON file: 'terraform-versions.json'
-          def imageUpdates = readJSON file: 'image-updates.json'
-          def chartUpdates = readJSON file: 'chart-updates.json'
-          
           allUpdates['terraform'] = terraformVersions
           allUpdates['images'] = imageUpdates
           allUpdates['charts'] = chartUpdates
@@ -769,10 +771,45 @@ EOF
   }
 }
 
-// Write JSON without Pipeline Utility Steps plugin.
+@NonCPS
+String jsonEscape(String value) {
+  if (value == null) {
+    return ""
+  }
+  return value
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+    .replace("\r", "\\r")
+    .replace("\n", "\\n")
+    .replace("\t", "\\t")
+}
+
+@NonCPS
+String toJson(Object value) {
+  if (value == null) {
+    return "null"
+  }
+  if (value instanceof Map) {
+    def entries = []
+    value.each { k, v ->
+      def key = jsonEscape(k?.toString())
+      entries.add("\"${key}\":${toJson(v)}")
+    }
+    return "{${entries.join(',')}}"
+  }
+  if (value instanceof List) {
+    def items = value.collect { item -> toJson(item) }
+    return "[${items.join(',')}]"
+  }
+  if (value instanceof Boolean || value instanceof Number) {
+    return value.toString()
+  }
+  return "\"${jsonEscape(value.toString())}\""
+}
+
+// Write JSON without Pipeline Utility Steps plugin or groovy.json classes.
 def writeJsonFile(String path, Object data) {
-  def json = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(data))
-  writeFile file: path, text: json
+  writeFile file: path, text: toJson(data)
 }
 
 // Parse major version number from a version string (constraint or plain semver).
