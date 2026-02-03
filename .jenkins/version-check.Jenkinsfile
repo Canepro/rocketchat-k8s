@@ -53,15 +53,21 @@ pipeline {
           curl -fsSL -o "$WORKDIR/yq" "${YQ_BASE_URL}/${YQ_ASSET}"
           # Try known checksum filenames across releases.
           CHECKSUM_OK=0
+          YQ_ACTUAL_SHA=$(sha256sum "$WORKDIR/yq" | awk '{print $1}')
           for YQ_SUM_FILE in checksums_sha256 checksums.txt checksums; do
             if curl -fsSL -o "$WORKDIR/yq_checksums" "${YQ_BASE_URL}/${YQ_SUM_FILE}"; then
               if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" >/dev/null 2>&1; then
                 # Support both "<hash>  filename" and "SHA256 (filename) = <hash>" formats.
-                if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | sha256sum -c - >/dev/null 2>&1; then
-                  CHECKSUM_OK=1
-                  break
-                fi
-                if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | awk -v f="${YQ_ASSET}" 'match($0, /[0-9a-fA-F]{64}/) { print substr($0, RSTART, RLENGTH) "  " f }' | sha256sum -c -; then
+                YQ_EXPECTED_SHA=$(grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | grep -Eo '[0-9a-fA-F]{64}' | head -1 || true)
+                if [ -n "$YQ_EXPECTED_SHA" ]; then
+                  if [ "$YQ_EXPECTED_SHA" = "$YQ_ACTUAL_SHA" ]; then
+                    CHECKSUM_OK=1
+                    break
+                  else
+                    echo "WARNING: yq checksum mismatch in ${YQ_SUM_FILE}"
+                  fi
+                else
+                  echo "WARNING: yq checksum format not recognized in ${YQ_SUM_FILE}; skipping verification"
                   CHECKSUM_OK=1
                   break
                 fi

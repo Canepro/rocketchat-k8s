@@ -30,22 +30,31 @@ pipeline {
               tdnf install -y python3 unzip 2>/dev/null || true
             fi
           fi
+          WORKDIR="${WORKSPACE:-$(pwd)}"
+          TF_BIN_DIR="${WORKDIR}/.bin"
+          mkdir -p "$TF_BIN_DIR"
           TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*' | cut -d'"' -f4)
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
+          TMP_TF_DIR="$(mktemp -d)"
           if command -v python3 >/dev/null 2>&1; then
-            python3 -c "import zipfile; zipfile.ZipFile('terraform.zip').extractall('.')"
+            python3 -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" terraform.zip "$TMP_TF_DIR"
           elif command -v unzip >/dev/null 2>&1; then
-            unzip -o terraform.zip >/dev/null
+            unzip -o terraform.zip -d "$TMP_TF_DIR" >/dev/null
           elif command -v jar >/dev/null 2>&1; then
             # Use JDK jar tool if unzip/python3 are unavailable.
-            jar xf terraform.zip
+            (cd "$TMP_TF_DIR" && jar xf "$WORKDIR/terraform.zip")
           else
             echo "No tool available to extract terraform.zip (python3, unzip, or jar)"
             exit 1
           fi
-          rm -f terraform.zip
-          chmod +x terraform
-          export PATH="${WORKSPACE}:${PATH}"
+          if [ ! -f "$TMP_TF_DIR/terraform" ]; then
+            echo "Terraform binary not found after extraction"
+            exit 1
+          fi
+          mv "$TMP_TF_DIR/terraform" "$TF_BIN_DIR/terraform"
+          rm -rf "$TMP_TF_DIR" terraform.zip
+          chmod +x "$TF_BIN_DIR/terraform"
+          export PATH="${TF_BIN_DIR}:${PATH}"
           terraform version
         '''
       }
@@ -75,7 +84,7 @@ pipeline {
     stage('Terraform Format') {
       steps {
         dir('terraform') {
-          sh 'export PATH="${WORKSPACE}:${PATH}" && terraform fmt -check -recursive'
+          sh 'export PATH="${WORKSPACE}/.bin:${PATH}" && terraform fmt -check -recursive'
         }
       }
     }
@@ -85,7 +94,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
-            export PATH="${WORKSPACE}:${PATH}"
+            export PATH="${WORKSPACE}/.bin:${PATH}"
             # Initialize with backend (uses Workload Identity for auth)
             terraform init \
               -backend-config="resource_group_name=rg-terraform-state" \
@@ -109,7 +118,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
-            export PATH="${WORKSPACE}:${PATH}"
+            export PATH="${WORKSPACE}/.bin:${PATH}"
             # Use example file for CI validation (contains placeholder values)
             # Real secrets are never stored in blob storage
             echo "INFO: Using example tfvars for validation (placeholder values)"
@@ -124,7 +133,7 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
-            export PATH="${WORKSPACE}:${PATH}"
+            export PATH="${WORKSPACE}/.bin:${PATH}"
             terraform plan \
               -no-color \
               -input=false \
@@ -150,7 +159,7 @@ pipeline {
     always {
       // Archive plan for review
       dir('terraform') {
-        sh 'export PATH="${WORKSPACE}:${PATH}" && terraform show -no-color tfplan > tfplan.txt 2>/dev/null || true'
+        sh 'export PATH="${WORKSPACE}/.bin:${PATH}" && terraform show -no-color tfplan > tfplan.txt 2>/dev/null || true'
         archiveArtifacts artifacts: 'tfplan.txt', allowEmptyArchive: true
       }
       cleanWs()
