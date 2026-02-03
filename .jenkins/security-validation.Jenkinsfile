@@ -357,8 +357,7 @@ EOF
                 fi
 
                 ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg risk "$RISK_LEVEL" --arg crit "$CRITICAL_COUNT" --arg h "$HIGH_COUNT" --arg m "$MEDIUM_COUNT" --arg l "$LOW_COUNT" \
-                  'def labels: ["security","automated"] + ( $risk == "CRITICAL" ? ["critical"] : [] );
-                   {title:$title, body:("## Security scan results\n\n**Risk level:** " + $risk + "\n\n**Findings:**\n- Critical: " + $crit + "\n- High: " + $h + "\n- Medium: " + $m + "\n- Low: " + $l + "\n\n## Action required\n\nReview scan results and address findings. Artifacts: see Jenkins build.\n\n---\n*Automated by Jenkins security validation pipeline.*"), labels: labels}')
+                  '{title:$title, body:("## Security scan results\n\n**Risk level:** " + $risk + "\n\n**Findings:**\n- Critical: " + $crit + "\n- High: " + $h + "\n- Medium: " + $m + "\n- Low: " + $l + "\n\n## Action required\n\nReview scan results and address findings. Artifacts: see Jenkins build.\n\n---\n*Automated by Jenkins security validation pipeline.*"), labels:(["security","automated"] + (if $risk == "CRITICAL" then ["critical"] else [] end))}')
                 echo "$ISSUE_BODY_JSON" > "$WORKDIR/security-issue-body.json"
                 if ! curl -sS -X POST \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
