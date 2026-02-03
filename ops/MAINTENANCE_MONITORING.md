@@ -30,7 +30,7 @@ Import alert rules from: `ops/manifests/grafana-alerts-maintenance-jobs.yaml`
 ## 📊 What Gets Monitored
 
 ### CronJob: `aks-stale-pod-cleanup`
-- **Schedule:** Daily at 09:00 UTC (30min after cluster start)
+- **Schedule:** Daily at 16:30 UTC (30min after cluster start)
 - **Purpose:** Clean up orphaned pods after cluster restart
 - **Expected duration:** 10-30 seconds
 - **Target phases:** Succeeded, Failed, Unknown

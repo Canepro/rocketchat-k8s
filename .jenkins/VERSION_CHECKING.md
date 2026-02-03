@@ -51,6 +51,10 @@ Then it fetches `<repoURL>/index.yaml` and picks the latest semver in `.entries[
   - if the issue exists: the job **adds a comment** with the latest breaking list (timestamp + build link)
   - if it doesn’t exist: the job creates it
 
+### Issue Template
+
+See `.jenkins/ISSUE_TEMPLATES.md` for the exact GitHub issue/comment template used by the job.
+
 ### Non-breaking PR (one open PR, updated by pushing + commenting)
 
 - **Title prefix**: `⬆️ Version Updates:`

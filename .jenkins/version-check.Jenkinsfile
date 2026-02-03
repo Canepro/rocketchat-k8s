@@ -401,8 +401,16 @@ ENSURE_LABEL_EOF
             if (criticalUpdates.size() > 0) {
               // HIGH→issue: Create Issue for breaking (major) updates
               echo "🚨 Creating GitHub issue for BREAKING version updates..."
-              def criticalSummary = criticalUpdates.collect { "- ${it.component}: ${it.current} → ${it.latest}" }.join('\n')
-              withEnv(["CRITICAL_UPDATES=${criticalSummary}"]) {
+              def criticalTable = [
+                "| Component | Current | Latest | Location | Source |",
+                "| --- | --- | --- | --- | --- |"
+              ] + criticalUpdates.collect { update ->
+                def location = update.location ?: "n/a"
+                def source = update.source ?: "n/a"
+                "| ${update.component} | ${update.current} | ${update.latest} | ${location} | ${source} |"
+              }
+              writeFile file: 'critical-updates.md', text: criticalTable.join('\n') + '\n'
+              withEnv([]) {
                 sh '''
                   set -e
                   WORKDIR="${WORKSPACE:-$(pwd)}"
@@ -414,11 +422,59 @@ ENSURE_LABEL_EOF
                   ensure_label "automated" "0e8a16"
                   ensure_label "upgrade" "fbca04"
 
-                  printf "%s" "${CRITICAL_UPDATES}" > "$WORKDIR/critical-updates.md"
+                  RUN_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+                  SHORT_COMMIT="${GIT_COMMIT:-unknown}"
+                  SHORT_COMMIT=$(printf "%s" "$SHORT_COMMIT" | cut -c1-7)
+                  ARTIFACT_BASE=""
+                  if [ -n "${BUILD_URL:-}" ]; then
+                    ARTIFACT_BASE="${BUILD_URL}artifact/"
+                  fi
+                  UPDATES_TABLE=$(cat "$WORKDIR/critical-updates.md")
+                  ARTIFACT_LINES="(see Jenkins build artifacts)"
+                  if [ -n "$ARTIFACT_BASE" ]; then
+                    ARTIFACT_LINES=$(cat <<EOF
+- ${ARTIFACT_BASE}${UPDATE_REPORT}
+- ${ARTIFACT_BASE}terraform-versions.json
+- ${ARTIFACT_BASE}image-updates.json
+- ${ARTIFACT_BASE}chart-updates.json
+EOF
+)
+                  fi
+
+                  ISSUE_MARKDOWN=$(cat <<EOF
+## Summary
+- Risk level: BREAKING (major)
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+## Breaking updates
+${UPDATES_TABLE}
+
+## Artifacts
+${ARTIFACT_LINES}
+
+## Best practices
+1. Review breaking change notes before upgrading.
+2. Test in staging and capture rollout steps.
+3. Keep a rollback plan for major version bumps.
+4. Close this issue only when upgrades are complete and verified.
+
+## Action required
+Review breaking changes, test in staging, and plan the upgrade.
+
+---
+*Automated by Jenkins version check pipeline.*
+EOF
+)
+
                   ISSUE_BODY_JSON=$(jq -n \
                     --arg title "🚨 Breaking: Major version updates available" \
-                    --rawfile updates "$WORKDIR/critical-updates.md" \
-                    '{title:$title, body:("## Version Update Alert\n\n**Risk Level:** BREAKING (major version)\n\n**Updates Available:**\n" + $updates + "\n\n## Action Required\n\nMajor version updates detected. These are likely breaking changes and require careful testing before deployment.\n\n## Next Steps\n\n1. Review breaking changes in release notes\n2. Test in staging environment\n3. Create upgrade plan\n4. Schedule maintenance window if needed\n\n---\n*This issue was automatically created by Jenkins version check pipeline.*"), labels:["dependencies","breaking","automated","upgrade"]}')
+                    --arg body "$ISSUE_MARKDOWN" \
+                    '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
                   echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
 
                   ISSUE_TITLE="🚨 Breaking: Major version updates available"
@@ -434,11 +490,19 @@ ENSURE_LABEL_EOF
                     esac
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
-                    TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-                    BUILD_LINE=""
-                    [ -n "${BUILD_URL:-}" ] && BUILD_LINE=$(printf '\nBuild: %s' "${BUILD_URL}")
-                    COMMENT_JSON=$(jq -n --rawfile updates "$WORKDIR/critical-updates.md" --arg ts "$TS" --arg buildline "$BUILD_LINE" \
-                      '{body:("## New breaking updates detected\n\nTime: " + $ts + $buildline + "\n\n**Updates Available:**\n" + $updates)}')
+                    UPDATES_TABLE=$(cat "$WORKDIR/critical-updates.md")
+                    COMMENT_MARKDOWN=$(cat <<EOF
+## Breaking updates detected
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+${UPDATES_TABLE}
+EOF
+)
+                    COMMENT_JSON=$(jq -n --arg body "$COMMENT_MARKDOWN" '{body:$body}')
                     if ! curl -fsSL -X POST \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
@@ -740,9 +804,24 @@ EOF
             ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
             ISSUE_URL=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
 
+            RUN_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+            SHORT_COMMIT="${GIT_COMMIT:-unknown}"
+            SHORT_COMMIT=$(printf "%s" "$SHORT_COMMIT" | cut -c1-7)
+
             if [ -n "${ISSUE_NUMBER}" ]; then
-              COMMENT_JSON=$(jq -n --arg job "${JOB_NAME}" --arg build "${BUILD_URL}" --arg commit "${GIT_COMMIT}" \
-                '{body:("## Jenkins job failed\n\nJob: " + $job + "\nBuild: " + $build + "\nCommit: " + $commit + "\n\n(Automated update on existing issue.)")}')
+              FAIL_COMMENT=$(cat <<EOF
+## CI failure update
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+Please check Jenkins logs for details.
+EOF
+)
+              COMMENT_JSON=$(jq -n --arg body "$FAIL_COMMENT" '{body:$body}')
               if ! curl -sS -X POST \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
@@ -754,8 +833,30 @@ EOF
               exit 0
             fi
 
-            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg job "${JOB_NAME}" --arg build "${BUILD_URL}" --arg commit "${GIT_COMMIT}" \
-              '{title:$title, body:("## Jenkins job failed\n\nJob: " + $job + "\nBuild: " + $build + "\nCommit: " + $commit + "\n\nPlease check Jenkins logs for details.\n\n---\n*This issue was automatically created by Jenkins.*"), labels:["ci","jenkins","failure","automated"]}')
+            FAIL_BODY=$(cat <<EOF
+## CI failure
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+## Next steps
+1. Open the Jenkins build logs.
+2. Find the first error line.
+3. Fix and re-run the job.
+
+## Best practices
+1. Capture the first error line in the issue comment.
+2. Prefer small, targeted fixes and rerun the job.
+3. Avoid re-running without changes.
+
+---
+*Automated by Jenkins.*
+EOF
+)
+            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$FAIL_BODY" \
+              '{title:$title, body:$body, labels:["ci","jenkins","failure","automated"]}')
             echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body-failure.json"
             if ! curl -sS -X POST \
               -H "Authorization: token ${GITHUB_TOKEN}" \

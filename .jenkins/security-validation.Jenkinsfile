@@ -194,6 +194,7 @@ pipeline {
           if (images) {
             echo "Found container images to scan:"
             echo images
+            writeFile file: 'trivy-images.txt', text: "${images}\n"
             
             // Scan each image
             images.split('\n').each { line ->
@@ -342,8 +343,106 @@ EOF
                 EXISTING_ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
                 EXISTING_ISSUE_URL=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].html_url // empty' 2>/dev/null || true)
 
-                COMMENT_BODY=$(jq -n --arg build "${BUILD_URL}" --arg crit "$CRITICAL_COUNT" --arg h "$HIGH_COUNT" --arg m "$MEDIUM_COUNT" --arg l "$LOW_COUNT" --arg risk "$RISK_LEVEL" \
-                  '{body:("## Security scan results\n\nBuild: " + $build + "\n\n**Risk level:** " + $risk + "\n\n**Findings:**\n- Critical: " + $crit + "\n- High: " + $h + "\n- Medium: " + $m + "\n- Low: " + $l + "\n\nArtifacts: " + $build + "artifact/\n\n(De-dupe: comment on existing issue.)")}')
+                RUN_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+                SHORT_COMMIT="${GIT_COMMIT:-unknown}"
+                SHORT_COMMIT=$(printf "%s" "$SHORT_COMMIT" | cut -c1-7)
+                ARTIFACT_BASE=""
+                if [ -n "${BUILD_URL:-}" ]; then
+                  ARTIFACT_BASE="${BUILD_URL}artifact/"
+                fi
+
+                tfsec_summary="n/a"
+                if [ -f "${TFSEC_OUTPUT}" ]; then
+                  tfsec_c=$(jq '[.results[]? | select(.severity=="CRITICAL")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+                  tfsec_h=$(jq '[.results[]? | select(.severity=="HIGH")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+                  tfsec_m=$(jq '[.results[]? | select(.severity=="MEDIUM")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+                  tfsec_l=$(jq '[.results[]? | select(.severity=="LOW")] | length' "${TFSEC_OUTPUT}" 2>/dev/null || echo 0)
+                  tfsec_summary="C:${tfsec_c} H:${tfsec_h} M:${tfsec_m} L:${tfsec_l}"
+                fi
+
+                checkov_summary="n/a"
+                if [ -f "${CHECKOV_OUTPUT}" ]; then
+                  checkov_total=$(jq '.results.failed_checks | length' "${CHECKOV_OUTPUT}" 2>/dev/null || echo 0)
+                  if jq -e '.results.failed_checks[]? | has("severity")' "${CHECKOV_OUTPUT}" >/dev/null 2>&1; then
+                    checkov_c=$(jq '[.results.failed_checks[]? | select(.severity=="CRITICAL")] | length' "${CHECKOV_OUTPUT}" 2>/dev/null || echo 0)
+                    checkov_h=$(jq '[.results.failed_checks[]? | select(.severity=="HIGH")] | length' "${CHECKOV_OUTPUT}" 2>/dev/null || echo 0)
+                    checkov_m=$(jq '[.results.failed_checks[]? | select(.severity=="MEDIUM")] | length' "${CHECKOV_OUTPUT}" 2>/dev/null || echo 0)
+                    checkov_l=$(jq '[.results.failed_checks[]? | select(.severity=="LOW")] | length' "${CHECKOV_OUTPUT}" 2>/dev/null || echo 0)
+                    checkov_summary="C:${checkov_c} H:${checkov_h} M:${checkov_m} L:${checkov_l} (total:${checkov_total})"
+                  else
+                    checkov_summary="failed_checks:${checkov_total}"
+                  fi
+                fi
+
+                kube_score_summary="n/a"
+                if [ -f "$WORKDIR/kube-score-results.json" ]; then
+                  ks_c=$(jq '[.[]? | .checks[]? | select(.grade=="critical")] | length' "$WORKDIR/kube-score-results.json" 2>/dev/null || echo 0)
+                  ks_w=$(jq '[.[]? | .checks[]? | select(.grade=="warning")] | length' "$WORKDIR/kube-score-results.json" 2>/dev/null || echo 0)
+                  kube_score_summary="critical:${ks_c} warning:${ks_w}"
+                fi
+
+                helm_kube_score_summary="n/a"
+                if [ -f "$WORKDIR/helm-kube-score-results.json" ]; then
+                  hks_c=$(jq '[.[]? | .checks[]? | select(.grade=="critical")] | length' "$WORKDIR/helm-kube-score-results.json" 2>/dev/null || echo 0)
+                  hks_w=$(jq '[.[]? | .checks[]? | select(.grade=="warning")] | length' "$WORKDIR/helm-kube-score-results.json" 2>/dev/null || echo 0)
+                  helm_kube_score_summary="critical:${hks_c} warning:${hks_w}"
+                fi
+
+                trivy_summary="n/a"
+                trivy_files=$(ls "$WORKDIR"/trivy-*.json 2>/dev/null || true)
+                if [ -n "$trivy_files" ]; then
+                  trivy_c=0; trivy_h=0; trivy_m=0; trivy_l=0
+                  for f in $trivy_files; do
+                    read -r c h m l <<EOF || true
+$(jq -r 'def count(sev): ([.Results[]?.Vulnerabilities[]? | select(.Severity==sev)] | length); "\(count(\"CRITICAL\")) \(count(\"HIGH\")) \(count(\"MEDIUM\")) \(count(\"LOW\"))"' "$f" 2>/dev/null || echo "0 0 0 0")
+EOF
+                    trivy_c=$((trivy_c + c))
+                    trivy_h=$((trivy_h + h))
+                    trivy_m=$((trivy_m + m))
+                    trivy_l=$((trivy_l + l))
+                  done
+                  trivy_summary="C:${trivy_c} H:${trivy_h} M:${trivy_m} L:${trivy_l}"
+                fi
+
+                images_block="(none)"
+                if [ -s "$WORKDIR/trivy-images.txt" ]; then
+                  images_block=$(sed 's/^/- /' "$WORKDIR/trivy-images.txt")
+                fi
+
+                artifact_lines="(see Jenkins build artifacts)"
+                if [ -n "$ARTIFACT_BASE" ]; then
+                  artifact_lines=$(cat <<EOF
+- ${ARTIFACT_BASE}${TFSEC_OUTPUT}
+- ${ARTIFACT_BASE}${CHECKOV_OUTPUT}
+- ${ARTIFACT_BASE}kube-score-results.json
+- ${ARTIFACT_BASE}helm-kube-score-results.json
+- ${ARTIFACT_BASE}trivy-*.json
+- ${ARTIFACT_BASE}risk-assessment.json
+EOF
+)
+                fi
+
+                COMMENT_MARKDOWN=$(cat <<EOF
+## Security scan update
+- Risk level: ${RISK_LEVEL}
+- Findings: Critical ${CRITICAL_COUNT} | High ${HIGH_COUNT} | Medium ${MEDIUM_COUNT} | Low ${LOW_COUNT}
+- Build: ${BUILD_URL}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+**Tool results**
+- tfsec: ${tfsec_summary}
+- checkov: ${checkov_summary}
+- kube-score (ops/manifests): ${kube_score_summary}
+- kube-score (helm templates): ${helm_kube_score_summary}
+- trivy: ${trivy_summary}
+
+Artifacts: ${ARTIFACT_BASE:-see Jenkins build artifacts}
+EOF
+)
+
+                COMMENT_BODY=$(jq -n --arg body "$COMMENT_MARKDOWN" '{body:$body}')
                 if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                   if ! curl -fsSL -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -356,8 +455,44 @@ EOF
                   exit 0
                 fi
 
-                ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg risk "$RISK_LEVEL" --arg crit "$CRITICAL_COUNT" --arg h "$HIGH_COUNT" --arg m "$MEDIUM_COUNT" --arg l "$LOW_COUNT" \
-                  '{title:$title, body:("## Security scan results\n\n**Risk level:** " + $risk + "\n\n**Findings:**\n- Critical: " + $crit + "\n- High: " + $h + "\n- Medium: " + $m + "\n- Low: " + $l + "\n\n## Action required\n\nReview scan results and address findings. Artifacts: see Jenkins build.\n\n---\n*Automated by Jenkins security validation pipeline.*"), labels:(["security","automated"] + (if $risk == "CRITICAL" then ["critical"] else [] end))}')
+                ISSUE_MARKDOWN=$(cat <<EOF
+## Summary
+- Risk level: ${RISK_LEVEL}
+- Findings: Critical ${CRITICAL_COUNT} | High ${HIGH_COUNT} | Medium ${MEDIUM_COUNT} | Low ${LOW_COUNT}
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+## Tool results
+- tfsec: ${tfsec_summary}
+- checkov: ${checkov_summary}
+- kube-score (ops/manifests): ${kube_score_summary}
+- kube-score (helm templates): ${helm_kube_score_summary}
+- trivy: ${trivy_summary}
+
+## Images scanned
+${images_block}
+
+## Artifacts
+${artifact_lines}
+
+## Best practices
+1. Triage Critical and High findings first.
+2. Use the artifact JSON to confirm exact counts and IDs.
+3. Avoid pasting secrets into issues; link to artifacts instead.
+4. Close this issue only after remediation is verified.
+
+## Action required
+Review critical/high findings and remediate. Close when resolved.
+
+---
+*Automated by Jenkins security validation pipeline.*
+EOF
+)
+                ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$ISSUE_MARKDOWN" --arg risk "$RISK_LEVEL" \
+                  '{title:$title, body:$body, labels:(["security","automated"] + (if $risk == "CRITICAL" then ["critical"] else [] end))}')
                 echo "$ISSUE_BODY_JSON" > "$WORKDIR/security-issue-body.json"
                 if ! curl -sS -X POST \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -441,12 +576,51 @@ EOF
             ensure_label "automated" "0e8a16"
             ISSUE_LIST_JSON=$(curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=ci,jenkins,failure,automated&per_page=100" || echo "[]")
             ISSUE_NUMBER=$(echo "$ISSUE_LIST_JSON" | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.pull_request == null) | select(.title == $t)][0].number // empty' 2>/dev/null || true)
+
+            RUN_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+            SHORT_COMMIT="${GIT_COMMIT:-unknown}"
+            SHORT_COMMIT=$(printf "%s" "$SHORT_COMMIT" | cut -c1-7)
+
             if [ -n "${ISSUE_NUMBER}" ]; then
-              COMMENT_JSON=$(jq -n --arg job "${JOB_NAME}" --arg build "${BUILD_URL}" --arg commit "${GIT_COMMIT}" '{body:("## Jenkins job failed\n\nJob: " + $job + "\nBuild: " + $build + "\nCommit: " + $commit + "\n\n(Automated update on existing issue.)")}')
+              FAIL_COMMENT=$(cat <<EOF
+## CI failure update
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+Please check Jenkins logs for details.
+EOF
+)
+              COMMENT_JSON=$(jq -n --arg body "$FAIL_COMMENT" '{body:$body}')
               if ! curl -sS -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/issues/${ISSUE_NUMBER}/comments" -d "$COMMENT_JSON" >/dev/null 2>&1; then echo "⚠️ WARNING: Failed to add comment to failure issue #${ISSUE_NUMBER}"; fi
               exit 0
             fi
-            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg job "${JOB_NAME}" --arg build "${BUILD_URL}" --arg commit "${GIT_COMMIT}" '{title:$title, body:("## Jenkins job failed\n\nJob: " + $job + "\nBuild: " + $build + "\nCommit: " + $commit + "\n\nPlease check Jenkins logs.\n\n---\n*Automated by Jenkins.*"), labels:["ci","jenkins","failure","automated"]}')
+            FAIL_BODY=$(cat <<EOF
+## CI failure
+- Job: ${JOB_NAME}
+- Build: ${BUILD_URL}
+- Branch: ${BRANCH}
+- Commit: ${SHORT_COMMIT}
+- Timestamp (UTC): ${RUN_AT}
+
+## Next steps
+1. Open the Jenkins build logs.
+2. Find the first error line.
+3. Fix and re-run the job.
+
+## Best practices
+1. Capture the first error line in the issue comment.
+2. Prefer small, targeted fixes and rerun the job.
+3. Avoid re-running without changes.
+
+---
+*Automated by Jenkins.*
+EOF
+)
+            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$FAIL_BODY" '{title:$title, body:$body, labels:["ci","jenkins","failure","automated"]}')
             echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body-failure.json"
             if ! curl -sS -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/issues" -d @"$WORKDIR/issue-body-failure.json" >/dev/null 2>&1; then echo "⚠️ WARNING: Failed to create failure issue"; fi
           '''

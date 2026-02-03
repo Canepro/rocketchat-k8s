@@ -103,7 +103,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Completed Tasks (2026-01-20)
 
 - [x] **Automated maintenance jobs deployed** (2026-01-20):
-  - `aks-stale-pod-cleanup` CronJob: Daily cleanup of orphaned pods after cluster restart (09:00 UTC)
+  - `aks-stale-pod-cleanup` CronJob: Daily cleanup of orphaned pods after cluster restart (16:30 UTC)
   - Grafana monitoring dashboard imported (`grafana-dashboard-maintenance-jobs.json`)
   - Alert rules created (`grafana-alerts-maintenance-jobs.yaml`)
   - Documentation: `ops/MAINTENANCE_MONITORING.md`
@@ -130,7 +130,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
   - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
   - Deployment guide created (`JENKINS_DEPLOYMENT.md`)
   - DNS A record configured (`jenkins.canepro.me`)
-  - **Status**: ⏳ Ready to deploy (pending cluster start tomorrow 8:30 AM)
+  - **Status**: ⏳ Ready to deploy (pending cluster start tomorrow 16:00 / 4:00 PM)
 
 ## Completed Upgrades (2026-01-16)
 

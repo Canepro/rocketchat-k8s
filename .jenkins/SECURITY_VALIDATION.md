@@ -98,6 +98,10 @@ The pipeline automatically:
 3. **Creates PR** if high findings exceed threshold (with automated fixes)
 4. **Comments on PR** with scan summary
 
+### Issue Template
+
+See `.jenkins/ISSUE_TEMPLATES.md` for the exact GitHub issue/comment template used by the job.
+
 ### Manual PR/Issue Creation
 
 Use the Jenkins pipeline (`.jenkins/security-validation.Jenkinsfile`) — it contains the remediation + de-dupe logic and is the supported path.
