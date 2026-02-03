@@ -69,6 +69,18 @@ pipeline {
           AZ_BIN_DIR="${WORKDIR}/.bin"
           mkdir -p "$AZ_BIN_DIR"
           
+          # Ensure python3 is available for Azure CLI
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "Installing python3 for Azure CLI..."
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq && apt-get install -y python3 python3-pip python3-venv 2>/dev/null || true
+            elif command -v apk >/dev/null 2>&1; then
+              apk add --no-cache python3 py3-pip 2>/dev/null || true
+            elif command -v yum >/dev/null 2>&1; then
+              yum install -y python3 python3-pip 2>/dev/null || true
+            fi
+          fi
+          
           # Install Azure CLI if not available
           if ! command -v az >/dev/null 2>&1; then
             echo "Installing Azure CLI..."
@@ -84,7 +96,7 @@ pipeline {
               }
               export PATH="$HOME/.local/bin:${PATH}"
             else
-              echo "Cannot install Azure CLI - Python not available"
+              echo "Cannot install Azure CLI - Python not available after install attempt"
               exit 1
             fi
           fi
