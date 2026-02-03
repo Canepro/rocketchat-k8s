@@ -17,9 +17,29 @@ pipeline {
     stage('Setup') {
       steps {
         sh '''
+          set -e
+          # Ensure we can extract zip without assuming python3 exists.
+          if ! command -v python3 >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
+            if command -v apk >/dev/null 2>&1; then
+              apk add --no-cache python3 unzip 2>/dev/null || true
+            elif command -v apt-get >/dev/null 2>&1; then
+              (apt-get update -qq && apt-get install -y python3 unzip) 2>/dev/null || true
+            elif command -v yum >/dev/null 2>&1; then
+              yum install -y python3 unzip 2>/dev/null || true
+            elif command -v tdnf >/dev/null 2>&1; then
+              tdnf install -y python3 unzip 2>/dev/null || true
+            fi
+          fi
           TERRAFORM_VERSION=$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*' | cut -d'"' -f4)
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
-          python3 -c "import zipfile; zipfile.ZipFile('terraform.zip').extractall('.')"
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -c "import zipfile; zipfile.ZipFile('terraform.zip').extractall('.')"
+          elif command -v unzip >/dev/null 2>&1; then
+            unzip -o terraform.zip >/dev/null
+          else
+            echo "Neither python3 nor unzip is available to extract terraform.zip"
+            exit 1
+          fi
           rm -f terraform.zip
           chmod +x terraform
           export PATH="${WORKSPACE}:${PATH}"
