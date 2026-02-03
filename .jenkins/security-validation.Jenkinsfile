@@ -424,53 +424,61 @@ EOF
 - trivy results: See Jenkins build artifacts"
                 fi
 
-                cat > "$WORKDIR/security-comment-body.md" <<EOF
-## New security scan results
-
-- **Build:** ${BUILD_URL}
-- **Findings:** Critical: ${CRITICAL_COUNT} | High: ${HIGH_COUNT} | Medium: ${MEDIUM_COUNT} | Low: ${LOW_COUNT}
-- **Artifacts:** ${ARTIFACT_BASE:-See Jenkins build artifacts}
-
-(De-dupe enabled: this comment updates an existing open issue.)
-EOF
-                COMMENT_BODY=$(jq -n --rawfile body "$WORKDIR/security-comment-body.md" '{body:$body}')
+                COMMENT_BODY=$(jq -rn \
+                  --arg build "${BUILD_URL:-}" \
+                  --arg critical "$CRITICAL_COUNT" \
+                  --arg high "$HIGH_COUNT" \
+                  --arg medium "$MEDIUM_COUNT" \
+                  --arg low "$LOW_COUNT" \
+                  --arg artifacts "${ARTIFACT_BASE:-See Jenkins build artifacts}" \
+                  '
+                    "## New security scan results\n\n" +
+                    "- **Build:** " + $build + "\n" +
+                    "- **Findings:** Critical: " + $critical + " | High: " + $high + " | Medium: " + $medium + " | Low: " + $low + "\n" +
+                    "- **Artifacts:** " + $artifacts + "\n\n" +
+                    "(De-dupe enabled: this comment updates an existing open issue.)\n"
+                  ')
+                printf '%s' "$COMMENT_BODY" > "$WORKDIR/security-comment-body.md"
+                COMMENT_JSON=$(jq -n --arg body "$COMMENT_BODY" '{body:$body}')
                 if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                   if ! curl -fsSL -X POST \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${GITHUB_REPO}/issues/${EXISTING_ISSUE_NUMBER}/comments" \
-                    -d "$COMMENT_BODY" >/dev/null 2>&1; then
+                    -d "$COMMENT_JSON" >/dev/null 2>&1; then
                     echo "⚠️ WARNING: Failed to add comment to issue #${EXISTING_ISSUE_NUMBER}"
                   fi
                   echo "Updated existing issue: ${EXISTING_ISSUE_URL}"
                   exit 0
                 fi
 
-                cat > "$WORKDIR/security-issue-body.md" <<EOF
-## Security Scan Results
-
-- **Risk Level:** ${RISK_LEVEL}
-- **Findings:**
-  - Critical: ${CRITICAL_COUNT}
-  - High: ${HIGH_COUNT}
-  - Medium: ${MEDIUM_COUNT}
-  - Low: ${LOW_COUNT}
-
-**Action Required:** Please review the security scan results and address critical vulnerabilities immediately.
-
-**Scan Artifacts:**
-${artifact_lines}
-
-**Next Steps:**
-1. Review all critical findings
-2. Create remediation PRs for each critical issue
-3. Update security policies if needed
-
-This issue was automatically created by Jenkins security validation pipeline.
-EOF
-                ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --rawfile body "$WORKDIR/security-issue-body.md" --arg risk "$RISK_LEVEL" \
+                ISSUE_BODY=$(jq -rn \
+                  --arg risk "$RISK_LEVEL" \
+                  --arg critical "$CRITICAL_COUNT" \
+                  --arg high "$HIGH_COUNT" \
+                  --arg medium "$MEDIUM_COUNT" \
+                  --arg low "$LOW_COUNT" \
+                  --arg artifacts "$artifact_lines" \
+                  '
+                    "## Security Scan Results\n\n" +
+                    "- **Risk Level:** " + $risk + "\n" +
+                    "- **Findings:**\n" +
+                    "  - Critical: " + $critical + "\n" +
+                    "  - High: " + $high + "\n" +
+                    "  - Medium: " + $medium + "\n" +
+                    "  - Low: " + $low + "\n\n" +
+                    "**Action Required:** Please review the security scan results and address critical vulnerabilities immediately.\n\n" +
+                    "**Scan Artifacts:**\n" + $artifacts + "\n\n" +
+                    "**Next Steps:**\n" +
+                    "1. Review all critical findings\n" +
+                    "2. Create remediation PRs for each critical issue\n" +
+                    "3. Update security policies if needed\n\n" +
+                    "This issue was automatically created by Jenkins security validation pipeline.\n"
+                  ')
+                printf '%s' "$ISSUE_BODY" > "$WORKDIR/security-issue-body.md"
+                ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$ISSUE_BODY" --arg risk "$RISK_LEVEL" \
                   '{title:$title, body:$body, labels:(["security","automated"] + (if $risk == "CRITICAL" then ["critical"] else [] end))}')
-                echo "$ISSUE_BODY_JSON" > "$WORKDIR/security-issue-body.json"
+                printf '%s' "$ISSUE_BODY_JSON" > "$WORKDIR/security-issue-body.json"
                 if ! curl -sS -X POST \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
                   -H "Accept: application/vnd.github.v3+json" \

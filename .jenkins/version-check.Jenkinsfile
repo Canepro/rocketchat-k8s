@@ -432,31 +432,25 @@ ENSURE_LABEL_EOF
                   fi
                   UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
 
-                  cat > "$WORKDIR/issue-body.md" <<EOF
-## Version Update Alert
-
-- **Risk Level:** BREAKING (major version)
-
-**Updates Available:**
-${UPDATES_BULLETS}
-
-**Action Required:** Major version updates detected. These are likely breaking changes and require careful testing before deployment.
-
-**Next Steps:**
-1. Review breaking changes in release notes
-2. Test in staging environment
-3. Create upgrade plan
-4. Schedule maintenance window if needed
-
-This issue was automatically created by Jenkins version check pipeline.
-EOF
-                  ISSUE_BODY_JSON=$(jq -n \
-                    --arg title "Breaking: Major version updates available" \
-                    --rawfile body "$WORKDIR/issue-body.md" \
-                    '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
-                  echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
-
                   ISSUE_TITLE="Breaking: Major version updates available"
+                  ISSUE_BODY=$(jq -rn --arg updates "$UPDATES_BULLETS" '
+                    "## Version Update Alert\n\n" +
+                    "- **Risk Level:** BREAKING (major version)\n\n" +
+                    "**Updates Available:**\n" + $updates + "\n\n" +
+                    "**Action Required:** Major version updates detected. These are likely breaking changes and require careful testing before deployment.\n\n" +
+                    "**Next Steps:**\n" +
+                    "1. Review breaking changes in release notes\n" +
+                    "2. Test in staging environment\n" +
+                    "3. Create upgrade plan\n" +
+                    "4. Schedule maintenance window if needed\n\n" +
+                    "This issue was automatically created by Jenkins version check pipeline.\n"
+                  ')
+                  printf '%s' "$ISSUE_BODY" > "$WORKDIR/issue-body.md"
+                  ISSUE_BODY_JSON=$(jq -n \
+                    --arg title "$ISSUE_TITLE" \
+                    --arg body "$ISSUE_BODY" \
+                    '{title:$title, body:$body, labels:["dependencies","breaking","automated","upgrade"]}')
+                  printf '%s' "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body.json"
                   ISSUE_LIST_JSON=$(curl -fsSL \
                     -H "Authorization: token ${GITHUB_TOKEN}" \
                     -H "Accept: application/vnd.github.v3+json" \
@@ -470,16 +464,14 @@ EOF
                   fi
                   if [ -n "${EXISTING_ISSUE_NUMBER}" ]; then
                     UPDATES_BULLETS=$(cat "$WORKDIR/critical-updates.md" | tr -d '\\r')
-                    cat > "$WORKDIR/comment-body.md" <<EOF
-## New breaking updates detected
-
-- **Time:** ${RUN_AT}
-- **Build:** ${BUILD_URL}
-
-**Updates Available:**
-${UPDATES_BULLETS}
-EOF
-                    COMMENT_JSON=$(jq -n --rawfile body "$WORKDIR/comment-body.md" '{body:$body}')
+                    COMMENT_BODY=$(jq -rn --arg run_at "$RUN_AT" --arg build "${BUILD_URL:-}" --arg updates "$UPDATES_BULLETS" '
+                      "## New breaking updates detected\n\n" +
+                      "- **Time:** " + $run_at + "\n" +
+                      "- **Build:** " + $build + "\n\n" +
+                      "**Updates Available:**\n" + $updates + "\n"
+                    ')
+                    printf '%s' "$COMMENT_BODY" > "$WORKDIR/comment-body.md"
+                    COMMENT_JSON=$(jq -n --arg body "$COMMENT_BODY" '{body:$body}')
                     if ! curl -fsSL -X POST \
                       -H "Authorization: token ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github.v3+json" \
