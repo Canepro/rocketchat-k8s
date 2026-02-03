@@ -162,7 +162,7 @@ ENSURE_LABEL_EOF
             needsUpdate: azurermCurrent != azurermLatest
           ]
           
-          writeJSON file: 'terraform-versions.json', json: terraformVersions
+          writeJsonFile('terraform-versions.json', terraformVersions)
         }
       }
     }
@@ -235,7 +235,7 @@ ENSURE_LABEL_EOF
             grep -r "image:" ops/manifests/*.yaml | grep -v "#" | sed 's/.*image: \\(.*\\)/\\1/' | sort -u > image-list.txt
           '''
           
-          writeJSON file: 'image-updates.json', json: imageUpdates
+          writeJsonFile('image-updates.json', imageUpdates)
         }
       }
     }
@@ -308,7 +308,7 @@ ENSURE_LABEL_EOF
             }
           }
 
-          writeJSON file: 'chart-updates.json', json: chartUpdates
+          writeJsonFile('chart-updates.json', chartUpdates)
         }
       }
     }
@@ -386,7 +386,7 @@ ENSURE_LABEL_EOF
             updates: allUpdates
           ]
           
-          writeJSON file: "${env.UPDATE_REPORT}", json: updateReport
+          writeJsonFile("${env.UPDATE_REPORT}", updateReport)
           
           // Create PR or Issue based on risk
           withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
@@ -478,7 +478,7 @@ ENSURE_LABEL_EOF
                 medium: mediumRiskUpdates,
                 terraform: terraformVersions
               ]
-              writeJSON file: 'updates-to-apply.json', json: updatesToApply
+              writeJsonFile('updates-to-apply.json', updatesToApply)
               
               sh '''
                 set -e
@@ -767,6 +767,12 @@ EOF
       }
     }
   }
+}
+
+// Write JSON without Pipeline Utility Steps plugin.
+def writeJsonFile(String path, Object data) {
+  def json = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(data))
+  writeFile file: path, text: json
 }
 
 // Parse major version number from a version string (constraint or plain semver).
