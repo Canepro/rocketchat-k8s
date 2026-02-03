@@ -248,7 +248,7 @@ pipeline {
                 else [] end;
               def sev(v): (v.check_result.severity // v.severity // "MEDIUM") | ascii_upcase;
               def count(s): failed | map(sev(.)) | map(select(.==s)) | length;
-              "\(count(\"CRITICAL\")) \(count(\"HIGH\")) \(count(\"MEDIUM\")) \(count(\"LOW\"))"
+              [count("CRITICAL"), count("HIGH"), count("MEDIUM"), count("LOW")] | @tsv
             ' "${CHECKOV_OUTPUT}" 2>/dev/null || echo "0 0 0 0")
 EOF
             fi
