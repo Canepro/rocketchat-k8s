@@ -395,7 +395,7 @@ EOF
                   trivy_c=0; trivy_h=0; trivy_m=0; trivy_l=0
                   for f in $trivy_files; do
                     read -r c h m l <<EOF || true
-$(jq -r 'def count(sev): ([.Results[]?.Vulnerabilities[]? | select(.Severity==sev)] | length); "\(count(\"CRITICAL\")) \(count(\"HIGH\")) \(count(\"MEDIUM\")) \(count(\"LOW\"))"' "$f" 2>/dev/null || echo "0 0 0 0")
+$(jq -r 'def count(sev): ([.Results[]?.Vulnerabilities[]? | select(.Severity==sev)] | length); [count("CRITICAL"),count("HIGH"),count("MEDIUM"),count("LOW")] | @tsv' "$f" 2>/dev/null || echo "0 0 0 0")
 EOF
                     trivy_c=$((trivy_c + c))
                     trivy_h=$((trivy_h + h))
