@@ -64,6 +64,38 @@ pipeline {
     stage('Azure Login') {
       steps {
         sh '''
+          set -e
+          WORKDIR="${WORKSPACE:-$(pwd)}"
+          AZ_BIN_DIR="${WORKDIR}/.bin"
+          mkdir -p "$AZ_BIN_DIR"
+          
+          # Install Azure CLI if not available
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Installing Azure CLI..."
+            curl -fsSL https://aka.ms/InstallAzureCLIDeb -o /tmp/azure-cli-install.sh
+            # Try system install first
+            if bash /tmp/azure-cli-install.sh 2>/dev/null; then
+              echo "Azure CLI installed system-wide"
+            else
+              # Fallback: manual installation to local directory
+              echo "System install failed, installing locally..."
+              AZ_VERSION="2.56.0"
+              curl -fsSL "https://azcliprod.blob.core.windows.net/releases/azure-cli_${AZ_VERSION}_all.deb" -o /tmp/azure-cli.deb
+              dpkg-deb -x /tmp/azure-cli.deb "$AZ_BIN_DIR/azure-cli" 2>/dev/null || {
+                # If dpkg-deb not available, use Python pip
+                if command -v python3 >/dev/null 2>&1; then
+                  python3 -m pip install --user azure-cli
+                  export PATH="$HOME/.local/bin:${PATH}"
+                else
+                  echo "Cannot install Azure CLI - no package manager or Python available"
+                  exit 1
+                fi
+              }
+              [ -d "$AZ_BIN_DIR/azure-cli/opt/az/bin" ] && export PATH="$AZ_BIN_DIR/azure-cli/opt/az/bin:${PATH}"
+            fi
+            rm -f /tmp/azure-cli-install.sh /tmp/azure-cli.deb
+          fi
+          
           # Login using Workload Identity (federated token)
           az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
             --service-principal \
