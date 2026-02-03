@@ -36,8 +36,11 @@ pipeline {
             python3 -c "import zipfile; zipfile.ZipFile('terraform.zip').extractall('.')"
           elif command -v unzip >/dev/null 2>&1; then
             unzip -o terraform.zip >/dev/null
+          elif command -v jar >/dev/null 2>&1; then
+            # Use JDK jar tool if unzip/python3 are unavailable.
+            jar xf terraform.zip
           else
-            echo "Neither python3 nor unzip is available to extract terraform.zip"
+            echo "No tool available to extract terraform.zip (python3, unzip, or jar)"
             exit 1
           fi
           rm -f terraform.zip
