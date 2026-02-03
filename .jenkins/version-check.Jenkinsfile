@@ -55,9 +55,16 @@ pipeline {
           CHECKSUM_OK=0
           for YQ_SUM_FILE in checksums_sha256 checksums.txt checksums; do
             if curl -fsSL -o "$WORKDIR/yq_checksums" "${YQ_BASE_URL}/${YQ_SUM_FILE}"; then
-              if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | sha256sum -c -; then
-                CHECKSUM_OK=1
-                break
+              if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" >/dev/null 2>&1; then
+                # Support both "<hash>  filename" and "SHA256 (filename) = <hash>" formats.
+                if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | sha256sum -c - >/dev/null 2>&1; then
+                  CHECKSUM_OK=1
+                  break
+                fi
+                if grep "${YQ_ASSET}" "$WORKDIR/yq_checksums" | sed -n 's/^.*= *\([0-9a-fA-F]\{64\}\).*$/\1  '"${YQ_ASSET}"'/p' | sha256sum -c -; then
+                  CHECKSUM_OK=1
+                  break
+                fi
               fi
             fi
           done
