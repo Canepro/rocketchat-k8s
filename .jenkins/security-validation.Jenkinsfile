@@ -356,11 +356,9 @@ EOF
                   exit 0
                 fi
 
-                LABELS_JSON="[\"security\",\"automated\"]"
-                [ "$RISK_LEVEL" = "CRITICAL" ] && LABELS_JSON="[\"security\",\"automated\",\"critical\"]"
                 ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg risk "$RISK_LEVEL" --arg crit "$CRITICAL_COUNT" --arg h "$HIGH_COUNT" --arg m "$MEDIUM_COUNT" --arg l "$LOW_COUNT" \
-                  --argjson labels "$LABELS_JSON" \
-                  '{title:$title, body:("## Security scan results\n\n**Risk level:** " + $risk + "\n\n**Findings:**\n- Critical: " + $crit + "\n- High: " + $h + "\n- Medium: " + $m + "\n- Low: " + $l + "\n\n## Action required\n\nReview scan results and address findings. Artifacts: see Jenkins build.\n\n---\n*Automated by Jenkins security validation pipeline.*"), labels:$labels}')
+                  'def labels: ["security","automated"] + ( $risk == "CRITICAL" ? ["critical"] : [] );
+                   {title:$title, body:("## Security scan results\n\n**Risk level:** " + $risk + "\n\n**Findings:**\n- Critical: " + $crit + "\n- High: " + $h + "\n- Medium: " + $m + "\n- Low: " + $l + "\n\n## Action required\n\nReview scan results and address findings. Artifacts: see Jenkins build.\n\n---\n*Automated by Jenkins security validation pipeline.*"), labels: labels}')
                 echo "$ISSUE_BODY_JSON" > "$WORKDIR/security-issue-body.json"
                 if ! curl -sS -X POST \
                   -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -382,7 +380,7 @@ EOF
       archiveArtifacts artifacts: '*.json,*.md', allowEmptyArchive: true
       script {
         if (fileExists(env.RISK_REPORT)) {
-          def riskReport = parseJsonFile("${env.RISK_REPORT}")
+          def riskReport = new groovy.json.JsonSlurperClassic().parseText(readFile(env.RISK_REPORT))
           echo """
           ========================================
           Security Scan Summary
