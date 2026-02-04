@@ -94,8 +94,8 @@ resource "azurerm_kubernetes_cluster" "main" {
   lifecycle {
     ignore_changes = [
       default_node_pool[0].upgrade_settings, # Ignore upgrade settings (managed by AKS automatically)
-      # Azure doesn't persist false for this flag, so it causes perpetual diffs.
-      api_server_access_profile[0].virtual_network_integration_enabled,
+      # Azure doesn't persist api_server_access_profile defaults, so it causes perpetual diffs.
+      api_server_access_profile,
     ]
   }
 }
