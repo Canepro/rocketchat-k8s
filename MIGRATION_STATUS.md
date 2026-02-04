@@ -14,9 +14,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Current State (as of 2026‑02‑04)
 
 - **Migration Status**: ✅ **COMPLETE** - Merged to `master` branch, all ArgoCD apps tracking `master`
-- **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends)
-- **Terraform plan (2026-02-04)**: 2 in-place changes pending from azurerm v4 upgrade (apply pending after merge)
-- **Terraform plan details (2026-02-04)**: AKS `image_cleaner_interval_hours` 48 → null; AKS `api_server_access_profile.virtual_network_integration_enabled = false`; subnet `private_endpoint_network_policies` Enabled → Disabled
+- **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply (2026-02-04).
 - **Cost Optimization**: Evening-only schedule reduces monthly costs from ~£200 to ~£55-70 (within £90/month budget)
 - **ArgoCD apps (AKS)** - All tracking `master` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
@@ -102,6 +100,11 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
   - HTTPS accessible and working
 - **Pending / not recorded** in repo yet:
   - export/import procedures, validation checklist completion, post-cutover monitoring.
+
+## Completed Tasks (2026-02-04)
+
+- [x] **azurerm v4 upgrade applied** (2026-02-04)
+- [x] Terraform plan clean after apply (2026-02-04)
 
 ## Completed Tasks (2026-01-20)
 
