@@ -22,6 +22,7 @@ resource "azurerm_user_assigned_identity" "eso" {
 # This Key Vault stores all Rocket.Chat secrets (MongoDB credentials, connection strings, etc.).
 # Secrets are synced from Key Vault to Kubernetes Secrets by External Secrets Operator.
 # Azure Key Vault
+# tfsec:ignore:AVD-AZU-0013 - Personal/training environment; public Key Vault access accepted.
 resource "azurerm_key_vault" "rocketchat" {
   # Key Vault name must be globally unique (24 chars max, alphanumeric and hyphens only)
   # Name format: <cluster-name>-kv-<hash> (hash ensures uniqueness)
