@@ -362,6 +362,11 @@ Jenkins runs these stages on every push/PR to validate Terraform code:
 
 **Authentication**: Uses Azure Workload Identity via the `jenkins` service account federated to the ESO managed identity.
 
+**Plan parity**: To make Jenkins plans match Cloud Shell results, set non-secret TF_VARs in the job:
+- `TF_VAR_jenkins_graceful_disconnect_url`
+- `TF_VAR_jenkins_graceful_disconnect_user`
+- `TF_VAR_jenkins_graceful_disconnect_agent_name`
+
 **View CI Results**:
 - Jenkins: `https://jenkins.canepro.me/job/rocketchat-k8s/job/master/`
 - Plan output is archived as a build artifact
