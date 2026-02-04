@@ -5,15 +5,15 @@
 # See terraform/README.md for setup instructions and usage examples.
 
 terraform {
-  # Terraform version requirement: >= 1.0
+  # Terraform version requirement: >= 1.8
   # See VERSIONS.md for latest Terraform version and upgrade status
-  required_version = ">= 1.0"
+  required_version = ">= 1.8"
 
   required_providers {
     # Azure Resource Manager provider: Manages Azure resources
     azurerm = {
       source  = "hashicorp/azurerm" # Official Azure provider
-      version = "~> 3.0"            # Azure provider version constraint (3.x.x)
+      version = "~> 4.0"            # Azure provider version constraint (4.x.x)
       # See VERSIONS.md for latest Azure provider version and upgrade status
     }
   }
