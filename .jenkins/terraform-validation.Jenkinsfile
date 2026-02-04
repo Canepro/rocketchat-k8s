@@ -10,6 +10,11 @@ pipeline {
     STORAGE_ACCOUNT = 'tfcaneprostate1'
     STORAGE_CONTAINER = 'tfstate'
     TFVARS_BLOB = 'terraform.tfvars'
+
+    // Non-secret defaults so CI plan matches Cloud Shell (override in job config if needed)
+    TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins-oke.canepro.me'}"
+    TF_VAR_jenkins_graceful_disconnect_user = "${env.TF_VAR_jenkins_graceful_disconnect_user ?: 'admin'}"
+    TF_VAR_jenkins_graceful_disconnect_agent_name = "${env.TF_VAR_jenkins_graceful_disconnect_agent_name ?: 'aks-agent'}"
   }
   
   stages {
