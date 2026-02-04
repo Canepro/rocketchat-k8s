@@ -13,7 +13,7 @@ terraform {
     # Azure Resource Manager provider: Manages Azure resources
     azurerm = {
       source  = "hashicorp/azurerm" # Official Azure provider
-      version = "~> 3.0"            # Azure provider version constraint (3.x.x)
+      version = "~> 4.58.0"         # Azure provider version constraint (4.x.x)
       # See VERSIONS.md for latest Azure provider version and upgrade status
     }
   }
