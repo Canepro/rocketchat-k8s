@@ -38,7 +38,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   # API server access profile: Controls which IP addresses can access the Kubernetes API server
   # Empty authorized_ip_ranges means allow all IPs (less secure but more flexible)
   api_server_access_profile {
-    authorized_ip_ranges = [] # Allow all IPs (can restrict to specific IPs for security)
+    authorized_ip_ranges                = []    # Allow all IPs (can restrict to specific IPs for security)
     virtual_network_integration_enabled = false # Explicit default to keep plans stable
   }
 
