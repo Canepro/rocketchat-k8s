@@ -11,10 +11,12 @@ The AKS migration has been **successfully completed** and merged to the `master`
 
 This file tracks **where we are vs** the original migration plan (`.cursor/plans/rocketchat_migration_to_azure_aks_-_complete_with_observability_1ffff811.plan.md`).
 
-## Current State (as of 2026‑01‑20)
+## Current State (as of 2026‑02‑04)
 
 - **Migration Status**: ✅ **COMPLETE** - Merged to `master` branch, all ArgoCD apps tracking `master`
-- **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends), Terraform plan clean.
+- **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends)
+- **Terraform plan (2026-02-04)**: 2 in-place changes pending from azurerm v4 upgrade (apply pending after merge)
+- **Terraform plan details (2026-02-04)**: AKS `image_cleaner_interval_hours` 48 → null; AKS `api_server_access_profile.virtual_network_integration_enabled = false`; subnet `private_endpoint_network_policies` Enabled → Disabled
 - **Cost Optimization**: Evening-only schedule reduces monthly costs from ~£200 to ~£55-70 (within £90/month budget)
 - **ArgoCD apps (AKS)** - All tracking `master` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
@@ -58,7 +60,8 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - **Done**: `MIGRATION_STATUS.md`, `OPERATIONS.md`, `terraform/README.md` updated.
 
 ### Phase 1–2: Terraform / AKS creation
-- **Done**: AKS exists, Terraform plan clean (0 changes), state in Azure Storage backend.
+- **Done**: AKS exists, state in Azure Storage backend.
+- **Note (2026-02-04)**: Current plan has 2 in-place changes due to azurerm v4 upgrade (apply pending after merge).
 
 ### Phase 3–4: Observability secret + cluster labels
 - **Done**: Cluster labels configured, Prometheus Agent + OTel Collector deployed.
@@ -111,7 +114,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 ## Completed Tasks (2026-01-19)
 
-- [x] Terraform plan clean (0 changes)
+- [x] Terraform plan clean (0 changes) as of 2026-01-19
 - [x] ESO + AKV secrets GitOps working
 - [x] Legacy Bitnami MongoDB removed from cluster
 - [x] Legacy `rocketchat-mongodb.yaml` manifest deleted from repo

@@ -43,7 +43,7 @@ resource "azurerm_key_vault" "rocketchat" {
   # RBAC mode: Explicitly enabled for Azure RBAC-based access control
   # Required for ESO (External Secrets Operator) and Jenkins to access secrets via role assignments
   # Do NOT remove - Access Policy mode would break all RBAC role assignments
-  enable_rbac_authorization = true
+  rbac_authorization_enabled = true
 
   tags = merge(var.tags, {
     Purpose = "RocketChatSecrets" # Purpose tag (for resource organization)

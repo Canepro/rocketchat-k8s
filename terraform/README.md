@@ -42,7 +42,7 @@ terraform init -reconfigure -backend-config=backend.hcl
 ## Prerequisites
 
 - Azure CLI installed and authenticated (`az login`)
-- Terraform >= 1.0 installed in Cloud Shell
+- Terraform >= 1.8 installed in Cloud Shell
 - Appropriate Azure permissions (Contributor or higher on target subscription/resource group)
 
 ## Quick Start
