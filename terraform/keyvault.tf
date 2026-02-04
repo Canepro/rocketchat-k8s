@@ -33,8 +33,8 @@ resource "azurerm_key_vault" "rocketchat" {
   soft_delete_retention_days = 7                                                                             # Soft delete retention (days before permanent deletion)
   purge_protection_enabled   = var.key_vault_purge_protection                                                # Purge protection (from variables.tf, default: false)
 
-  # Network access: public by default (can be restricted via network_acls if needed)
-  # Network access controls which IPs/VNets can access Key Vault
+  # Network access: Deny by default; allowlisted AKS subnet and optional IP rules
+  # See variables.tf for key_vault_network_default_action and key_vault_network_ip_rules
   network_acls {
     default_action = var.key_vault_network_default_action # Default action (from variables.tf, default: "Deny")
     bypass         = "AzureServices"                      # Bypass network rules for Azure services (required for AKS)

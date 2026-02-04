@@ -131,6 +131,13 @@ variable "key_vault_network_ip_rules" {
   description = "Additional allowed public IPs/CIDRs for Key Vault access"
   type        = list(string)
   default     = []
+  validation {
+    condition = alltrue([
+      for ip in var.key_vault_network_ip_rules :
+      can(cidrhost(ip, 0)) || can(regex("^\\d{1,3}(\\.\\d{1,3}){3}$", ip))
+    ])
+    error_message = "Each entry must be a valid IP address or CIDR block."
+  }
 }
 
 # Secret Values (Sensitive - Must be provided via terraform.tfvars, NEVER committed)
