@@ -15,6 +15,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 - **Migration Status**: ✅ **COMPLETE** - Merged to `master` branch, all ArgoCD apps tracking `master`
 - **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply (2026-02-04).
+- **Jenkins CI**: Terraform plan parity clean (no changes detected) after azurerm v4 apply (2026-02-04).
 - **Cost Optimization**: Evening-only schedule reduces monthly costs from ~£200 to ~£55-70 (within £90/month budget)
 - **ArgoCD apps (AKS)** - All tracking `master` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
