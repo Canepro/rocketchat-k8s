@@ -38,6 +38,10 @@ tags = {
   ManagedBy   = "Terraform"
 }
 
+# Key Vault network access (restrict by default)
+# key_vault_network_default_action = "Deny"
+# key_vault_network_ip_rules = ["203.0.113.10/32"] # Example: your public IP (optional)
+
 # Key Vault Secret Values (SENSITIVE - DO NOT COMMIT THIS FILE)
 # Copy this file to terraform.tfvars and fill in actual values
 # terraform.tfvars is gitignored and should never be committed

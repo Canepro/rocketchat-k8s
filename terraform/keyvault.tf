@@ -22,7 +22,6 @@ resource "azurerm_user_assigned_identity" "eso" {
 # This Key Vault stores all Rocket.Chat secrets (MongoDB credentials, connection strings, etc.).
 # Secrets are synced from Key Vault to Kubernetes Secrets by External Secrets Operator.
 # Azure Key Vault
-# tfsec:ignore:AVD-AZU-0013 - Personal/training environment; public Key Vault access accepted.
 resource "azurerm_key_vault" "rocketchat" {
   # Key Vault name must be globally unique (24 chars max, alphanumeric and hyphens only)
   # Name format: <cluster-name>-kv-<hash> (hash ensures uniqueness)
@@ -37,8 +36,12 @@ resource "azurerm_key_vault" "rocketchat" {
   # Network access: public by default (can be restricted via network_acls if needed)
   # Network access controls which IPs/VNets can access Key Vault
   network_acls {
-    default_action = var.key_vault_network_default_action # Default action (from variables.tf, default: "Allow")
+    default_action = var.key_vault_network_default_action # Default action (from variables.tf, default: "Deny")
     bypass         = "AzureServices"                      # Bypass network rules for Azure services (required for AKS)
+    virtual_network_subnet_ids = [
+      azurerm_subnet.aks.id, # Allow AKS subnet access (ESO + workloads)
+    ]
+    ip_rules = var.key_vault_network_ip_rules # Optional extra IP allowlist (e.g., Cloud Shell IP)
   }
 
   # RBAC mode: Explicitly enabled for Azure RBAC-based access control
