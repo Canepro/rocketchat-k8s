@@ -38,8 +38,8 @@ tags = {
   ManagedBy   = "Terraform"
 }
 
-# Key Vault network access (restrict by default)
-# key_vault_network_default_action = "Deny"
+# Key Vault network access (optional)
+# key_vault_network_default_action = "Allow"
 # key_vault_network_ip_rules = ["203.0.113.10/32"] # Example: your public IP (optional)
 
 # Key Vault Secret Values (SENSITIVE - DO NOT COMMIT THIS FILE)

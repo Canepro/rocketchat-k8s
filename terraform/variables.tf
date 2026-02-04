@@ -119,7 +119,7 @@ variable "key_vault_purge_protection" {
 variable "key_vault_network_default_action" {
   description = "Default network action for Key Vault (Allow or Deny)" # Network access default action
   type        = string
-  default     = "Deny" # Default: Deny all IPs (override in terraform.tfvars if needed)
+  default     = "Allow" # Default: Allow all IPs (override in terraform.tfvars if needed)
   validation {
     # Validation: Ensure only valid values are allowed
     condition     = contains(["Allow", "Deny"], var.key_vault_network_default_action)
