@@ -206,8 +206,12 @@ pipeline {
                 sh """
                   export PATH="\${WORKSPACE}/checkov-venv/bin:\${WORKSPACE}:\${PATH}"
                   echo "Scanning image: ${image}"
-                  trivy image --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
-                  trivy image ${image} || true
+                  VEX_ARG=""
+                  if [ -f "\${WORKSPACE}/vex/rocketchat-vex.json" ]; then
+                    VEX_ARG="--vex \${WORKSPACE}/vex/rocketchat-vex.json"
+                  fi
+                  trivy image \${VEX_ARG} --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
+                  trivy image \${VEX_ARG} ${image} || true
                 """
               }
             }

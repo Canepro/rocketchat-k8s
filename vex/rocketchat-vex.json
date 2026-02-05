@@ -1,0 +1,89 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/Canepro/rocketchat-k8s/blob/master/vex/rocketchat-vex.json",
+  "author": "Canepro",
+  "timestamp": "2026-02-05T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2025-15467"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Rocket.Chat does not parse untrusted CMS/PKCS#7 content using AEAD ciphers, so the vulnerable code path is not exercised."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2025-69419"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "PKCS#12 parsing is not exposed to user-controlled input in Rocket.Chat, so this is not exploitable."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2025-69421"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "PKCS#12 parsing is not exposed to user-controlled input in Rocket.Chat, so this is not exploitable."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-22801"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Rocket.Chat does not allow users to supply PNGs to the affected libpng code paths, so it is not exploitable."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-22695"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Rocket.Chat does not allow users to supply PNGs to the affected libpng code paths, so it is not exploitable."
+    }
+  ]
+}
