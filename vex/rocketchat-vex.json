@@ -11,7 +11,7 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
         },
         {
           "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
@@ -27,7 +27,7 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
         },
         {
           "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
@@ -43,7 +43,7 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
         },
         {
           "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
@@ -59,7 +59,7 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
         },
         {
           "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
@@ -75,7 +75,7 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/registry.rocket.chat/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
         },
         {
           "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
