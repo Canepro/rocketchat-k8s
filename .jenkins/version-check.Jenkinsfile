@@ -601,7 +601,8 @@ ENSURE_LABEL_EOF
                 if gitw show-ref --verify --quiet "refs/remotes/origin/${BRANCH_NAME}"; then
                   gitw checkout -B "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
                 else
-                  gitw checkout -b "${BRANCH_NAME}"
+                  # Use -B to reuse an existing local branch without failing the job
+                  gitw checkout -B "${BRANCH_NAME}"
                 fi
                 
                 echo "Applying version updates to files..."
