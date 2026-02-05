@@ -11,6 +11,7 @@ data "azurerm_client_config" "current" {}
 # AKS Cluster: Main Kubernetes cluster resource
 # This resource creates the AKS cluster with all required configuration.
 # AKS Cluster
+# tfsec:ignore:AVD-AZU-0041 - Personal/training environment; public API server exposure accepted.
 resource "azurerm_kubernetes_cluster" "main" {
   name                = var.cluster_name                                             # Cluster name (from variables.tf, default: "aks-canepro")
   location            = azurerm_resource_group.main.location                         # Azure region (from resource group)

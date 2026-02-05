@@ -119,11 +119,24 @@ variable "key_vault_purge_protection" {
 variable "key_vault_network_default_action" {
   description = "Default network action for Key Vault (Allow or Deny)" # Network access default action
   type        = string
-  default     = "Allow" # Default: Allow all IPs (can be overridden in terraform.tfvars - use Deny for production)
+  default     = "Allow" # Default: Allow all IPs (override in terraform.tfvars if needed)
   validation {
     # Validation: Ensure only valid values are allowed
     condition     = contains(["Allow", "Deny"], var.key_vault_network_default_action)
     error_message = "key_vault_network_default_action must be either 'Allow' or 'Deny'."
+  }
+}
+
+variable "key_vault_network_ip_rules" {
+  description = "Additional allowed public IPs/CIDRs for Key Vault access"
+  type        = list(string)
+  default     = []
+  validation {
+    condition = alltrue([
+      for ip in var.key_vault_network_ip_rules :
+      can(cidrhost(ip, 0)) || can(regex("^\\d{1,3}(\\.\\d{1,3}){3}$", ip))
+    ])
+    error_message = "Each entry must be a valid IP address or CIDR block."
   }
 }
 
