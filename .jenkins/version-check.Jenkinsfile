@@ -820,6 +820,7 @@ EOF
             if [ -n "${ISSUE_NUMBER}" ]; then
               FAIL_COMMENT=$(cat <<EOF
 ## CI failure update
+
 - Job: ${JOB_NAME}
 - Build: ${BUILD_URL}
 - Branch: ${BRANCH}
@@ -829,7 +830,8 @@ EOF
 Please check Jenkins logs for details.
 EOF
 )
-              COMMENT_JSON=$(jq -n --arg body "$FAIL_COMMENT" '{body:$body}')
+              printf '%s\n' "$FAIL_COMMENT" > "$WORKDIR/fail-comment.md"
+              COMMENT_JSON=$(jq -n --rawfile body "$WORKDIR/fail-comment.md" '{body:$body}')
               if ! curl -sS -X POST \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github.v3+json" \
@@ -843,6 +845,7 @@ EOF
 
             FAIL_BODY=$(cat <<EOF
 ## CI failure
+
 - Job: ${JOB_NAME}
 - Build: ${BUILD_URL}
 - Branch: ${BRANCH}
@@ -863,7 +866,8 @@ EOF
 *Automated by Jenkins.*
 EOF
 )
-            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$FAIL_BODY" \
+            printf '%s\n' "$FAIL_BODY" > "$WORKDIR/fail-body.md"
+            ISSUE_BODY_JSON=$(jq -n --arg title "$ISSUE_TITLE" --rawfile body "$WORKDIR/fail-body.md" \
               '{title:$title, body:$body, labels:["ci","jenkins","failure","automated"]}')
             echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body-failure.json"
             if ! curl -sS -X POST \
