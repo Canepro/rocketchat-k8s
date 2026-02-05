@@ -606,6 +606,9 @@ ENSURE_LABEL_EOF
                 
                 echo "Applying version updates to files..."
                 UPDATE_FAILED=0
+                UPDATE_LIST="$WORKDIR/updates-to-apply.list"
+                jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)|\\(.chart // \"\")"' \
+                  "$WORKDIR/updates-to-apply.json" 2>/dev/null > "$UPDATE_LIST" || true
                 while IFS='|' read -r component current latest location chart; do
                   [ -z "$component" ] || [ -z "$latest" ] || [ "$current" = "$latest" ] && continue
                   echo "Updating $component: $current → $latest in $location"
@@ -641,7 +644,7 @@ ENSURE_LABEL_EOF
                         ;;
                     esac
                   fi
-                done < <(jq -r '.high[] + .medium[] | select(.component != null) | "\\(.component)|\\(.current)|\\(.latest)|\\(.location)|\\(.chart // \"\")"' "$WORKDIR/updates-to-apply.json" 2>/dev/null)
+                done < "$UPDATE_LIST"
                 [ "$UPDATE_FAILED" -ne 0 ] && { echo "⚠️ WARNING: One or more manifest updates failed."; exit 1; }
 
                 if [ "$(jq -r '.terraform.azurerm.needsUpdate // false' "$WORKDIR/updates-to-apply.json" 2>/dev/null)" = "true" ]; then
