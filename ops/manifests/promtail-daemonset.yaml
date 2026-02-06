@@ -27,13 +27,16 @@ spec:
         # Allow scheduling on all nodes including system nodes (like kube-system)
         # This ensures we collect logs from all pods, even those on tainted nodes
         - operator: Exists
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: promtail
           # Promtail image version - See VERSIONS.md for latest version and update procedure
           # Current: v3.6.0 (latest as of 2026-01-16)
           # Note: Promtail will be deprecated in favor of Grafana Alloy after March 2026
           image: grafana/promtail:3.6.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args:
             # Config file location (mounted from ConfigMap)
             - -config.file=/etc/promtail/promtail.yaml
@@ -88,12 +91,20 @@ spec:
             requests:
               cpu: 50m
               memory: 64Mi
+              ephemeral-storage: 128Mi
             limits:
               cpu: 200m
               memory: 256Mi
+              ephemeral-storage: 1Gi
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             # Config file from ConfigMap
             - name: config

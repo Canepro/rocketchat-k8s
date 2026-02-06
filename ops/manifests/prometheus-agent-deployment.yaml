@@ -24,47 +24,16 @@ spec:
     spec:
       # Service account with RBAC permissions to discover pods/services/nodes (see prometheus-agent-rbac.yaml)
       serviceAccountName: prometheus-agent
-      initContainers:
-      # Init container: Renders Prometheus config template with credentials before main container starts
-      # This avoids storing credentials in ConfigMap (credentials come from Secret)
-      - name: config-init
-        # Alpine Linux with gettext package (provides envsubst command)
-        # Latest: alpine:3.20 (as of 2026-01-16) - See VERSIONS.md for updates
-        image: alpine:3.20
-        command:
-        - sh
-        - -c
-        - |
-          # Install gettext package (provides envsubst command for variable substitution)
-          apk add --no-cache gettext >/dev/null 2>&1
-          # Substitute environment variables in config template and write final config
-          # This replaces ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD} with values from Secret
-          envsubst '$GRAFANA_USERNAME $GRAFANA_PASSWORD' \
-            < /etc/prometheus-template/prometheus.yml.tmpl > /etc/prometheus/prometheus.yml
-        env:
-        # Credentials from observability-credentials secret (injected as env vars)
-        # These are referenced in the config template as ${GRAFANA_USERNAME} and ${GRAFANA_PASSWORD}
-        - name: GRAFANA_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: observability-credentials
-              key: username
-        - name: GRAFANA_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: observability-credentials
-              key: password
-        volumeMounts:
-        - mountPath: /etc/prometheus-template
-          name: config-template
-        - mountPath: /etc/prometheus
-          name: config
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: prometheus
         # Prometheus image version - See VERSIONS.md for latest version and update procedure
         # Current: v3.8.1 (latest stable as of 2026-01-16)
         # Note: v2.45.0 is outdated. Update to v3.8.1 or later.
         image: prom/prometheus:v3.8.1
+        imagePullPolicy: Always
         args:
           # Config file location (rendered by init container from template)
           - '--config.file=/etc/prometheus/prometheus.yml'
@@ -78,15 +47,35 @@ spec:
         - containerPort: 9090
           name: web
         volumeMounts:
-        - mountPath: /etc/prometheus
+        - mountPath: /etc/prometheus/prometheus.yml
           name: config
+          subPath: prometheus.yml
+          readOnly: true
+        - mountPath: /etc/observability-auth
+          name: observability-auth
+          readOnly: true
+        - mountPath: /prometheus
+          name: storage
+        - mountPath: /tmp
+          name: tmp
         resources:
           requests:
             memory: "128Mi"
             cpu: "100m"
+            ephemeral-storage: 128Mi
           limits:
             memory: "512Mi"
             cpu: "500m"
+            ephemeral-storage: 2Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
         livenessProbe:
           httpGet:
             path: /-/healthy
@@ -100,8 +89,13 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-      - name: config-template
+      - name: config
         configMap:
           name: prometheus-agent-config
-      - name: config
+      - name: observability-auth
+        secret:
+          secretName: observability-credentials
+      - name: storage
+        emptyDir: {}
+      - name: tmp
         emptyDir: {}
