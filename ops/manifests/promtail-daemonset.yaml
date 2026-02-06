@@ -131,9 +131,7 @@ spec:
         # Positions file: Stored on host to persist across pod restarts
         # This ensures Promtail doesn't re-read old logs after restart
         - name: positions
-          hostPath:
-            path: /var/lib/promtail
-            type: DirectoryOrCreate  # Create directory if it doesn't exist
+          emptyDir: {}
         # Host path mounts: Access node's log directories (read-only for security)
         - name: varlogpods
           hostPath:
