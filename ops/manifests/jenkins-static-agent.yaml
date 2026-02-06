@@ -30,7 +30,10 @@ spec:
       serviceAccountName: jenkins
       restartPolicy: Always
       securityContext:
-        fsGroup: 10000
+        # Use the image's default UID/GID (jenkins:jenkins) so Java has a real user/home.
+        # Running as an arbitrary high UID (not present in /etc/passwd) makes Java resolve
+        # user.home to "?" and the agent fails to initialize its jar cache.
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -39,6 +42,10 @@ spec:
           image: jenkins/inbound-agent:3206.vb_15dcf73f6a_9-2
           imagePullPolicy: Always
           env:
+            - name: HOME
+              value: /home/jenkins
+            - name: JENKINS_AGENT_WORKDIR
+              value: /home/jenkins/agent
             - name: JENKINS_URL
               value: "https://jenkins.canepro.me/"
             - name: JENKINS_AGENT_NAME
@@ -66,11 +73,14 @@ spec:
             - -c
             - |
               set -e
-              exec java -jar /usr/share/jenkins/agent.jar \
+              exec java \
+                -Duser.home="$HOME" \
+                -jar /usr/share/jenkins/agent.jar \
                 -url "$JENKINS_URL" \
                 -webSocket \
                 -name "$JENKINS_AGENT_NAME" \
-                -secret "$JENKINS_SECRET"
+                -secret "$JENKINS_SECRET" \
+                -workDir "$JENKINS_AGENT_WORKDIR"
           resources:
             requests:
               cpu: "200m"
@@ -88,8 +98,8 @@ spec:
               mountPath: /tmp
           securityContext:
             runAsNonRoot: true
-            runAsUser: 10000
-            runAsGroup: 10000
+            runAsUser: 1000
+            runAsGroup: 1000
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
