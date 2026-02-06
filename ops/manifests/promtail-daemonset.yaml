@@ -28,6 +28,8 @@ spec:
         # This ensures we collect logs from all pods, even those on tainted nodes
         - operator: Exists
       securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:
