@@ -35,7 +35,7 @@ spec:
         image: prom/prometheus:v3.8.1
         imagePullPolicy: Always
         args:
-          # Config file location (rendered by init container from template)
+          # Config file location (mounted from ConfigMap via 'config' volume)
           - '--config.file=/etc/prometheus/prometheus.yml'
           # Enable lifecycle API: Allows config reload via HTTP endpoint (for future use)
           - '--web.enable-lifecycle'

@@ -121,13 +121,14 @@ spec:
             - name: http-metrics
               containerPort: 8080
           livenessProbe:
-            tcpSocket:
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          readinessProbe:
             httpGet:
               path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /metrics
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
