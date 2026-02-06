@@ -15,7 +15,8 @@ data:
       grpc_listen_port: 0     # gRPC disabled (not needed for this setup)
 
     # Positions file: Tracks where Promtail last read from each log file
-    # This prevents re-reading logs after pod restarts. Stored on host path.
+    # Note: In ops/manifests/promtail-daemonset.yaml this path is backed by an emptyDir volume,
+    # so positions do NOT persist across pod restarts and Promtail may re-read recent logs.
     positions:
       filename: /run/promtail/positions.yaml
 
