@@ -41,6 +41,7 @@ tags = {
 # Key Vault network access (optional)
 # key_vault_network_default_action = "Allow"
 # key_vault_network_ip_rules = ["203.0.113.10/32"] # Example: your public IP (optional)
+# key_vault_purge_protection = true # Optional; makes destroy/recreate harder
 
 # Key Vault Secret Values (SENSITIVE - DO NOT COMMIT THIS FILE)
 # Copy this file to terraform.tfvars and fill in actual values

@@ -113,7 +113,7 @@ variable "key_vault_sku" {
 variable "key_vault_purge_protection" {
   description = "Enable purge protection on Key Vault (prevents immediate deletion)" # Purge protection (prevents accidental deletion)
   type        = bool
-  default     = false # Default: disabled (can be overridden in terraform.tfvars - enable for production)
+  default     = false # Default: disabled (set true in terraform.tfvars if you accept harder destroy/recreate)
 }
 
 variable "key_vault_network_default_action" {

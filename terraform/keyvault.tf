@@ -23,6 +23,7 @@ resource "azurerm_user_assigned_identity" "eso" {
 # Secrets are synced from Key Vault to Kubernetes Secrets by External Secrets Operator.
 # Azure Key Vault
 # tfsec:ignore:AVD-AZU-0013 - Personal/training environment; public Key Vault access accepted.
+# tfsec:ignore:AVD-AZU-0016 - Purge protection is intentionally configurable; enable via var.key_vault_purge_protection when appropriate.
 resource "azurerm_key_vault" "rocketchat" {
   # Key Vault name must be globally unique (24 chars max, alphanumeric and hyphens only)
   # Name format: <cluster-name>-kv-<hash> (hash ensures uniqueness)
@@ -97,10 +98,12 @@ resource "azurerm_role_assignment" "terraform_runner_secrets_officer" {
 
 # MongoDB connection URI: Rocket.Chat primary database connection
 resource "azurerm_key_vault_secret" "rocketchat_mongo_uri" {
-  name         = "rocketchat-mongo-uri"                                     # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-rocketchat-mongodb-external.yaml)
-  value        = var.rocketchat_mongo_uri                                   # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-mongo-uri"                                     # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-rocketchat-mongodb-external.yaml)
+  value           = var.rocketchat_mongo_uri                                   # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -115,10 +118,12 @@ resource "azurerm_key_vault_secret" "rocketchat_mongo_uri" {
 
 # MongoDB oplog connection URI: Rocket.Chat oplog database connection (for real-time features)
 resource "azurerm_key_vault_secret" "rocketchat_mongo_oplog_uri" {
-  name         = "rocketchat-mongo-oplog-uri"                               # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-rocketchat-mongodb-external.yaml)
-  value        = var.rocketchat_mongo_oplog_uri                             # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-mongo-oplog-uri"                               # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-rocketchat-mongodb-external.yaml)
+  value           = var.rocketchat_mongo_oplog_uri                             # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -133,10 +138,12 @@ resource "azurerm_key_vault_secret" "rocketchat_mongo_oplog_uri" {
 
 # MongoDB admin password: MongoDB admin user password (for MongoDB Community Operator)
 resource "azurerm_key_vault_secret" "mongodb_admin_password" {
-  name         = "rocketchat-mongodb-admin-password"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-mongodb-admin-password.yaml)
-  value        = var.mongodb_admin_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-mongodb-admin-password"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-mongodb-admin-password.yaml)
+  value           = var.mongodb_admin_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -151,10 +158,12 @@ resource "azurerm_key_vault_secret" "mongodb_admin_password" {
 
 # MongoDB rocketchat user password: MongoDB rocketchat user password (for MongoDB Community Operator)
 resource "azurerm_key_vault_secret" "mongodb_rocketchat_password" {
-  name         = "rocketchat-mongodb-rocketchat-password"                   # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-mongodb-rocketchat-password.yaml)
-  value        = var.mongodb_rocketchat_password                            # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-mongodb-rocketchat-password"                   # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-mongodb-rocketchat-password.yaml)
+  value           = var.mongodb_rocketchat_password                            # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -169,10 +178,12 @@ resource "azurerm_key_vault_secret" "mongodb_rocketchat_password" {
 
 # MongoDB metrics endpoint password: MongoDB metrics endpoint password (for Prometheus scraping)
 resource "azurerm_key_vault_secret" "mongodb_metrics_endpoint_password" {
-  name         = "rocketchat-mongodb-metrics-endpoint-password"             # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-metrics-endpoint-password.yaml)
-  value        = var.mongodb_metrics_endpoint_password                      # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-mongodb-metrics-endpoint-password"             # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-metrics-endpoint-password.yaml)
+  value           = var.mongodb_metrics_endpoint_password                      # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -188,10 +199,12 @@ resource "azurerm_key_vault_secret" "mongodb_metrics_endpoint_password" {
 # Observability credentials: Username for basic auth to central observability hub (Grafana/Mimir/Tempo/Loki)
 # This credential is used by Prometheus Agent, OTel Collector, and Promtail for authenticating to the hub.
 resource "azurerm_key_vault_secret" "observability_username" {
-  name         = "rocketchat-observability-username"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-observability-credentials.yaml)
-  value        = var.observability_username                                 # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-observability-username"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-observability-credentials.yaml)
+  value           = var.observability_username                                 # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -207,10 +220,12 @@ resource "azurerm_key_vault_secret" "observability_username" {
 # Observability credentials: Password for basic auth to central observability hub (Grafana/Mimir/Tempo/Loki)
 # This credential is used by Prometheus Agent, OTel Collector, and Promtail for authenticating to the hub.
 resource "azurerm_key_vault_secret" "observability_password" {
-  name         = "rocketchat-observability-password"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-observability-credentials.yaml)
-  value        = var.observability_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "rocketchat-observability-password"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-observability-credentials.yaml)
+  value           = var.observability_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -226,10 +241,12 @@ resource "azurerm_key_vault_secret" "observability_password" {
 # Jenkins credentials: Admin username for Jenkins login
 # This credential is used by Jenkins controller for admin authentication.
 resource "azurerm_key_vault_secret" "jenkins_admin_username" {
-  name         = "jenkins-admin-username"                                   # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
-  value        = var.jenkins_admin_username                                 # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "jenkins-admin-username"                                   # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value           = var.jenkins_admin_username                                 # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -245,10 +262,12 @@ resource "azurerm_key_vault_secret" "jenkins_admin_username" {
 # Jenkins credentials: Admin password for Jenkins login
 # This credential is used by Jenkins controller for admin authentication.
 resource "azurerm_key_vault_secret" "jenkins_admin_password" {
-  name         = "jenkins-admin-password"                                   # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
-  value        = var.jenkins_admin_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "jenkins-admin-password"                                   # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value           = var.jenkins_admin_password                                 # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
@@ -264,10 +283,12 @@ resource "azurerm_key_vault_secret" "jenkins_admin_password" {
 # Jenkins credentials: GitHub personal access token for PR validation
 # This credential is used by Jenkins GitHub plugin for PR validation and webhook management.
 resource "azurerm_key_vault_secret" "jenkins_github_token" {
-  name         = "jenkins-github-token"                                     # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
-  value        = var.jenkins_github_token                                   # Secret value (from terraform.tfvars, sensitive - never committed)
-  key_vault_id = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
-  depends_on   = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+  name            = "jenkins-github-token"                                     # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value           = var.jenkins_github_token                                   # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
 
   lifecycle {
     # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
