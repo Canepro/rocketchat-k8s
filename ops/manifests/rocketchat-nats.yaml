@@ -256,8 +256,6 @@ spec:
           name: cluster  # Cluster communication port
         - containerPort: 8222
           name: monitor  # Monitoring HTTP port
-        - containerPort: 7777
-          name: metrics  # Prometheus metrics port (from metrics sidecar)
         command:
         - "nats-server"
         - "--config"
