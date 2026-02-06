@@ -29,6 +29,10 @@ spec:
     spec:
       serviceAccountName: jenkins
       restartPolicy: Always
+      securityContext:
+        fsGroup: 10000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: agent
           # Pinned for reproducibility; use a custom image with Terraform/Azure CLI/helm when running pipelines.
@@ -71,6 +75,28 @@ spec:
             requests:
               cpu: "200m"
               memory: "256Mi"
+              ephemeral-storage: "512Mi"
             limits:
               cpu: "1000m"
               memory: "2Gi"
+              ephemeral-storage: "5Gi"
+          workingDir: /home/jenkins/agent
+          volumeMounts:
+            - name: home
+              mountPath: /home/jenkins
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10000
+            runAsGroup: 10000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

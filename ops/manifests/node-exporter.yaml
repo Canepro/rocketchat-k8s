@@ -23,12 +23,15 @@ spec:
     spec:
       serviceAccountName: node-exporter
       automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       tolerations:
         - operator: Exists
       containers:
         - name: node-exporter
           image: prom/node-exporter:v1.10.2
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args:
             - --path.procfs=/host/proc
             - --path.sysfs=/host/sys
@@ -37,16 +40,35 @@ spec:
           ports:
             - name: metrics
               containerPort: 9100
+          livenessProbe:
+            tcpSocket:
+              port: 9100
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9100
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             requests:
               cpu: 50m
               memory: 64Mi
+              ephemeral-storage: 64Mi
             limits:
               cpu: 200m
               memory: 256Mi
+              ephemeral-storage: 256Mi
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - name: proc
               mountPath: /host/proc

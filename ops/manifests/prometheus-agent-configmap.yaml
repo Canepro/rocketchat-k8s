@@ -1,7 +1,6 @@
 # Prometheus Agent Configuration
-# This ConfigMap contains the Prometheus Agent configuration template.
-# The template uses environment variable substitution (${GRAFANA_USERNAME}, ${GRAFANA_PASSWORD}) 
-# for credentials, which are rendered by the init container before Prometheus Agent starts.
+# This ConfigMap contains the Prometheus Agent configuration.
+# Credentials are provided via files mounted from the existing Secret (observability-credentials).
 # See VERSIONS.md for version tracking.
 apiVersion: v1
 kind: ConfigMap
@@ -9,8 +8,7 @@ metadata:
   name: prometheus-agent-config
   namespace: monitoring
 data:
-  # Prometheus configuration template (rendered by init container in prometheus-agent-deployment.yaml)
-  prometheus.yml.tmpl: |
+  prometheus.yml: |
     global:
       scrape_interval: 30s  # How often to scrape metrics from targets
       external_labels:
@@ -28,8 +26,8 @@ data:
     remote_write:
       - url: https://observability.canepro.me/api/v1/write
         basic_auth:
-          username: ${GRAFANA_USERNAME}
-          password: ${GRAFANA_PASSWORD}
+          username_file: /etc/observability-auth/username
+          password_file: /etc/observability-auth/password
         headers:
           X-Scope-OrgID: "1"
         queue_config:

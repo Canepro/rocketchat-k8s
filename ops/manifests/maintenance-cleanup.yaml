@@ -13,6 +13,7 @@ metadata:
 spec:
   schedule: "0 3 * * 0"  # Every Sunday at 03:00 UTC (weekly cleanup)
   concurrencyPolicy: Forbid  # Don't run multiple instances simultaneously
+  startingDeadlineSeconds: 3600  # Avoid running if missed by too much
   successfulJobsHistoryLimit: 1  # Keep only 1 successful job in history
   failedJobsHistoryLimit: 1  # Keep only 1 failed job in history
   jobTemplate:
@@ -35,6 +36,7 @@ spec:
               # Alpine Linux version - See VERSIONS.md for latest version and upgrade status
               # Current: 3.19 (latest: 3.20 - can upgrade with low risk)
               image: alpine:3.19
+              imagePullPolicy: Always
               command:
                 - /bin/sh
                 - -c
@@ -61,5 +63,13 @@ spec:
                   '
               securityContext:
                 privileged: true  # Required for nsenter to access host namespaces
-
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                  ephemeral-storage: 128Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+                  ephemeral-storage: 1Gi
 

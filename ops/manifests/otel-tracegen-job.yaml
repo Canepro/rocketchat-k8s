@@ -26,6 +26,12 @@ spec:
         app: otel-tracegen
     spec:
       restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
       # Optional: if GHCR blocks anonymous pulls in your environment (403 from ghcr.io/token),
       # create a docker-registry secret named 'ghcr-pull' in the monitoring namespace and
       # uncomment this to authenticate pulls.
@@ -37,7 +43,7 @@ spec:
           # Pinned to a known-good digest (from the last successful run) for reproducibility.
           # See VERSIONS.md - pinned for stability (can update to latest if needed)
           image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen@sha256:d9243daa690ebc25db5f62537fe203792594bc35d8223456a84ca41df290dcb5
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args:
             # Emit spans into the in-cluster OTel collector (OTLP/gRPC).
             - traces  # Generate traces (not metrics or logs)
@@ -46,5 +52,24 @@ spec:
             - --service=rocketchat-tracegen  # Service name for traces (shows up in Grafana Tempo)
             - --duration=60s  # Generate traces for 60 seconds
             - --rate=5  # Generate 5 traces per second
-
-
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+              ephemeral-storage: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
