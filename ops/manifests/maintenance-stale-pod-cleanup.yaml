@@ -32,7 +32,8 @@ spec:
           containers:
             - name: cleanup
               # Use a kubectl image so we don't install packages at runtime (more deterministic + kube-score friendly).
-              image: bitnami/kubectl:1.31.4
+              # Keep kubectl within +/-1 minor of the cluster version (aks-canepro is v1.33.x).
+              image: registry.k8s.io/kubectl:v1.33.5
               imagePullPolicy: Always
               command:
                 - /bin/sh
