@@ -154,12 +154,15 @@ spec:
       labels:
         app: rocketchat-nats-box
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: nats-box
         # NATS Box version - See VERSIONS.md for latest version and upgrade status
         # Current: 0.8.1 (latest: 0.16.2 - can upgrade)
         image: natsio/nats-box:0.8.1
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         env:
         - name: NATS_URL
           value: rocketchat-nats  # NATS server service name
@@ -167,6 +170,30 @@ spec:
         - "tail"
         - "-f"
         - "/dev/null"  # Keep container running (for exec/kubectl debug)
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+            ephemeral-storage: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 # NATS StatefulSet: Main NATS server deployment
 # StatefulSet ensures stable pod identities (rocketchat-nats-0, rocketchat-nats-1, etc.)
@@ -208,15 +235,20 @@ spec:
           name: rocketchat-nats-config  # NATS configuration from ConfigMap above
       - name: pid
         emptyDir: {}  # Shared PID file for configuration reloader
+      - name: tmp
+        emptyDir: {}
       shareProcessNamespace: true  # Share PID namespace between containers (for reloader)
       terminationGracePeriodSeconds: 60  # Grace period for graceful shutdown
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       # Main NATS server container
       - name: nats
         # NATS Server version - See VERSIONS.md for latest version and upgrade status
         # Current: 2.4-alpine (latest: 2.10.24 - major version jump, test carefully)
         image: nats:2.4-alpine
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 4222
           name: client  # Client connections port
@@ -248,6 +280,8 @@ spec:
           mountPath: /etc/nats-config  # NATS configuration file location
         - name: pid
           mountPath: /var/run/nats  # PID file location (shared with reloader)
+        - name: tmp
+          mountPath: /tmp
         livenessProbe:
           httpGet:
             path: /  # Health check endpoint
@@ -257,6 +291,13 @@ spec:
           periodSeconds: 30
           successThreshold: 1
           failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8222
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          periodSeconds: 10
         startupProbe:
           httpGet:
             path: /
@@ -272,12 +313,30 @@ spec:
               command:
               - "nats-server"
               - "-sl=ldm=/var/run/nats/nats.pid"  # Lame duck mode (graceful shutdown)
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+            ephemeral-storage: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
       # Configuration reloader sidecar: Watches ConfigMap changes and reloads NATS config
       - name: reloader
         # NATS Config Reloader version - See VERSIONS.md for latest version and upgrade status
         # Current: 0.6.3 (latest: 1.1.0 - major version jump, test carefully)
         image: natsio/nats-server-config-reloader:0.6.3
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         command:
         - "nats-server-config-reloader"
         - "-pid"
@@ -289,12 +348,30 @@ spec:
           mountPath: /etc/nats-config  # Watch for config changes
         - name: pid
           mountPath: /var/run/nats  # Access PID file
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+            ephemeral-storage: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
       # Prometheus metrics exporter sidecar: Exposes NATS metrics in Prometheus format
       - name: metrics
         # Prometheus NATS Exporter version - See VERSIONS.md for latest version and upgrade status
         # Current: 0.9.1 (latest: 0.10.0 - minor version, lower risk)
         image: natsio/prometheus-nats-exporter:0.9.1
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         args:
         - -connz      # Connection metrics
         - -routez     # Route metrics (clustering)
@@ -306,3 +383,33 @@ spec:
         ports:
         - containerPort: 7777
           name: metrics  # Prometheus scrapes this port
+        livenessProbe:
+          tcpSocket:
+            port: 7777
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 7777
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+            ephemeral-storage: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL

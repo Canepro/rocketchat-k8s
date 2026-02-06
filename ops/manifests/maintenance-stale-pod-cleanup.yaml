@@ -13,6 +13,7 @@ spec:
   schedule: "30 16 * * *"  # 16:30 UTC daily (30min after 16:00 cluster start)
   timeZone: "UTC"  # Explicit timezone for clarity
   concurrencyPolicy: Forbid  # Don't run multiple instances simultaneously
+  startingDeadlineSeconds: 600  # Avoid running if the cluster was down for too long
   successfulJobsHistoryLimit: 3  # Keep last 3 successful runs for audit
   failedJobsHistoryLimit: 2  # Keep last 2 failed runs for troubleshooting
   jobTemplate:
@@ -25,22 +26,20 @@ spec:
         spec:
           serviceAccountName: stale-pod-cleanup  # Dedicated SA with delete permissions
           restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: cleanup
-              # Alpine Linux - same pattern as k3s-image-prune (proven to work)
-              # See VERSIONS.md for version tracking
-              image: alpine:3.19
+              # Use a kubectl image so we don't install packages at runtime (more deterministic + kube-score friendly).
+              # Keep kubectl within +/-1 minor of the cluster version (aks-canepro is v1.33.x).
+              image: registry.k8s.io/kubectl:v1.33.5
+              imagePullPolicy: Always
               command:
                 - /bin/sh
                 - -c
                 - |
                   set -eu  # Exit on error and undefined variables
-                  # Install kubectl
-                  echo "Installing kubectl..."
-                  apk add --no-cache curl >/dev/null
-                  curl -LO "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl" >/dev/null 2>&1
-                  chmod +x kubectl
-                  mv kubectl /usr/local/bin/
                   
                   echo "[$(date -Iseconds)] Starting stale pod cleanup..."
                   
@@ -78,9 +77,26 @@ spec:
                 requests:
                   memory: "64Mi"
                   cpu: "50m"
+                  ephemeral-storage: "128Mi"
                 limits:
                   memory: "128Mi"
                   cpu: "100m"
+                  ephemeral-storage: "512Mi"
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
 ---
 # ServiceAccount for stale pod cleanup
 apiVersion: v1

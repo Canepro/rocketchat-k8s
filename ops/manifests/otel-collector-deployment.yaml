@@ -22,6 +22,9 @@ spec:
         # Config revision annotation: Update this when config changes to trigger pod restart
         canepro.me/otel-collector-config-rev: "2026-01-18-02"
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: otel-collector
           # OpenTelemetry Collector Contrib image version - See VERSIONS.md for latest version and update procedure
@@ -29,7 +32,7 @@ spec:
           # Note: v0.88.0 is outdated. Update to v0.142.0 or later.
           # "contrib" variant includes extra receivers/exporters beyond core collector
           image: otel/opentelemetry-collector-contrib:0.142.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             # OTel Collector binary (contrib variant)
             - /otelcol-contrib
@@ -77,26 +80,40 @@ spec:
               path: /
               port: 13133
             initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds: 15
           readinessProbe:
-            httpGet:
-              path: /
-              port: 13133
+            tcpSocket:
+              port: 4317
             initialDelaySeconds: 5
             periodSeconds: 5
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
+              ephemeral-storage: 256Mi
             limits:
               cpu: 500m
               memory: 1Gi
+              ephemeral-storage: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - mountPath: /etc/otel-collector-config.yaml
               name: otel-collector-config
               subPath: otel-collector-config.yaml
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: otel-collector-config
           configMap:
             name: otel-collector-config
+        - name: tmp
+          emptyDir: {}
 
