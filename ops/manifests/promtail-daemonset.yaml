@@ -128,8 +128,8 @@ spec:
         - name: config
           configMap:
             name: promtail-config
-        # Positions file: Stored on host to persist across pod restarts
-        # This ensures Promtail doesn't re-read old logs after restart
+        # Positions file: Ephemeral storage (emptyDir)
+        # Note: Positions are lost on pod restart; Promtail may re-read recent logs after restart
         - name: positions
           emptyDir: {}
         # Host path mounts: Access node's log directories (read-only for security)

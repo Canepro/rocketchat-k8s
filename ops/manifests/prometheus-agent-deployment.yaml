@@ -25,6 +25,8 @@ spec:
       # Service account with RBAC permissions to discover pods/services/nodes (see prometheus-agent-rbac.yaml)
       serviceAccountName: prometheus-agent
       securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -81,12 +83,14 @@ spec:
             path: /-/healthy
             port: 9090
           initialDelaySeconds: 30
+          timeoutSeconds: 5
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /-/ready
             port: 9090
           initialDelaySeconds: 5
+          timeoutSeconds: 5
           periodSeconds: 5
       volumes:
       - name: config

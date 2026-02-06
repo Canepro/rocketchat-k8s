@@ -72,4 +72,3 @@ spec:
                   cpu: 200m
                   memory: 256Mi
                   ephemeral-storage: 1Gi
-
