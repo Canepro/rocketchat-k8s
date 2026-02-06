@@ -12,6 +12,7 @@ data "azurerm_client_config" "current" {}
 # This resource creates the AKS cluster with all required configuration.
 # AKS Cluster
 # tfsec:ignore:AVD-AZU-0041 - Personal/training environment; public API server exposure accepted.
+# tfsec:ignore:AVD-AZU-0040 - Azure Monitor (OMS agent) intentionally disabled; Prometheus Agent is used instead (avoid duplicate telemetry/cost).
 resource "azurerm_kubernetes_cluster" "main" {
   name                = var.cluster_name                                             # Cluster name (from variables.tf, default: "aks-canepro")
   location            = azurerm_resource_group.main.location                         # Azure region (from resource group)
@@ -67,6 +68,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Network configuration
   network_profile {
     network_plugin    = "kubenet"  # Network plugin (kubenet for basic networking, azure CNI for advanced)
+    network_policy    = "calico"   # Network policy for kubenet (enabled; no effect until policies are applied)
     load_balancer_sku = "standard" # LoadBalancer SKU (standard for production, basic for testing)
     # Service CIDR must not overlap with VNet (10.0.0.0/16) or subnet (10.0.1.0/24)
     # Service CIDR: IP range for Kubernetes Services (ClusterIP, LoadBalancer, etc.)

@@ -12,7 +12,9 @@ image:
   # Pin to the currently running version for the migration. Upgrade later by changing ONLY this value.
   # See VERSIONS.md for latest version and upgrade status
   tag: "8.0.1"  # Rocket.Chat application version - Check latest at https://github.com/RocketChat/Rocket.Chat/releases
-  pullPolicy: IfNotPresent  # Image pull policy (pull if not present locally)
+  # Use Always so nodes pick up upstream rebuilds of the same tag (common for base-image CVE fixes).
+  # If you want fully immutable deploys, switch to digest pinning (if supported by the chart) and revert to IfNotPresent.
+  pullPolicy: Always  # Image pull policy (always pull to avoid running a stale cached image)
 
 # Host configuration for Rocket.Chat (used to set ROOT_URL and for ingress)
 host: k8.canepro.me  # Domain name for Rocket.Chat (matches ingress host below)
