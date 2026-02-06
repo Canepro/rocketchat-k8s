@@ -7,13 +7,10 @@ This PR includes automated version updates detected by Jenkins.
 - Medium Risk: 0
 
 ## Files Updated
-- **VERSIONS.md**: Version tracking automatically updated
-- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)
+- **VERSIONS.md**: Updated installed Azure Provider version to `4.59.0` (constraint `~> 4.0` unchanged in `terraform/main.tf`)
 
 ## Review Checklist
-- [ ] Review all version changes in VERSIONS.md
-- [ ] Verify code file changes are correct
+- [ ] Review version changes in VERSIONS.md
 - [ ] Check release notes for breaking changes
-- [ ] Test in staging if applicable
 
 Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/30/
