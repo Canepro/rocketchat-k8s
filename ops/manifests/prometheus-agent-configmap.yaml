@@ -133,6 +133,34 @@ data:
             target_label: namespace
             action: replace
 
+      # Scrape kube-state-metrics explicitly (job name compatibility)
+      # Many upstream dashboards filter on `job="kube-state-metrics"` instead of the
+      # generic `kubernetes-services` job used for annotation-based discovery.
+      - job_name: 'kube-state-metrics'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ['monitoring']
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_endpoints_name]
+            action: keep
+            regex: kube-state-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http-metrics
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_endpoints_name]
+            action: replace
+            target_label: kubernetes_service_name
+        metric_relabel_configs:
+          - source_labels: [kubernetes_namespace]
+            target_label: namespace
+            action: replace
+
       # Scrape MongoDB Community Operator metrics (basic auth protected)
       # The metrics endpoint is exposed via the headless service `mongodb-svc` on port 9216.
       - job_name: 'mongodb-metrics'
