@@ -30,6 +30,9 @@ spec:
       securityContext:
         fsGroup: 65534
         fsGroupChangePolicy: OnRootMismatch
+        # AKS nodes default /var/log/pods to 750 root:root; add root group so promtail can read.
+        supplementalGroups:
+          - 0
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -100,8 +103,8 @@ spec:
               ephemeral-storage: 1Gi
           securityContext:
             runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
+            runAsUser: 10000
+            runAsGroup: 10000
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
@@ -112,7 +115,7 @@ spec:
             - name: config
               mountPath: /etc/promtail
               readOnly: true
-            # Positions file (promtail-configmap.yaml: positions.filename=/run/promtail/positions.yaml).
+            # Positions file (promtail-configmap.yaml: positions.filename: /run/promtail/positions.yaml).
             # Backed by an emptyDir volume in this manifest, so it does NOT persist across restarts.
             # Promtail may re-read recent logs after a restart.
             - name: positions

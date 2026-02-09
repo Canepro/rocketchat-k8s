@@ -155,6 +155,7 @@ spec:
         app: rocketchat-nats-box
     spec:
       securityContext:
+        fsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -240,6 +241,7 @@ spec:
       shareProcessNamespace: true  # Share PID namespace between containers (for reloader)
       terminationGracePeriodSeconds: 60  # Grace period for graceful shutdown
       securityContext:
+        fsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -256,8 +258,6 @@ spec:
           name: cluster  # Cluster communication port
         - containerPort: 8222
           name: monitor  # Monitoring HTTP port
-        - containerPort: 7777
-          name: metrics  # Prometheus metrics port (from metrics sidecar)
         command:
         - "nats-server"
         - "--config"
@@ -361,6 +361,8 @@ spec:
             ephemeral-storage: 256Mi
         securityContext:
           runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
           capabilities:
@@ -408,6 +410,8 @@ spec:
             ephemeral-storage: 256Mi
         securityContext:
           runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
           capabilities:
