@@ -16,6 +16,9 @@ data:
         # These labels help identify metrics in Grafana/Mimir (filter by cluster, tenant_id, etc.)
         # AKS Migration: Updated cluster label for AKS cluster
         cluster: aks-canepro  # Cluster identifier (filter by this in Grafana)
+        # Some Grafana dashboards (for example StarsL dashboards) filter on `origin_prometheus`.
+        # Set this explicitly so multi-cluster dashboards can switch between OKE hub and AKS spoke data.
+        origin_prometheus: aks-canepro
         # Compatibility with existing Grafana Rocket.Chat dashboards (they filter by tenant_id)
         tenant_id: aks-canepro  # Tenant identifier (for dashboard compatibility)
         environment: production  # Environment label
@@ -95,6 +98,67 @@ data:
             action: replace
             target_label: kubernetes_service_name
         # Compatibility label for dashboards expecting `namespace` instead of `kubernetes_namespace`
+        metric_relabel_configs:
+          - source_labels: [kubernetes_namespace]
+            target_label: namespace
+            action: replace
+
+      # Scrape CoreDNS metrics (AKS kube-system)
+      # AKS CoreDNS pods expose Prometheus metrics on port 9153 named "metrics",
+      # but are not annotated by default.
+      - job_name: 'coredns'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: ['kube-system']
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+            action: keep
+            regex: kube-dns
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            replacement: $1:9153
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+        metric_relabel_configs:
+          - source_labels: [kubernetes_namespace]
+            target_label: namespace
+            action: replace
+
+      # Scrape MongoDB Community Operator metrics (basic auth protected)
+      # The metrics endpoint is exposed via the headless service `mongodb-svc` on port 9216.
+      - job_name: 'mongodb-metrics'
+        metrics_path: /metrics
+        basic_auth:
+          username: prometheus-username
+          password_file: /etc/mongodb-metrics-auth/password
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ['rocketchat']
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: mongodb-svc
+          - source_labels: [__meta_kubernetes_endpoint_port_number]
+            action: keep
+            regex: "9216"
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: kubernetes_service_name
         metric_relabel_configs:
           - source_labels: [kubernetes_namespace]
             target_label: namespace

@@ -56,6 +56,9 @@ spec:
         - mountPath: /etc/observability-auth
           name: observability-auth
           readOnly: true
+        - mountPath: /etc/mongodb-metrics-auth
+          name: mongodb-metrics-auth
+          readOnly: true
         - mountPath: /prometheus
           name: storage
         - mountPath: /tmp
@@ -99,6 +102,9 @@ spec:
       - name: observability-auth
         secret:
           secretName: observability-credentials
+      - name: mongodb-metrics-auth
+        secret:
+          secretName: mongodb-metrics-endpoint-password
       - name: storage
         emptyDir: {}
       - name: tmp
