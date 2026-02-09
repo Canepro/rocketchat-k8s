@@ -20,7 +20,7 @@ spec:
         app: prometheus-agent
       annotations:
         # Config revision annotation: Update this when config changes to trigger pod restart
-        canepro.me/prometheus-agent-config-rev: "2026-01-18-01"
+        canepro.me/prometheus-agent-config-rev: "2026-02-09-01"
     spec:
       # Service account with RBAC permissions to discover pods/services/nodes (see prometheus-agent-rbac.yaml)
       serviceAccountName: prometheus-agent
