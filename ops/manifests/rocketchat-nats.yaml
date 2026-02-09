@@ -155,6 +155,7 @@ spec:
         app: rocketchat-nats-box
     spec:
       securityContext:
+        fsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -240,6 +241,7 @@ spec:
       shareProcessNamespace: true  # Share PID namespace between containers (for reloader)
       terminationGracePeriodSeconds: 60  # Grace period for graceful shutdown
       securityContext:
+        fsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
       containers:
