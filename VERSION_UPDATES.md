@@ -16,4 +16,4 @@ This PR includes automated version updates detected by Jenkins.
 - [ ] Check release notes for breaking changes
 - [ ] Test in staging if applicable
 
-Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/34/
+Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/35/
