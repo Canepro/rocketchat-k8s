@@ -21,6 +21,8 @@ Quick reference for monitoring and managing AKS maintenance CronJobs.
 
 Import alert rules from: `ops/manifests/grafana-alerts-maintenance-jobs.yaml`
 
+To **test that alerts fire and send email**, see **[OPERATIONS.md](../OPERATIONS.md#testing-alerts-and-email-notifications)**.
+
 **Key alerts:**
 - 🚨 Job hasn't run on schedule
 - 🚨 Job failed to complete
