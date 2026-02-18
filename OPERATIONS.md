@@ -680,23 +680,6 @@ A Grafana dashboard is available to monitor all maintenance CronJobs in real-tim
 - Alert if `k3s-image-prune` hasn't run in > 8 days
 - Alert if any maintenance job fails 2+ times in a row
 
-#### Testing alerts and email notifications
-
-To verify that alerts fire and send notifications via email:
-
-1. **Prerequisites:** Grafana available (e.g. `https://grafana.canepro.me`); alert rules imported from `ops/manifests/grafana-alerts-maintenance-jobs.yaml`; **Grafana SMTP** configured in the Grafana server config (e.g. `grafana.ini` → `[smtp]`). This is separate from Rocket.Chat SMTP in `values.yaml`. See [Grafana: Configure email for alert notifications](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/configure-email).
-
-2. **Add an email contact point:** In Grafana go to **Alerting** → **Contact points** → **+ Create contact point**. Name it (e.g. `Maintenance Alerts Email`), choose **Email**, add recipient address(es), save.
-
-3. **Route alerts to it:** In **Alerting** → **Notification policies**, add this contact point to the default policy (or to a policy that matches your maintenance alert rules).
-
-4. **Test that email is sent:**
-   - **Quick test:** On the contact point, click **Test** (or **Save and test**). Confirm you receive the test email.
-   - **Real alert test:** Create a temporary alert rule: data source Prometheus/Mimir, query `vector(1)`, condition “above 0”, **For** `0` or `1m`. Save, wait 1–2 minutes for it to fire, confirm email, then delete the test rule.
-   - **Optional – trigger a real maintenance alert:** Suspend the CronJob (`kubectl patch cronjob aks-stale-pod-cleanup -n monitoring -p '{"spec":{"suspend":true}}'`), wait for the alert threshold (or temporarily lower it), confirm email, then re-enable (`"suspend":false`).
-
-**Troubleshooting:** No test email → check Grafana `[smtp]` config and logs. Rule fires but no email → ensure the notification policy includes your contact point. Emails in spam → sender/domain reputation or use a relay (e.g. Mailgun). Alerts don’t fire → confirm metrics exist and the rule’s data source is correct.
-
 ## ⚠️ Known Quirks
 - **Secrets**: `rocketchat-rocketchat` secret is managed by Helm but populated via `values.yaml` (externalMongodbUrl) to preserve legacy passwords. Do not delete it manually.
 - **Image Prune CronJob**: The `k3s-image-prune` cronjob has a legacy name but works on AKS (uses `crictl` with k3s fallback).
