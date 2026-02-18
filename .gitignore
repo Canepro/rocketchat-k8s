@@ -58,3 +58,7 @@ terraform/*.tfstate.*
 terraform/terraform.tfvars
 terraform/*.tfvars
 terraform/backend.hcl
+
+# Build artifacts
+.jenkins/artifacts/
+*.zip
