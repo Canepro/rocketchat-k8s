@@ -47,10 +47,12 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Default node pool: Worker nodes for running Kubernetes pods
   # Default node pool
   default_node_pool {
-    name                        = "system"                  # Node pool name (must be lowercase, alphanumeric, max 12 chars)
-    node_count                  = var.node_count            # Number of nodes (from variables.tf, default: 2)
-    vm_size                     = var.vm_size               # VM size (from variables.tf, default: "Standard_D4as_v5")
-    os_disk_size_gb             = 30                        # OS disk size in GB (minimum 30GB for AKS)
+    name                        = "system2"                 # Node pool name (must be lowercase, alphanumeric, max 12 chars)
+    mode                        = "System"                  # System node pool mode (required for AKS control-plane components)
+    node_count                  = 2                         # Number of nodes in the recovered system pool
+    vm_size                     = "Standard_D4as_v5"        # VM size aligned with current AKS reality
+    max_pods                    = 110                       # Max pods per node aligned with current AKS reality
+    os_disk_size_gb             = 128                       # Match existing AKS pool disk size to avoid replacement
     type                        = "VirtualMachineScaleSets" # Node pool type (VMSS for scalability)
     vnet_subnet_id              = azurerm_subnet.aks.id     # Subnet for nodes (from network.tf)
     temporary_name_for_rotation = "tempnodepool"            # Required when updating vm_size (enables rolling node updates)
@@ -61,7 +63,10 @@ resource "azurerm_kubernetes_cluster" "main" {
       "node.kubernetes.io/role" = "worker" # Node role label (used for scheduling)
     }
 
-    tags = var.tags # Tags for node pool VMs (from variables.tf)
+    tags = {
+      ManagedBy      = "Terraform"
+      RecoveryStatus = "Active"
+    }
   }
 
   # Network configuration: Kubernetes networking setup
@@ -88,7 +93,10 @@ resource "azurerm_kubernetes_cluster" "main" {
   # When oms_agent block is omitted, it defaults to disabled
   # See ops/manifests/prometheus-agent-deployment.yaml for Prometheus Agent deployment
 
-  tags = var.tags # Tags for AKS cluster (from variables.tf)
+  tags = {
+    ManagedBy      = "Terraform"
+    RecoveryStatus = "Active"
+  }
 
   # Lifecycle configuration: Prevent Terraform from modifying certain resources
   # We are intentionally not managing certain AKS defaults in this repo right now.
