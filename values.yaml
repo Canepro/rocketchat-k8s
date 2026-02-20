@@ -154,7 +154,9 @@ ingress:
 # Environment variables: Additional Rocket.Chat configuration
 # Keep existing SMTP override settings from your current Deployment (non-sensitive)
 extraEnv:
-  - name: OVERWRITE_SETTING_SMTP_Host
-    value: "smtp.mailgun.org"  # SMTP host override (matches smtp.host above)
-  - name: OVERWRITE_SETTING_SMTP_Username
-    value: "postmaster@canepro.me"  # SMTP username override (matches smtp.username above)
+    - name: OVERWRITE_SETTING_SMTP_Password
+    valueFrom:
+      secretKeyRef:
+        name: smtp-credentials
+        key: password
+        optional: false
