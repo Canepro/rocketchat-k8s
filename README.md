@@ -165,7 +165,7 @@ Schedule is managed via Terraform in `terraform/automation.tf`.
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
-| `aks-stale-pod-cleanup` | Daily 09:00 UTC | Clean up pods after cluster restart |
+| `aks-stale-pod-cleanup` | Every 4 hours at :30 UTC (`30 */4 * * *`) | Clean up pods after cluster restart |
 
 ## CI/CD Pipeline
 

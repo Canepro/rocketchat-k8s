@@ -48,8 +48,8 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Default node pool
   default_node_pool {
     name                        = "system2"                 # Node pool name (must be lowercase, alphanumeric, max 12 chars)
-    node_count                  = 2                         # Number of nodes in the recovered system pool
-    vm_size                     = "Standard_D4as_v5"        # VM size aligned with current AKS reality
+    node_count                  = var.node_count            # Number of nodes in the recovered system pool
+    vm_size                     = var.vm_size               # VM size aligned with current AKS reality
     max_pods                    = 110                       # Max pods per node aligned with current AKS reality
     os_disk_size_gb             = 128                       # Match existing AKS pool disk size to avoid replacement
     type                        = "VirtualMachineScaleSets" # Node pool type (VMSS for scalability)
