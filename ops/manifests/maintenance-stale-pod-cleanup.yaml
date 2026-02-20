@@ -35,44 +35,17 @@ spec:
               # Keep kubectl within +/-1 minor of the cluster version (aks-canepro is v1.33.x).
               image: registry.k8s.io/kubectl:v1.33.5
               imagePullPolicy: Always
+              # registry.k8s.io/kubectl:v1.33.5 does not include /bin/sh.
+              # Run kubectl directly to avoid shell dependency.
               command:
-                - /bin/sh
-                - -c
-                - |
-                  set -eu  # Exit on error and undefined variables
-                  
-                  echo "[$(date -Iseconds)] Starting stale pod cleanup..."
-                  
-                  # Function to safely delete pods by phase
-                  cleanup_by_phase() {
-                    local phase=$1
-                    local description=$2
-                    
-                    echo "Checking for $description pods (status.phase=$phase)..."
-                    
-                    # Get count first
-                    count=$(kubectl get pods -A --field-selector=status.phase="$phase" --no-headers 2>/dev/null | wc -l || echo 0)
-                    
-                    if [ "$count" -gt 0 ]; then
-                      echo "Found $count $description pods. Cleaning up..."
-                      kubectl get pods -A --field-selector=status.phase="$phase" --no-headers || true
-                      kubectl delete pods -A --field-selector=status.phase="$phase" --wait=false || true
-                      echo "Deleted $count $description pods."
-                    else
-                      echo "No $description pods found."
-                    fi
-                    echo ""
-                  }
-                  
-                  # Clean up terminal state pods
-                  cleanup_by_phase "Succeeded" "Completed"
-                  cleanup_by_phase "Failed" "Failed/Error"
-                  cleanup_by_phase "Unknown" "ContainerStatusUnknown"
-                  
-                  echo "[$(date -Iseconds)] Stale pod cleanup complete."
-                  echo ""
-                  echo "Current pod status summary:"
-                  kubectl get pods -A --no-headers | awk '{print $4}' | sort | uniq -c || true
+                - kubectl
+              args:
+                - delete
+                - pods
+                - -A
+                - --field-selector=status.phase!=Running,status.phase!=Pending
+                - --wait=false
+                - --ignore-not-found=true
               resources:
                 requests:
                   memory: "64Mi"
