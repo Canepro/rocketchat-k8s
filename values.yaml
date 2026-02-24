@@ -11,7 +11,7 @@ image:
   repository: registry.rocket.chat/rocketchat/rocket.chat  # Official Rocket.Chat image registry
   # Pin to the currently running version for the migration. Upgrade later by changing ONLY this value.
   # See VERSIONS.md for latest version and upgrade status
-  tag: "8.0.1"  # Rocket.Chat application version - Check latest at https://github.com/RocketChat/Rocket.Chat/releases
+  tag: "8.1.1"  # Rocket.Chat application version - Check latest at https://github.com/RocketChat/Rocket.Chat/releases
   # Use Always so nodes pick up upstream rebuilds of the same tag (common for base-image CVE fixes).
   # If you want fully immutable deploys, switch to digest pinning (if supported by the chart) and revert to IfNotPresent.
   pullPolicy: Always  # Image pull policy (always pull to avoid running a stale cached image)
