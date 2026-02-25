@@ -52,6 +52,10 @@ All components connect to `https://observability.canepro.me`:
 - **Traces** (OTel Collector): `/v1/traces` (Tempo OTLP/HTTP endpoint)
 - **Logs** (Promtail): `/loki/api/v1/push` (Loki push API endpoint)
 
+Optional server-side log readers (for example Rocket.Chat Logs Viewer app) require Loki query access:
+- **Logs query**: `/loki/api/v1/query_range` (and `/loki/api/v1/query`) with Basic Auth
+- **Base URL for app config**: `https://observability.canepro.me`
+
 ### Cluster Labels
 
 All components add the `cluster=aks-canepro` label/attribute to their data, allowing you to filter by cluster in Grafana.
