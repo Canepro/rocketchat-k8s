@@ -17,7 +17,7 @@ data:
       }
 
       location = /logs-viewer {
-        return 301 /logs-viewer/;
+        return 301 https://$host/logs-viewer/;
       }
 
       location /logs-viewer/ {
