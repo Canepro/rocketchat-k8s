@@ -74,13 +74,6 @@ spec:
         - name: web-assets
           configMap:
             name: logs-viewer-web-assets
-            items:
-              - key: index.html
-                path: index.html
-              - key: index-BRqXEMH_.js
-                path: assets/index-BRqXEMH_.js
-              - key: index-CEHtxtkS.css
-                path: assets/index-CEHtxtkS.css
         - name: nginx-config
           configMap:
             name: logs-viewer-web-nginx
