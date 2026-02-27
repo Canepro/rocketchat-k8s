@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logs-viewer-web-nginx
+  namespace: rocketchat
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location = /healthz {
+        add_header Content-Type text/plain;
+        return 200 'ok';
+      }
+
+      location = /logs-viewer {
+        return 301 /logs-viewer/;
+      }
+
+      location /logs-viewer/ {
+        rewrite ^/logs-viewer/(.*)$ /$1 break;
+        try_files $uri $uri/ /index.html;
+      }
+    }
