@@ -13,7 +13,7 @@ spec:
   template:
     metadata:
       annotations:
-        canepro.me/logs-viewer-nginx-rev: "2026-02-27-01"
+        canepro.me/logs-viewer-nginx-rev: "2026-02-27-02"
       labels:
         app.kubernetes.io/name: logs-viewer-web
     spec:
