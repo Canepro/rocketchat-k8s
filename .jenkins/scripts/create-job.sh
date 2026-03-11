@@ -91,13 +91,12 @@ EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
   "$JENKINS_URL/job/$JOB_NAME/api/json")
 
 if [ "$EXISTS" = "200" ]; then
-  echo "⚠️  Job '$JOB_NAME' already exists. Deleting it first..."
-  curl -X POST \
-    -u "$JENKINS_USER:$JENKINS_PASSWORD" \
-    -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-    -H "$CRUMB_FIELD:$CRUMB_VALUE" \
-    "$JENKINS_URL/job/$JOB_NAME/doDelete"
-  echo "✅ Old job deleted"
+  JOB_ENDPOINT="$JENKINS_URL/job/$JOB_NAME/config.xml"
+  ACTION_LABEL="updated"
+  echo "ℹ️  Job '$JOB_NAME' already exists. Updating config in place..."
+else
+  JOB_ENDPOINT="$JENKINS_URL/createItem?name=$JOB_NAME"
+  ACTION_LABEL="created"
 fi
 
 # Verify config file exists
@@ -108,25 +107,24 @@ fi
 
 echo "Using config file: $CONFIG_FILE ($(wc -c < "$CONFIG_FILE") bytes)"
 
-# Create job
-echo "Creating job: $JOB_NAME"
+# Create or update job
+echo "Applying job config: $JOB_NAME"
 RESPONSE=$(curl -sS -L -w "\n%{http_code}" -X POST \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
   -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
   -H "$CRUMB_FIELD:$CRUMB_VALUE" \
   -H "Content-Type: application/xml" \
   --data-binary @"$CONFIG_FILE" \
-  "$JENKINS_URL/createItem?name=$JOB_NAME")
+  "$JOB_ENDPOINT")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
 
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-  echo "✅ Job created successfully!"
+  echo "✅ Job ${ACTION_LABEL} successfully!"
 
-  # Trigger initial multibranch indexing
-  # (Some Jenkins instances don't expose /scan; /build?delay=0sec triggers Branch Indexing.)
-  echo "Triggering initial indexing..."
+  # Trigger indexing so multibranch definitions are refreshed after create/update.
+  echo "Triggering indexing..."
   INDEX_RESPONSE=$(curl -sS -L -w "\n%{http_code}" -X POST \
     -u "$JENKINS_USER:$JENKINS_PASSWORD" \
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
@@ -136,7 +134,7 @@ if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
   INDEX_CODE=$(echo "$INDEX_RESPONSE" | tail -n1)
 
   if [ "$INDEX_CODE" = "200" ] || [ "$INDEX_CODE" = "201" ] || [ "$INDEX_CODE" = "302" ]; then
-    echo "✅ Initial indexing triggered!"
+    echo "✅ Indexing triggered!"
     echo ""
     echo "Job URL: $JENKINS_URL/job/$JOB_NAME"
     echo "Check job status in Jenkins UI or wait a few moments for the scan to complete."
@@ -145,7 +143,7 @@ if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
     echo "Response: $(echo "$INDEX_RESPONSE" | head -n-1)"
   fi
 else
-  echo "❌ Failed to create job. HTTP Status: $HTTP_CODE"
+  echo "❌ Failed to apply job config. HTTP Status: $HTTP_CODE"
   if [ -n "$RESPONSE_BODY" ]; then
     echo "Response body:"
     echo "$RESPONSE_BODY"
@@ -157,4 +155,3 @@ else
   echo "3. Verify XML config is valid: cat $CONFIG_FILE | head -20"
   exit 1
 fi
-
