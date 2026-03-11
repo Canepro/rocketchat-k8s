@@ -106,6 +106,19 @@ When the Jenkins controller runs on OKE and a static agent runs on AKS, see [JEN
 
 **UI:** Go to Jenkins at **https://jenkins.canepro.me** (production; controller on OKE) and use credential ID **`github-token`** for the GitHub branch source.
 
+### Optional PipelineHealer Bridge Credentials
+
+To register Jenkins failures in PipelineHealer, prefer the same GitOps path used for `github-token`:
+
+- Azure Key Vault secret `jenkins-pipelinehealer-bridge-url`
+- Azure Key Vault secret `jenkins-pipelinehealer-bridge-secret`
+- `ops/secrets/externalsecret-jenkins.yaml` syncs them into Kubernetes
+- Jenkins Kubernetes Credentials Provider exposes them as Secret text credentials:
+  - `pipelinehealer-bridge-url`
+  - `pipelinehealer-bridge-secret`
+
+If these credentials are absent, the Jenkinsfiles skip bridge notification and continue with the existing GitHub issue/comment behavior. Manual Jenkins UI credentials are only a fallback.
+
 ### CLI setup (when UI is painful)
 Use the repo script which handles CSRF + session cookies. Create `github-token` on the target Jenkins first.
 

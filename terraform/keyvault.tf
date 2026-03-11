@@ -300,3 +300,45 @@ resource "azurerm_key_vault_secret" "jenkins_github_token" {
     Purpose = "JenkinsCredentials" # Purpose tag (for resource organization)
   })
 }
+
+# Jenkins credentials: PipelineHealer bridge webhook URL
+# This credential is used by Jenkins jobs to post signed bridge events to PipelineHealer.
+resource "azurerm_key_vault_secret" "jenkins_pipelinehealer_bridge_url" {
+  name            = "jenkins-pipelinehealer-bridge-url"                        # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value           = var.jenkins_pipelinehealer_bridge_url                      # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
+  tags = merge(var.tags, {
+    Purpose = "JenkinsCredentials" # Purpose tag (for resource organization)
+  })
+}
+
+# Jenkins credentials: PipelineHealer bridge shared secret
+# This credential is used by Jenkins jobs to sign bridge events for PipelineHealer.
+resource "azurerm_key_vault_secret" "jenkins_pipelinehealer_bridge_secret" {
+  name            = "jenkins-pipelinehealer-bridge-secret"                     # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-jenkins.yaml)
+  value           = var.jenkins_pipelinehealer_bridge_secret                   # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
+  tags = merge(var.tags, {
+    Purpose = "JenkinsCredentials" # Purpose tag (for resource organization)
+  })
+}

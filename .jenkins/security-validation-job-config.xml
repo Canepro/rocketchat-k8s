@@ -33,7 +33,9 @@ It performs security scanning and creates PRs/issues for remediation.
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
       <submoduleCfg class="empty-list"/>
-      <extensions/>
+      <extensions>
+        <hudson.plugins.git.extensions.impl.CleanBeforeCheckout/>
+      </extensions>
     </scm>
     <scriptPath>.jenkins/security-validation.Jenkinsfile</scriptPath>
     <lightweight>false</lightweight>

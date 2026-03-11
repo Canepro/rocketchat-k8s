@@ -33,7 +33,9 @@ It checks for version updates and creates PRs/issues automatically.
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
       <submoduleCfg class="empty-list"/>
-      <extensions/>
+      <extensions>
+        <hudson.plugins.git.extensions.impl.CleanBeforeCheckout/>
+      </extensions>
     </scm>
     <scriptPath>.jenkins/version-check.Jenkinsfile</scriptPath>
     <lightweight>false</lightweight>
