@@ -74,6 +74,8 @@ The version-check and security-validation pipelines run as scheduled jobs:
 - Create PRs/issues automatically
 - Update code and documentation
 
+**Source of truth**: `jenkins-values.yaml` JCasC manages the scheduled `version-check-rocketchat-k8s` and `security-validation-rocketchat-k8s` jobs. The XML files remain as a fallback import path, not the primary configuration.
+
 **Setup**: See `.jenkins/SETUP_AUTOMATED_JOBS.md` (single source of truth).
 
 **Version-check PR logic:** **HIGH→issue**, **MEDIUM≥1→PR**. Breaking (major) updates open/update a single issue; non-breaking (high/medium) open/update a single PR. Uses **mikefarah/yq** (not apk/kislyuk yq) with **checksum verification**; **WORKDIR** and absolute paths for manifest updates and `curl -d @...` payloads. Single **ensure_label.sh** created in Install Tools and sourced in PR/issue/post blocks (minimal inline fallback in post if script missing). Update loop uses process substitution and **UPDATE_FAILED** so failed yq exits the main shell. Helm installer pinned to a version tag. See [STATIC-AGENT-REPO-SUGGESTIONS.md](STATIC-AGENT-REPO-SUGGESTIONS.md) and [WORKFLOWS-AND-STAGES.md](WORKFLOWS-AND-STAGES.md).
