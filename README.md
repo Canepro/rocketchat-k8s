@@ -14,23 +14,158 @@ This repository contains the complete infrastructure-as-code for deploying and o
 - **Secrets**: External Secrets Operator + Azure Key Vault
 - **CI/CD**: ArgoCD (GitOps) + Jenkins (validation)
 
+## Platform at a Glance
+
+| Layer | Primary Components | Source of Truth |
+|------|---------------------|-----------------|
+| Traffic & TLS | Traefik, cert-manager, public DNS | GitOps manifests + ArgoCD |
+| Application | RocketChat Helm release, microservices | `values.yaml` |
+| Data | MongoDB operator, NATS | `ops/` manifests |
+| Secrets | External Secrets Operator, Azure Key Vault | `ops/secrets/` + Key Vault |
+| Observability | Prometheus Agent, Grafana, Promtail, OTel, Tempo | `ops/` manifests |
+| CI Validation | Jenkins on OKE + AKS agent | `.jenkins/` + Jenkins GitOps |
+| Delivery | ArgoCD split applications | `master` branch |
+
 ## Architecture
 
 ```mermaid
 flowchart TB
-  subgraph AKS["AKS Cluster"]
-    subgraph apps["Application layer"]
-      RC[RocketChat\nHelm]
-      MDB[(MongoDB\nOperator)]
-      OBS[Observability\nPrometheus Agent]
-    end
-    TRAEFIK[Traefik Ingress]
-    apps --> TRAEFIK
+  subgraph External["External Services"]
+    GitHub[GitHub Repository\nrocketchat-k8s]
+    AzureKV[Azure Key Vault\nSecrets Storage]
+    Users[External Users\nHTTPS Traffic]
   end
-  TRAEFIK --> |HTTPS| DOMAIN["k8.canepro.me"]
+
+  subgraph CI["CI Validation"]
+    Jenkins[Jenkins Controller\nOKE + AKS Agent]
+  end
+
+  subgraph AKS["AKS Cluster (aks-canepro)"]
+    direction TB
+
+    subgraph GitOps["GitOps Control"]
+      ArgoCD[ArgoCD\nargocd.canepro.me]
+      ESO[External Secrets\nOperator]
+    end
+
+    subgraph Edge["Ingress & TLS"]
+      Traefik[Traefik Ingress]
+      CertMgr[cert-manager]
+    end
+
+    subgraph App["RocketChat Application"]
+      RC[RocketChat Server]
+      RCMicro[Microservices\nDDP, Auth, Account,\nPresence, Stream Hub]
+    end
+
+    subgraph Data["Data Layer"]
+      MDB[(MongoDB Operator)]
+      NATS{NATS Message Bus}
+    end
+
+    subgraph Obs["Observability"]
+      Prometheus[Prometheus Agent]
+      Promtail[Promtail]
+      OTel[OTel Collector]
+      KSM[kube-state-metrics]
+      NodeExp[node-exporter]
+    end
+
+    subgraph Maint["Maintenance"]
+      CronStale[Stale Pod Cleanup]
+      CronImage[Image Prune]
+      AKSPods[Stale Pods]
+      AKSNodes[AKS Node Cache]
+    end
+  end
+
+  subgraph OKE["Observability Hub (OKE)"]
+    Grafana[Grafana]
+    Tempo[Tempo]
+  end
+
+  GitHub -->|Push to master| ArgoCD
+  GitHub -->|PR validation| Jenkins
+
+  AzureKV -->|Read secrets| ESO
+  ESO -->|Create K8s secrets| RC
+  ESO -->|Create K8s secrets| MDB
+  ESO -->|Create K8s secrets| Jenkins
+
+  Users -->|HTTPS| Traefik
+  Traefik -->|Route| RC
+  Traefik -->|Route| ArgoCD
+  Traefik -->|Route| Grafana
+  Traefik -->|Route| Jenkins
+  CertMgr -->|Issue certs| Traefik
+
+  ArgoCD -->|Sync Helm app| RC
+  ArgoCD -->|Sync ops manifests| MDB
+  ArgoCD -->|Sync ops manifests| Prometheus
+
+  RC <--> NATS
+  RCMicro <--> NATS
+  RC -->|Persist data| MDB
+
+  RC -->|Metrics| Prometheus
+  RC -->|Logs| Promtail
+  RC -->|Traces| OTel
+  NATS -->|Metrics| Prometheus
+  MDB -->|Metrics| Prometheus
+  KSM -->|K8s metrics| Prometheus
+  NodeExp -->|Node metrics| Prometheus
+  Prometheus -->|Dashboards| Grafana
+  Promtail -->|Logs| Grafana
+  OTel -->|Export traces| Tempo
+  Tempo -->|Query| Grafana
+
+  CronStale -->|Delete stale pods| AKSPods
+  CronImage -->|Prune image cache| AKSNodes
 ```
 
-For detailed architecture and data flows, see [DIAGRAM.md](DIAGRAM.md).
+### GitOps Workflow
+
+1. Changes land in `master`.
+2. ArgoCD reconciles the split applications.
+3. ESO projects Key Vault values into Kubernetes Secrets.
+4. RocketChat, ops manifests, and maintenance jobs converge from Git.
+5. Jenkins validates pull requests, but does not deploy.
+
+### Secrets Management Flow
+
+```mermaid
+sequenceDiagram
+    participant Git as GitHub Repo
+    participant ArgoCD as ArgoCD
+    participant ESO as External Secrets Operator
+    participant AKV as Azure Key Vault
+    participant K8s as Kubernetes Secrets
+    participant App as RocketChat Pods
+
+    Git->>ArgoCD: Push ExternalSecret manifest
+    ArgoCD->>K8s: Apply ExternalSecret CR
+    ESO->>ESO: Detect new ExternalSecret
+    ESO->>AKV: Fetch secret value via workload identity
+    AKV-->>ESO: Return secret data
+    ESO->>K8s: Create or update Secret
+    App->>K8s: Mount env vars or volumes
+    K8s-->>App: Provide secret data
+```
+
+### Signal Paths
+
+```mermaid
+flowchart LR
+  App[RocketChat Pods] -->|Metrics| Prometheus[Prometheus Agent]
+  App -->|Logs| Promtail[Promtail]
+  App -->|Traces| OTel[OTel Collector]
+  Prometheus --> Grafana[Grafana]
+  Promtail --> Grafana
+  OTel --> Tempo[Tempo]
+  Tempo --> Grafana
+```
+
+For the full diagram set, including maintenance and network flow details, see [DIAGRAM.md](DIAGRAM.md).
 
 ## Quick Start
 
@@ -117,7 +252,7 @@ This repository follows a **Split-App Pattern** with ArgoCD:
 
 ### Secrets Management
 
-Secrets are managed via GitOps using External Secrets Operator:
+Secrets are managed via GitOps using External Secrets Operator and Azure Key Vault:
 
 ```yaml
 # ops/secrets/externalsecret-example.yaml
@@ -138,6 +273,11 @@ spec:
 ```
 
 **Never commit secrets to this repository.** Store values in Azure Key Vault.
+
+**Primary secret paths**:
+- RocketChat and MongoDB credentials
+- Grafana and observability credentials
+- Jenkins admin, GitHub token, and PipelineHealer bridge credentials
 
 ## Operations
 
