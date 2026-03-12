@@ -71,6 +71,7 @@ EOF
     stage('Setup') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           # Ensure we can extract zip without assuming python3 exists.
           if ! command -v python3 >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
@@ -123,6 +124,7 @@ EOF
           chmod +x "$TF_BIN_DIR/terraform"
           export PATH="${TF_BIN_DIR}:${PATH}"
           terraform version
+SCRIPT
         '''
       }
     }
@@ -131,6 +133,7 @@ EOF
     stage('Verify Azure Auth') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           echo "=== Verifying Azure Workload Identity Configuration ==="
           
@@ -165,6 +168,7 @@ EOF
           echo "✓ Token file size: $(wc -c < $AZURE_FEDERATED_TOKEN_FILE) bytes"
           echo ""
           echo "Workload Identity is configured. Terraform will authenticate using OIDC token."
+SCRIPT
         '''
       }
     }
@@ -173,7 +177,12 @@ EOF
     stage('Terraform Format') {
       steps {
         dir('terraform') {
-          sh 'export PATH="${WORKSPACE}/.bin:${PATH}" && terraform fmt -check -recursive'
+          sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            export PATH="${WORKSPACE}/.bin:${PATH}"
+            terraform fmt -check -recursive
+SCRIPT
+          '''
         }
       }
     }
@@ -183,6 +192,7 @@ EOF
       steps {
         dir('terraform') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
@@ -200,6 +210,7 @@ EOF
               -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
             
             terraform validate
+SCRIPT
           '''
         }
       }
@@ -210,11 +221,13 @@ EOF
       steps {
         dir('terraform') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             # Use example file for CI validation (contains placeholder values)
             # Real secrets are never stored in blob storage
             echo "INFO: Using example tfvars for validation (placeholder values)"
             cp terraform.tfvars.example terraform.tfvars
+SCRIPT
           '''
         }
       }
@@ -225,6 +238,7 @@ EOF
       steps {
         dir('terraform') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
@@ -244,6 +258,7 @@ EOF
             else
               echo "No changes detected"
             fi
+SCRIPT
           '''
         }
       }
@@ -257,6 +272,8 @@ EOF
         sh 'export PATH="${WORKSPACE}/.bin:${PATH}" && terraform show -no-color tfplan > tfplan.txt 2>/dev/null || true'
         archiveArtifacts artifacts: 'tfplan.txt', allowEmptyArchive: true
       }
+    }
+    cleanup {
       cleanWs()
     }
     success {
@@ -282,6 +299,9 @@ EOF
                 export PH_FAILURE_STAGE="terraform-validation"
                 export PH_FAILURE_SUMMARY="Jenkins Terraform validation failed"
                 export PH_RESULT="FAILURE"
+                if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                  export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+                fi
                 bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                   echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
               '''

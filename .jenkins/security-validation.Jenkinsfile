@@ -30,6 +30,7 @@ pipeline {
     stage('Install Security Tools') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           WORKDIR="${WORKSPACE:-$(pwd)}"
           export WORKDIR
@@ -111,6 +112,7 @@ pipeline {
           
           # Clean up old scan results to prevent accumulation across runs
           rm -f "$WORKDIR"/*.json "$WORKDIR"/*.txt "$WORKDIR"/*.md 2>/dev/null || true
+SCRIPT
         '''
       }
     }
@@ -120,12 +122,14 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${HOME:-/tmp}/.local/bin:${PATH}"
             # Run tfsec scan and output JSON results
             tfsec . --format json --out ${WORKSPACE}/${TFSEC_OUTPUT} || true
             
             # Also output human-readable format for logs
             tfsec . --format default || true
+SCRIPT
           '''
         }
       }
@@ -136,12 +140,14 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${HOME:-/tmp}/.local/bin:${PATH}"
             # Run checkov scan on Terraform files
             checkov -d . --framework terraform --output json --output-file ${WORKSPACE}/${CHECKOV_OUTPUT} || true
             
             # Also output CLI format for logs
             checkov -d . --framework terraform || true
+SCRIPT
           '''
         }
       }
@@ -151,6 +157,7 @@ pipeline {
     stage('Kubernetes Security Scan') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
           # Scan Kubernetes manifests in ops/manifests/
           if [ -d "ops/manifests" ] && command -v kube-score >/dev/null 2>&1; then
@@ -164,6 +171,7 @@ pipeline {
           if [ -f "/tmp/manifests.yaml" ]; then
             kube-score score /tmp/manifests.yaml --output-format json > helm-kube-score-results.json || true
           fi
+SCRIPT
         '''
       }
     }
@@ -206,6 +214,7 @@ pipeline {
               if (line.contains(':')) {
                 def image = line.trim()
                 sh """
+                  cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                   export PATH="\${WORKSPACE}/checkov-venv/bin:\${WORKSPACE}:\${PATH}"
                   echo "Scanning image: ${image}"
                   VEX_ARG=""
@@ -214,6 +223,7 @@ pipeline {
                   fi
                   trivy image \${VEX_ARG} --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
                   trivy image \${VEX_ARG} ${image} || true
+SCRIPT
                 """
               }
             }
@@ -230,6 +240,7 @@ pipeline {
         script {
           // Use jq so we don't depend on pipeline-utility-steps or script approvals.
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"
@@ -296,6 +307,7 @@ EOF
               '{timestamp:$ts,critical:$critical,high:$high,medium:$medium,low:$low,risk_level:$risk,action_required:$action}' \
               > "${RISK_REPORT}"
             echo "Risk Assessment: $(cat "${RISK_REPORT}")"
+SCRIPT
           '''
 
           // Never fail the build due to findings
@@ -319,6 +331,7 @@ EOF
             }
             withEnv(["GITHUB_REPO=${env.GITHUB_REPO}"]) {
               sh '''
+                cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
                 export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"
@@ -532,6 +545,7 @@ EOF
                   -d @"$WORKDIR/security-issue-body.json" >/dev/null 2>&1; then
                   echo "⚠️ WARNING: Failed to create security findings issue"
                 fi
+SCRIPT
               '''
             }
           }
@@ -672,6 +686,9 @@ EOF
               export PH_FAILURE_STAGE="security-validation"
               export PH_FAILURE_SUMMARY="Scheduled Jenkins security validation failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''
