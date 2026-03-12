@@ -79,7 +79,7 @@ pipeline {
           fi
 
           # trivy - pinned version, checksum verified, install to WORKDIR
-          TRIVY_VERSION="0.54.0"
+          TRIVY_VERSION="0.69.3"
           TRIVY_TGZ="/tmp/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           curl -fsSL -o "${TRIVY_TGZ}" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           curl -fsSL -o /tmp/trivy_checksums.txt "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
