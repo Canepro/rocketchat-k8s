@@ -29,98 +29,46 @@ This repository contains the complete infrastructure-as-code for deploying and o
 ## Architecture
 
 ```mermaid
-flowchart TB
-  subgraph External["External Services"]
-    GitHub[GitHub Repository\nrocketchat-k8s]
-    AzureKV[Azure Key Vault\nSecrets Storage]
-    Users[External Users\nHTTPS Traffic]
-  end
-
-  subgraph CI["CI Validation"]
-    Jenkins[Jenkins Controller\nOKE + AKS Agent]
-  end
+flowchart LR
+  GitHub[GitHub<br/>rocketchat-k8s]
+  AzureKV[Azure Key Vault]
+  Users[Users]
+  Jenkins[Jenkins<br/>OKE controller + AKS agent]
 
   subgraph AKS["AKS Cluster (aks-canepro)"]
-    direction TB
-
-    subgraph GitOps["GitOps Control"]
-      ArgoCD[ArgoCD\nargocd.canepro.me]
-      ESO[External Secrets\nOperator]
-    end
-
-    subgraph Edge["Ingress & TLS"]
-      Traefik[Traefik Ingress]
-      CertMgr[cert-manager]
-    end
-
-    subgraph App["RocketChat Application"]
-      RC[RocketChat Server]
-      RCMicro[Microservices\nDDP, Auth, Account,\nPresence, Stream Hub]
-    end
-
-    subgraph Data["Data Layer"]
-      MDB[(MongoDB Operator)]
-      NATS{NATS Message Bus}
-    end
-
-    subgraph Obs["Observability"]
-      Prometheus[Prometheus Agent]
-      Promtail[Promtail]
-      OTel[OTel Collector]
-      KSM[kube-state-metrics]
-      NodeExp[node-exporter]
-    end
-
-    subgraph Maint["Maintenance"]
-      CronStale[Stale Pod Cleanup]
-      CronImage[Image Prune]
-      AKSPods[Stale Pods]
-      AKSNodes[AKS Node Cache]
-    end
+    ArgoCD[ArgoCD]
+    ESO[External Secrets Operator]
+    Edge[Traefik + cert-manager]
+    RC[RocketChat]
+    Data[MongoDB + NATS]
+    Obs[Prometheus Agent + Promtail + OTel]
+    Maint[Maintenance CronJobs]
   end
 
-  subgraph OKE["Observability Hub (OKE)"]
+  subgraph Hub["Observability Hub (OKE)"]
     Grafana[Grafana]
     Tempo[Tempo]
   end
 
-  GitHub -->|Push to master| ArgoCD
-  GitHub -->|PR validation| Jenkins
-
-  AzureKV -->|Read secrets| ESO
-  ESO -->|Create K8s secrets| RC
-  ESO -->|Create K8s secrets| MDB
-  ESO -->|Create K8s secrets| Jenkins
-
-  Users -->|HTTPS| Traefik
-  Traefik -->|Route| RC
-  Traefik -->|Route| ArgoCD
-  Traefik -->|Route| Grafana
-  Traefik -->|Route| Jenkins
-  CertMgr -->|Issue certs| Traefik
-
-  ArgoCD -->|Sync Helm app| RC
-  ArgoCD -->|Sync ops manifests| MDB
-  ArgoCD -->|Sync ops manifests| Prometheus
-
-  RC <--> NATS
-  RCMicro <--> NATS
-  RC -->|Persist data| MDB
-
-  RC -->|Metrics| Prometheus
-  RC -->|Logs| Promtail
-  RC -->|Traces| OTel
-  NATS -->|Metrics| Prometheus
-  MDB -->|Metrics| Prometheus
-  KSM -->|K8s metrics| Prometheus
-  NodeExp -->|Node metrics| Prometheus
-  Prometheus -->|Dashboards| Grafana
-  Promtail -->|Logs| Grafana
-  OTel -->|Export traces| Tempo
-  Tempo -->|Query| Grafana
-
-  CronStale -->|Delete stale pods| AKSPods
-  CronImage -->|Prune image cache| AKSNodes
+  GitHub --> ArgoCD
+  GitHub --> Jenkins
+  AzureKV --> ESO
+  ESO --> RC
+  ESO --> Data
+  ESO --> Jenkins
+  Users --> Edge
+  Edge --> RC
+  Edge --> ArgoCD
+  Edge --> Grafana
+  Edge --> Jenkins
+  ArgoCD --> RC
+  ArgoCD --> Data
+  ArgoCD --> Obs
+  ArgoCD --> Maint
+  RC --> Data
+  RC --> Obs
+  Obs --> Grafana
+  Obs --> Tempo
 ```
 
 ### GitOps Workflow
