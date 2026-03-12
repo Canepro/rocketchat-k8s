@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logs-viewer-web-nginx
+  namespace: rocketchat
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location = /healthz {
+        add_header Content-Type text/plain;
+        return 200 'ok';
+      }
+
+      location = /logs-viewer {
+        return 301 https://$host/logs-viewer/;
+      }
+
+      # ConfigMap mounts flatten keys at /usr/share/nginx/html, so built assets
+      # requested as /logs-viewer/assets/* must map to /* at runtime.
+      location /logs-viewer/assets/ {
+        rewrite ^/logs-viewer/assets/(.*)$ /$1 break;
+        try_files $uri =404;
+      }
+
+      location /logs-viewer/ {
+        rewrite ^/logs-viewer/(.*)$ /$1 break;
+        try_files $uri $uri/ /index.html;
+      }
+    }

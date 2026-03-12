@@ -15,6 +15,8 @@ pipeline {
     // GitHub configuration (from Jenkins credentials)
     GITHUB_REPO = 'Canepro/rocketchat-k8s'
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
+    PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
+    PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
     
     // Output files for findings
     TFSEC_OUTPUT = 'tfsec-results.json'
@@ -77,7 +79,7 @@ pipeline {
           fi
 
           # trivy - pinned version, checksum verified, install to WORKDIR
-          TRIVY_VERSION="0.54.0"
+          TRIVY_VERSION="0.69.3"
           TRIVY_TGZ="/tmp/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           curl -fsSL -o "${TRIVY_TGZ}" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           curl -fsSL -o /tmp/trivy_checksums.txt "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
@@ -653,6 +655,29 @@ EOF
             echo "$ISSUE_BODY_JSON" > "$WORKDIR/issue-body-failure.json"
             if ! curl -sS -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPO}/issues" -d @"$WORKDIR/issue-body-failure.json" >/dev/null 2>&1; then echo "⚠️ WARNING: Failed to create failure issue"; fi
           '''
+        }
+        try {
+          withCredentials([
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
+          ]) {
+            sh '''
+              set +e
+              export PH_REPOSITORY="${GITHUB_REPO}"
+              export PH_JOB_NAME="${JOB_NAME}"
+              export PH_JOB_URL="${BUILD_URL}"
+              export PH_BUILD_NUMBER="${BUILD_NUMBER}"
+              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+              export PH_COMMIT_SHA="${GIT_COMMIT:-}"
+              export PH_FAILURE_STAGE="security-validation"
+              export PH_FAILURE_SUMMARY="Scheduled Jenkins security validation failed"
+              export PH_RESULT="FAILURE"
+              bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
+                echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
+            '''
+          }
+        } catch (err) {
+          echo "⚠️ PipelineHealer bridge credentials not configured; skipping bridge notification."
         }
       }
     }

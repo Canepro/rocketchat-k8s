@@ -20,9 +20,20 @@ Both jobs run on a weekday schedule and are regular Pipeline jobs (not multibran
 
 ## Quick Setup (Recommended)
 
+Preferred path: manage these jobs through `jenkins-values.yaml` JCasC so ArgoCD keeps Jenkins aligned with Git. The create-job scripts and XML files below remain useful as fallback/bootstrap tooling.
+
 This repo includes scripts that handle CSRF crumbs + session cookies (Jenkins often requires both).
 
-### Option 1: Using Setup Scripts (Recommended)
+### Option 1: GitOps via JCasC (Recommended)
+
+The scheduled jobs are declared in `jenkins-values.yaml` and should be reconciled by your Jenkins Helm release:
+
+- `version-check-rocketchat-k8s`
+- `security-validation-rocketchat-k8s`
+
+ArgoCD sync of the Jenkins release is the preferred way to create or update them.
+
+### Option 2: Using Setup Scripts (Fallback)
 
 ```bash
 # Set Jenkins URL (if not using default)
@@ -39,7 +50,7 @@ bash .jenkins/create-version-check-job.sh
 bash .jenkins/create-security-validation-job.sh
 ```
 
-### Option 1b: Multi-Repository Setup (Recommended when you run multiple repos)
+### Option 2b: Multi-Repository Setup
 
 Use the helper to create both jobs for a configured list of repos:
 
@@ -49,7 +60,7 @@ Use the helper to create both jobs for a configured list of repos:
 bash .jenkins/setup-all-repos.sh
 ```
 
-### Option 1c: One-off Setup for a Specific Repository
+### Option 2c: One-off Setup for a Specific Repository
 
 Important: Use the **GitHub repository name**, not your local directory name.
 
@@ -59,7 +70,7 @@ bash .jenkins/create-version-check-job.sh Canepro central-observability-hub-stac
 bash .jenkins/create-security-validation-job.sh Canepro central-observability-hub-stack security-validation-central-observability-hub-stack
 ```
 
-### Option 2: Manual Setup via Jenkins UI
+### Option 3: Manual Setup via Jenkins UI
 
 1. **Create New Pipeline Job**
    - Go to Jenkins → New Item
@@ -86,7 +97,7 @@ bash .jenkins/create-security-validation-job.sh Canepro central-observability-hu
 
 4. **Save** the job
 
-### Option 3: Using Jenkins CLI/REST API
+### Option 4: Using Jenkins CLI/REST API
 
 ```bash
 # Get Jenkins credentials
@@ -174,11 +185,11 @@ Both jobs use cron syntax for scheduling:
 
 The `H` symbol randomizes the minute to avoid all jobs running at exactly the same time.
 
-To change the schedule, edit the job configuration XML files:
-- `.jenkins/version-check-job-config.xml` - Line with `<spec>H 17 * * 1-5</spec>`
-- `.jenkins/security-validation-job-config.xml` - Line with `<spec>H 18 * * 1-5</spec>`
-
-Or update via Jenkins UI: Job → Configure → Build Triggers → Build periodically
+To change the schedule, prefer updating `jenkins-values.yaml` JCasC. The XML files are fallback templates:
+- `jenkins-values.yaml` Job DSL block for `version-check-rocketchat-k8s`
+- `jenkins-values.yaml` Job DSL block for `security-validation-rocketchat-k8s`
+- `.jenkins/version-check-job-config.xml`
+- `.jenkins/security-validation-job-config.xml`
 
 ## What These Jobs Do
 

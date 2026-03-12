@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logs-viewer-web
+  namespace: rocketchat
+  annotations:
+    cert-manager.io/cluster-issuer: production-cert-issuer
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k8.canepro.me
+      http:
+        paths:
+          - path: /logs-viewer
+            pathType: Prefix
+            backend:
+              service:
+                name: logs-viewer-web
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - k8.canepro.me
+      secretName: rocketchat-tls

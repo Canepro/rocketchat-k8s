@@ -9,6 +9,11 @@ pipeline {
       defaultContainer 'terraform'
     }
   }
+
+  options {
+    // Avoid implicit SCM checkout so the workspace can be wiped first.
+    skipDefaultCheckout(true)
+  }
   
   // Environment variables for Azure Storage and Key Vault access
   // These can be overridden in Jenkins UI if needed, but defaults are set here
@@ -23,12 +28,21 @@ pipeline {
     // Azure authentication (using ESO identity)
     AZURE_CLIENT_ID = 'fe3d3d95-fb61-4a42-8d82-ec0852486531'
     AZURE_TENANT_ID = 'c3d431f1-3e02-4c62-a825-79cd8f9e2053'
+    PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
+    PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
     
     // Note: AZURE_CLIENT_SECRET is not needed if using Workload Identity
     // The Jenkinsfile will automatically detect and use Workload Identity if configured
   }
   
   stages {
+    stage('Checkout') {
+      steps {
+        deleteDir()
+        checkout scm
+      }
+    }
+
     // Stage 1: Format Check
     // Ensures all Terraform files follow consistent formatting standards
     stage('Terraform Format Check') {
@@ -87,6 +101,31 @@ pipeline {
     }
     failure {
       echo '❌ Terraform validation failed'
+      script {
+        try {
+          withCredentials([
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
+          ]) {
+            sh '''
+              set +e
+              export PH_REPOSITORY="Canepro/central-observability-hub-stack"
+              export PH_JOB_NAME="${JOB_NAME}"
+              export PH_JOB_URL="${BUILD_URL}"
+              export PH_BUILD_NUMBER="${BUILD_NUMBER}"
+              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+              export PH_COMMIT_SHA="${GIT_COMMIT:-}"
+              export PH_FAILURE_STAGE="terraform-validation"
+              export PH_FAILURE_SUMMARY="Jenkins central observability Terraform validation failed"
+              export PH_RESULT="FAILURE"
+              bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
+                echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
+            '''
+          }
+        } catch (err) {
+          echo "⚠️ PipelineHealer bridge credentials not configured; skipping bridge notification."
+        }
+      }
     }
   }
 }

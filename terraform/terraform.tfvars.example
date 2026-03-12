@@ -66,3 +66,5 @@ observability_password = "CHANGE_ME"  # Grafana API key or password
 jenkins_admin_username = "admin"                      # Jenkins admin username (default: admin)
 jenkins_admin_password = "CHANGE_ME_STRONG_PASSWORD"  # Jenkins admin password (use a strong password)
 jenkins_github_token = "ghp_CHANGE_ME"                # GitHub Personal Access Token (scopes: repo, admin:repo_hook)
+jenkins_pipelinehealer_bridge_url = "https://ca-canepro-ph-backend.kinddune-53ac219d.eastus2.azurecontainerapps.io/webhook/jenkins"
+jenkins_pipelinehealer_bridge_secret = "CHANGE_ME_SHARED_SECRET"

@@ -220,7 +220,7 @@ echo "-----------------------------------"
 
 # Check Prometheus Agent config
 if kubectl get configmap -n "$NAMESPACE" prometheus-agent-config &> /dev/null; then
-    PROM_CONFIG_CLUSTER=$(kubectl get configmap -n "$NAMESPACE" prometheus-agent-config -o jsonpath='{.data.prometheus\.yml\.tmpl}' 2>/dev/null | grep -o "cluster: $CLUSTER_LABEL" | head -1 || echo "")
+    PROM_CONFIG_CLUSTER=$(kubectl get configmap -n "$NAMESPACE" prometheus-agent-config -o jsonpath='{.data.prometheus\.yml}' 2>/dev/null | grep -o "cluster: $CLUSTER_LABEL" | head -1 || echo "")
     if [ -n "$PROM_CONFIG_CLUSTER" ]; then
         print_status 0 "Prometheus Agent config has correct cluster label: $CLUSTER_LABEL"
     else
@@ -228,7 +228,7 @@ if kubectl get configmap -n "$NAMESPACE" prometheus-agent-config &> /dev/null; t
     fi
     
     # Check if remote_write endpoint is configured
-    PROM_ENDPOINT=$(kubectl get configmap -n "$NAMESPACE" prometheus-agent-config -o jsonpath='{.data.prometheus\.yml\.tmpl}' 2>/dev/null | grep -o "url:.*observability\.canepro\.me" | head -1 || echo "")
+    PROM_ENDPOINT=$(kubectl get configmap -n "$NAMESPACE" prometheus-agent-config -o jsonpath='{.data.prometheus\.yml}' 2>/dev/null | grep -o "url:.*observability\.canepro\.me" | head -1 || echo "")
     if [ -n "$PROM_ENDPOINT" ]; then
         print_status 0 "Prometheus Agent remote_write endpoint configured"
     else

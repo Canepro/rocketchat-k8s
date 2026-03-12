@@ -67,12 +67,16 @@ These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatica
 - Run validation on PRs
 - Report status back to GitHub
 
+For PR builds, `.jenkins/terraform-validation.Jenkinsfile` checks out GitHub's `refs/pull/<id>/merge` ref directly instead of doing a local workspace merge on the agent. This avoids stale-workspace merge failures caused by line-ending drift on static agents.
+
 ### Automated Jobs (Scheduled)
 
 The version-check and security-validation pipelines run as scheduled jobs:
 - Run on a weekday schedule (see above) on `master`
 - Create PRs/issues automatically
 - Update code and documentation
+
+**Source of truth**: `jenkins-values.yaml` JCasC manages the scheduled `version-check-rocketchat-k8s` and `security-validation-rocketchat-k8s` jobs. The XML files remain as a fallback import path, not the primary configuration.
 
 **Setup**: See `.jenkins/SETUP_AUTOMATED_JOBS.md` (single source of truth).
 
@@ -105,6 +109,19 @@ When the Jenkins controller runs on OKE and a static agent runs on AKS, see [JEN
 6. **Save** → **Scan Multibranch Pipeline Now**
 
 **UI:** Go to Jenkins at **https://jenkins.canepro.me** (production; controller on OKE) and use credential ID **`github-token`** for the GitHub branch source.
+
+### Optional PipelineHealer Bridge Credentials
+
+To register Jenkins failures in PipelineHealer, prefer the same GitOps path used for `github-token`:
+
+- Azure Key Vault secret `jenkins-pipelinehealer-bridge-url`
+- Azure Key Vault secret `jenkins-pipelinehealer-bridge-secret`
+- `ops/secrets/externalsecret-jenkins.yaml` syncs them into Kubernetes
+- Jenkins Kubernetes Credentials Provider exposes them as Secret text credentials:
+  - `pipelinehealer-bridge-url`
+  - `pipelinehealer-bridge-secret`
+
+If these credentials are absent, the Jenkinsfiles skip bridge notification and continue with the existing GitHub issue/comment behavior. Manual Jenkins UI credentials are only a fallback.
 
 ### CLI setup (when UI is painful)
 Use the repo script which handles CSRF + session cookies. Create `github-token` on the target Jenkins first.

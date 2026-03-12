@@ -85,7 +85,59 @@ controller:
                 apiUrl: "https://api.github.com"
                 credentialsId: "github-token"  # Credential ID (matches External Secret)
                 manageHooks: true
-      
+
+      managed-jobs: |
+        jobs:
+          - script: |
+              pipelineJob('version-check-rocketchat-k8s') {
+                description('Automated version checking pipeline for rocketchat-k8s. Runs weekdays at 5 PM and stays aligned with the repo Jenkinsfile.')
+                triggers {
+                  cron('H 17 * * 1-5')
+                }
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/Canepro/rocketchat-k8s')
+                          credentials('github-token')
+                        }
+                        branch('*/master')
+                        extensions {
+                          cleanBeforeCheckout()
+                        }
+                      }
+                    }
+                    scriptPath('.jenkins/version-check.Jenkinsfile')
+                    lightweight(false)
+                  }
+                }
+              }
+              pipelineJob('security-validation-rocketchat-k8s') {
+                description('Automated security validation pipeline for rocketchat-k8s. Runs weekdays at 6 PM and stays aligned with the repo Jenkinsfile.')
+                triggers {
+                  cron('H 18 * * 1-5')
+                }
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/Canepro/rocketchat-k8s')
+                          credentials('github-token')
+                        }
+                        branch('*/master')
+                        extensions {
+                          cleanBeforeCheckout()
+                        }
+                      }
+                    }
+                    scriptPath('.jenkins/security-validation.Jenkinsfile')
+                    lightweight(false)
+                  }
+                }
+              }
+
       # Prometheus configuration: Disable disk usage collection (plugin not installed)
       prometheus-config: |
         unclassified:
