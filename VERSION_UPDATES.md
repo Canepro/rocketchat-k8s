@@ -4,11 +4,11 @@ This PR includes automated version updates detected by Jenkins.
 
 ## Updates Summary
 - High Risk: 0
-- Medium Risk: 1
+- Medium Risk: 1 — Azure Provider
 
 ## Files Updated
 - **VERSIONS.md**: Version tracking automatically updated
-- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)
+- **VERSION_UPDATES.md**: Risk summary and build metadata updated
 
 ## Review Checklist
 - [ ] Review all version changes in VERSIONS.md

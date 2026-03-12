@@ -185,4 +185,4 @@ kubectl logs -n monitoring -l app=prometheus-agent --tail=50
 - **Promtail** `v3.6.0` (upgraded from v2.9.3) - should be compatible with your Loki version at `observability.canepro.me`
 - **NATS Server** `2.4-alpine` (can upgrade to 2.10.24) - major version jump, test carefully
 - **Terraform** `>= 1.8` - latest stable recommended for Azure provider compatibility
-- **Azure Provider** `~> 4.0` (installed: `4.59.0`) - review the v4 migration guide ([AzureRM v4 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide)) and validate in Cloud Shell
+- **Azure Provider** `~> 4.0` (installed: `4.63.0`) - review the v4 migration guide ([AzureRM v4 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide)) and validate in Cloud Shell
