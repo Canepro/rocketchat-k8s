@@ -34,6 +34,7 @@ pipeline {
     stage('ArgoCD App Validation') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Validate each ArgoCD Application manifest
           # These are the GitOps control plane definitions
           for app in argocd/applications/*.yaml; do
@@ -42,6 +43,7 @@ pipeline {
               kubeconform -strict "$app" || exit 1
             fi
           done
+SCRIPT
         '''
       }
     }
@@ -53,6 +55,7 @@ pipeline {
       steps {
         dir('helm') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             # Find all Helm chart directories with values.yaml
             for chart_dir in */; do
               if [ -f "${chart_dir}values.yaml" ]; then
@@ -63,6 +66,7 @@ pipeline {
                 kubeconform -strict /tmp/"$chart_name"-manifests.yaml || exit 1
               fi
             done
+SCRIPT
           '''
         }
       }
@@ -74,6 +78,7 @@ pipeline {
     stage('K8s Manifest Validation') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Validate raw Kubernetes manifests (non-Helm)
           # These are typically Ingress, ConfigMaps, Secrets, etc.
           if [ -d "k8s" ]; then
@@ -84,6 +89,7 @@ pipeline {
               fi
             done
           fi
+SCRIPT
         '''
       }
     }
@@ -94,6 +100,7 @@ pipeline {
     stage('YAML Lint') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install yamllint if not available
           apk add --no-cache yamllint || true
           
@@ -106,13 +113,14 @@ pipeline {
           # Lint raw Kubernetes manifests
           yamllint -c .yamllint.yaml k8s/ || true
           # || true: warnings don't fail build, only errors
+SCRIPT
         '''
       }
     }
   }
   
   post {
-    always {
+    cleanup {
       cleanWs()
     }
     success {
@@ -137,6 +145,9 @@ pipeline {
               export PH_FAILURE_STAGE="k8s-manifest-validation"
               export PH_FAILURE_SUMMARY="Jenkins central observability manifest validation failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''

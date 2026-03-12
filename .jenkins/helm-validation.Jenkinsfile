@@ -29,6 +29,7 @@ pipeline {
     stage('Helm Template') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Render RocketChat Helm chart with values.yaml
           # Output: raw Kubernetes manifests for validation
           helm template rocketchat . -f values.yaml > /tmp/manifests.yaml
@@ -36,6 +37,7 @@ pipeline {
           # Render Traefik Helm chart (if traefik-values.yaml exists)
           # || true: don't fail if traefik-values.yaml doesn't exist (optional)
           helm template traefik . -f traefik-values.yaml > /tmp/traefik-manifests.yaml || true
+SCRIPT
         '''
       }
     }
@@ -47,7 +49,11 @@ pipeline {
       steps {
         // Validate both RocketChat and Traefik manifests
         // kubeconform checks: API versions, required fields, schema compliance
-        sh 'kubeconform -strict /tmp/manifests.yaml /tmp/traefik-manifests.yaml'
+        sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          kubeconform -strict /tmp/manifests.yaml /tmp/traefik-manifests.yaml
+SCRIPT
+        '''
       }
     }
     
@@ -57,6 +63,7 @@ pipeline {
     stage('YAML Lint') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install yamllint if not available in the agent image
           # || true: don't fail if yamllint is already installed
           apk add --no-cache yamllint || true
@@ -68,6 +75,7 @@ pipeline {
           # Lint Kubernetes manifests in ops/manifests/ directory
           # These are raw K8s manifests managed by Kustomize
           yamllint -c .yamllint.yaml ops/manifests/*.yaml || true
+SCRIPT
         '''
       }
     }
@@ -76,7 +84,7 @@ pipeline {
   // Post-build actions: cleanup and status reporting
   post {
     // Always clean workspace after build (free up disk space)
-    always {
+    cleanup {
       cleanWs()
     }
     // Success message for easy log scanning
@@ -103,6 +111,9 @@ pipeline {
               export PH_FAILURE_STAGE="helm-validation"
               export PH_FAILURE_SUMMARY="Jenkins Helm validation failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''

@@ -39,6 +39,7 @@ pipeline {
     stage('Setup') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install unzip (required by bun installer)
           # Update package list and install unzip if not already present
           if ! command -v unzip &> /dev/null; then
@@ -60,6 +61,7 @@ pipeline {
           export PATH="$HOME/.bun/bin:$PATH"
           # Verify installation
           bun --version
+SCRIPT
         '''
       }
     }
@@ -70,9 +72,11 @@ pipeline {
     stage('Install Dependencies') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Install project dependencies (Next.js, TypeScript, ESLint, etc.)
           bun install
+SCRIPT
         '''
       }
     }
@@ -83,10 +87,12 @@ pipeline {
     stage('Dependency Audit') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Run security audit on dependencies
           # || echo: don't fail on warnings, only critical vulnerabilities
           bun audit || echo "Audit completed (warnings may exist)"
+SCRIPT
         '''
       }
     }
@@ -97,11 +103,13 @@ pipeline {
     stage('Code Quality') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Run ESLint to catch code quality issues
           bun run lint
           # Check code formatting (Prettier) without modifying files
           bun run format:check
+SCRIPT
         '''
       }
     }
@@ -112,9 +120,11 @@ pipeline {
     stage('Type Checking') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Run TypeScript compiler in check-only mode
           bun run typecheck
+SCRIPT
         '''
       }
     }
@@ -125,10 +135,12 @@ pipeline {
     stage('Build Validation') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Build Next.js application for production
           # This validates that all code compiles and bundles correctly
           bun run build
+SCRIPT
         '''
       }
     }
@@ -145,6 +157,7 @@ pipeline {
       }
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Container scanning (if Dockerfile exists)
           # This would use tools like Trivy, Snyk, or similar
           if [ -f Dockerfile ]; then
@@ -152,6 +165,7 @@ pipeline {
             # Example: trivy image --exit-code 1 --severity HIGH,CRITICAL <image>
             # Note: Would need to build image first, then scan it
           fi
+SCRIPT
         '''
       }
     }
@@ -160,7 +174,7 @@ pipeline {
   // Post-build actions: cleanup and status reporting
   post {
     // Always clean workspace after build (free up disk space)
-    always {
+    cleanup {
       cleanWs()
     }
     // Success message for easy log scanning
@@ -187,6 +201,9 @@ pipeline {
               export PH_FAILURE_STAGE="application-validation"
               export PH_FAILURE_SUMMARY="Jenkins application validation failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''
