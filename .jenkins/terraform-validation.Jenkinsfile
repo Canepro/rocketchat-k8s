@@ -34,6 +34,7 @@ pipeline {
           if (env.CHANGE_ID) {
             withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
               sh '''
+                #!/usr/bin/env bash
                 set -euo pipefail
                 ASKPASS="$(mktemp)"
                 cleanup_askpass() {
@@ -270,20 +271,24 @@ EOF
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
           ]) {
-            sh '''
-              set +e
-              export PH_REPOSITORY="Canepro/rocketchat-k8s"
-              export PH_JOB_NAME="${JOB_NAME}"
-              export PH_JOB_URL="${BUILD_URL}"
-              export PH_BUILD_NUMBER="${BUILD_NUMBER}"
-              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
-              export PH_COMMIT_SHA="${GIT_COMMIT:-}"
-              export PH_FAILURE_STAGE="terraform-validation"
-              export PH_FAILURE_SUMMARY="Jenkins Terraform validation failed"
-              export PH_RESULT="FAILURE"
-              bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
-                echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
-            '''
+            if (fileExists('.jenkins/scripts/send-pipelinehealer-bridge.sh')) {
+              sh '''
+                set +e
+                export PH_REPOSITORY="Canepro/rocketchat-k8s"
+                export PH_JOB_NAME="${JOB_NAME}"
+                export PH_JOB_URL="${BUILD_URL}"
+                export PH_BUILD_NUMBER="${BUILD_NUMBER}"
+                export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+                export PH_COMMIT_SHA="${GIT_COMMIT:-}"
+                export PH_FAILURE_STAGE="terraform-validation"
+                export PH_FAILURE_SUMMARY="Jenkins Terraform validation failed"
+                export PH_RESULT="FAILURE"
+                bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
+                  echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
+              '''
+            } else {
+              echo '⚠️ PipelineHealer bridge script unavailable in workspace; skipping bridge notification.'
+            }
           }
         } catch (err) {
           echo "⚠️ PipelineHealer bridge credentials not configured; skipping bridge notification."
