@@ -48,9 +48,11 @@ pipeline {
     stage('Terraform Format Check') {
       steps {
         dir('terraform') {
-          // -check: only check, don't modify files
-          // -recursive: check all subdirectories
-          sh 'terraform fmt -check -recursive'
+          sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            terraform fmt -check -recursive
+SCRIPT
+          '''
         }
       }
     }
@@ -60,10 +62,12 @@ pipeline {
     stage('Terraform Validate') {
       steps {
         dir('terraform') {
-          // -backend=false: no state file needed for validation
-          sh 'terraform init -backend=false'
-          // Validate configuration syntax
-          sh 'terraform validate'
+          sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            terraform init -backend=false
+            terraform validate
+SCRIPT
+          '''
         }
       }
     }
@@ -93,7 +97,7 @@ pipeline {
   }
   
   post {
-    always {
+    cleanup {
       cleanWs()
     }
     success {
@@ -118,6 +122,9 @@ pipeline {
               export PH_FAILURE_STAGE="terraform-validation"
               export PH_FAILURE_SUMMARY="Jenkins central observability Terraform validation failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''

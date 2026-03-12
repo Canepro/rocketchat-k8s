@@ -33,6 +33,17 @@ The scheduled jobs are declared in `jenkins-values.yaml` and should be reconcile
 
 ArgoCD sync of the Jenkins release is the preferred way to create or update them.
 
+### PipelineHealer bridge behavior
+
+When `pipelinehealer-bridge-url` and `pipelinehealer-bridge-secret` are present in Jenkins, the scheduled jobs also send signed failure events to PipelineHealer.
+
+The supported capture path is repo-managed and plugin-free:
+- validation stages write the latest failure excerpt to `${WORKSPACE}/.pipelinehealer-log-excerpt.txt`
+- failure handlers export `PH_LOG_EXCERPT_FILE`
+- cleanup happens in `post { cleanup { ... } }` so the excerpt and bridge scripts still exist during failure handling
+
+If the bridge credentials are missing, the jobs continue with the existing GitHub issue/comment behavior only.
+
 ### Option 2: Using Setup Scripts (Fallback)
 
 ```bash
