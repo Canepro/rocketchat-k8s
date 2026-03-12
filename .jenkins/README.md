@@ -123,6 +123,20 @@ To register Jenkins failures in PipelineHealer, prefer the same GitOps path used
 
 If these credentials are absent, the Jenkinsfiles skip bridge notification and continue with the existing GitHub issue/comment behavior. Manual Jenkins UI credentials are only a fallback.
 
+### Recommended bridge capture pattern
+
+Bridge-enabled Jenkinsfiles should capture the actual failing shell output into `${WORKSPACE}/.pipelinehealer-log-excerpt.txt` with `.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh` and then export `PH_LOG_EXCERPT_FILE` from the `post { failure { ... } }` block before calling `send-pipelinehealer-bridge.sh`.
+
+This is the supported pattern because it:
+- does not depend on Jenkins-specific plugins such as `tee`
+- does not require `currentBuild.rawBuild` or extra script approvals
+- works on the static `aks-agent` and on Kubernetes agents
+
+For any bridge-enabled pipeline:
+- keep workspace cleanup in `post { cleanup { ... } }`, not `post { always { ... } }`, so failure handling still has access to the checked-out scripts and captured excerpt
+- wrap the failure-prone `sh` steps that do the real validation or scanning work
+- keep the existing signed bridge sender as the only POST implementation
+
 ### CLI setup (when UI is painful)
 Use the repo script which handles CSRF + session cookies. Create `github-token` on the target Jenkins first.
 

@@ -30,7 +30,11 @@ pipeline {
     stage('Terraform Format Check') {
       steps {
         dir('terraform') {
-          sh 'terraform fmt -check -recursive'
+          sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            terraform fmt -check -recursive
+SCRIPT
+          '''
         }
       }
     }
@@ -38,8 +42,12 @@ pipeline {
     stage('Terraform Validate') {
       steps {
         dir('terraform') {
-          sh 'terraform init -backend=false'
-          sh 'terraform validate'
+          sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            terraform init -backend=false
+            terraform validate
+SCRIPT
+          '''
         }
       }
     }
@@ -49,12 +57,14 @@ pipeline {
       steps {
         dir('terraform') {
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             # Install tfsec
             curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash || true
             
             # Run security scan (don't fail build on warnings)
             tfsec . --format json --out ../tfsec-results.json || true
             tfsec . || true
+SCRIPT
           '''
         }
       }
@@ -64,6 +74,8 @@ pipeline {
   post {
     always {
       archiveArtifacts artifacts: 'tfsec-results.json', allowEmptyArchive: true
+    }
+    cleanup {
       cleanWs()
     }
     success {
@@ -88,6 +100,9 @@ pipeline {
               export PH_FAILURE_STAGE="terraform-validation-with-security"
               export PH_FAILURE_SUMMARY="Jenkins Terraform validation with security scan failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''

@@ -29,6 +29,7 @@ pipeline {
     stage('Install Tools') {
       steps {
         sh '''
+          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           WORKDIR="${WORKSPACE:-$(pwd)}"
           export WORKDIR
@@ -122,6 +123,7 @@ ENSURE_LABEL_EOF
             fi
           done
           command -v gh >/dev/null 2>&1 && gh --version || echo "gh not installed (ok)"
+SCRIPT
         '''
       }
     }
@@ -134,6 +136,7 @@ ENSURE_LABEL_EOF
           
           // Check Azure Provider version
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}:${PATH}"
@@ -163,6 +166,7 @@ ENSURE_LABEL_EOF
             echo "Latest Azure Provider: ${LATEST_AZURERM}"
             echo "AZURERM_CURRENT=${CURRENT_AZURERM}" >> "$WORKDIR/versions.env"
             echo "AZURERM_LATEST=${LATEST_AZURERM}" >> "$WORKDIR/versions.env"
+SCRIPT
           '''
           
           def azurermCurrent = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep AZURERM_CURRENT "$WORKDIR/versions.env" | head -1 | cut -d= -f2', returnStdout: true).trim()
@@ -187,6 +191,7 @@ ENSURE_LABEL_EOF
           
           // Check Rocket.Chat image version (prefer Docker Hub tags; fallback to GitHub releases)
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}:${PATH}"
@@ -221,6 +226,7 @@ ENSURE_LABEL_EOF
             echo "RC_CURRENT=${RC_TAG}" >> "$WORKDIR/versions.env"
             echo "RC_LATEST_RELEASE=${LATEST_RC_RELEASE}" >> "$WORKDIR/versions.env"
             echo "RC_LATEST_IMAGE=${LATEST_RC_IMAGE}" >> "$WORKDIR/versions.env"
+SCRIPT
           '''
           
           def rcCurrent = sh(script: 'WORKDIR="${WORKSPACE:-.}"; grep RC_CURRENT "$WORKDIR/versions.env" | cut -d= -f2', returnStdout: true).trim()
@@ -243,8 +249,10 @@ ENSURE_LABEL_EOF
           
           // Check other images from ops/manifests/
           sh '''
+            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             # Extract all image tags from manifests
             grep -r "image:" ops/manifests/*.yaml | grep -v "#" | sed 's/.*image: \\(.*\\)/\\1/' | sort -u > image-list.txt
+SCRIPT
           '''
           
           writeJsonFile('image-updates.json', imageUpdates)
@@ -261,6 +269,7 @@ ENSURE_LABEL_EOF
           // Check Helm chart versions for all ArgoCD apps
           def chartLines = sh(
             script: '''
+              cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
               set +e
               export PATH="${WORKSPACE}:${PATH}"
               for app in GrafanaLocal/argocd/applications/*.yaml; do
@@ -283,6 +292,7 @@ ENSURE_LABEL_EOF
                 fi
               done
               true
+SCRIPT
             ''',
             returnStdout: true
           ).trim()
@@ -553,6 +563,7 @@ ENSURE_LABEL_EOF
               writeJsonFile('updates-to-apply.json', updatesToApply)
               
               sh '''
+                cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
                 export PATH="${WORKDIR}:${PATH}"
@@ -763,6 +774,7 @@ EOF
                     echo "⚠️ WARNING: Failed to add comment to existing PR #${EXISTING_PR_NUMBER}"
                   fi
                 fi
+SCRIPT
               '''
             } else if (!createdBreakingIssue) {
               echo "✅ All versions are up to date or updates are low risk"
@@ -897,6 +909,9 @@ EOF
               export PH_FAILURE_STAGE="version-check"
               export PH_FAILURE_SUMMARY="Scheduled Jenkins version check failed"
               export PH_RESULT="FAILURE"
+              if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
+                export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              fi
               bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                 echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
             '''
