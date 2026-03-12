@@ -34,8 +34,7 @@ pipeline {
           if (env.CHANGE_ID) {
             withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
               sh '''
-                #!/usr/bin/env bash
-                set -euo pipefail
+                set -eu
                 ASKPASS="$(mktemp)"
                 cleanup_askpass() {
                   rm -f "$ASKPASS"
