@@ -67,6 +67,8 @@ These Jenkinsfiles are used by Jenkins Multibranch Pipeline jobs that automatica
 - Run validation on PRs
 - Report status back to GitHub
 
+For PR builds, `.jenkins/terraform-validation.Jenkinsfile` checks out GitHub's `refs/pull/<id>/merge` ref directly instead of doing a local workspace merge on the agent. This avoids stale-workspace merge failures caused by line-ending drift on static agents.
+
 ### Automated Jobs (Scheduled)
 
 The version-check and security-validation pipelines run as scheduled jobs:

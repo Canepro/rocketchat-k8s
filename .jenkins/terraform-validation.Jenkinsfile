@@ -15,6 +15,7 @@ pipeline {
     STORAGE_ACCOUNT = 'tfcaneprostate1'
     STORAGE_CONTAINER = 'tfstate'
     TFVARS_BLOB = 'terraform.tfvars'
+    GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
 
@@ -29,7 +30,40 @@ pipeline {
     stage('Checkout') {
       steps {
         deleteDir()
-        checkout scm
+        script {
+          if (env.CHANGE_ID) {
+            withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+              sh '''
+                set -euo pipefail
+                ASKPASS="$(mktemp)"
+                cleanup_askpass() {
+                  rm -f "$ASKPASS"
+                  unset GIT_ASKPASS GIT_TERMINAL_PROMPT
+                }
+                trap cleanup_askpass EXIT
+
+                cat >"$ASKPASS" <<'EOF'
+#!/bin/sh
+case "$1" in
+  *Username*) printf '%s\n' "$GITHUB_USER" ;;
+  *) printf '%s\n' "$GITHUB_TOKEN" ;;
+esac
+EOF
+                chmod 700 "$ASKPASS"
+                export GIT_ASKPASS="$ASKPASS"
+                export GIT_TERMINAL_PROMPT=0
+
+                git init .
+                git remote add origin https://github.com/Canepro/rocketchat-k8s.git
+                git fetch --no-tags --force --progress origin "refs/pull/${CHANGE_ID}/merge"
+                git checkout -f FETCH_HEAD
+              '''
+            }
+          } else {
+            checkout scm
+          }
+          env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+        }
       }
     }
 
