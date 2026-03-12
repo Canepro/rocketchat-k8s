@@ -214,14 +214,14 @@ SCRIPT
               if (line.contains(':')) {
                 def image = line.trim()
                 sh """
-                  cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+                  cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "\${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                   export PATH="\${WORKSPACE}/checkov-venv/bin:\${WORKSPACE}:\${PATH}"
                   echo "Scanning image: ${image}"
                   VEX_ARG=""
                   if [ -f "\${WORKSPACE}/vex/rocketchat-vex.json" ]; then
                     VEX_ARG="--vex \${WORKSPACE}/vex/rocketchat-vex.json"
                   fi
-                  trivy image \${VEX_ARG} --format json --output ${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
+                  trivy image \${VEX_ARG} --format json --output \${WORKSPACE}/trivy-${image.replaceAll('[/: ]', '-')}.json ${image} || true
                   trivy image \${VEX_ARG} ${image} || true
 SCRIPT
                 """
