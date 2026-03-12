@@ -4,8 +4,25 @@
 // Runs on the static AKS agent (aks-agent) as part of repo push / PR validation.
 pipeline {
   agent { label 'aks-agent' }
+
+  options {
+    // Avoid implicit SCM checkout so the workspace can be wiped first.
+    skipDefaultCheckout(true)
+  }
+
+  environment {
+    PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
+    PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
+  }
   
   stages {
+    stage('Checkout') {
+      steps {
+        deleteDir()
+        checkout scm
+      }
+    }
+
     // Stage 1: Helm Template Rendering
     // Renders Helm charts into raw Kubernetes manifests
     // This validates that Helm templates are syntactically correct
@@ -69,6 +86,31 @@ pipeline {
     // Failure message for easy log scanning
     failure {
       echo '❌ Helm validation failed'
+      script {
+        try {
+          withCredentials([
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
+          ]) {
+            sh '''
+              set +e
+              export PH_REPOSITORY="Canepro/rocketchat-k8s"
+              export PH_JOB_NAME="${JOB_NAME}"
+              export PH_JOB_URL="${BUILD_URL}"
+              export PH_BUILD_NUMBER="${BUILD_NUMBER}"
+              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+              export PH_COMMIT_SHA="${GIT_COMMIT:-}"
+              export PH_FAILURE_STAGE="helm-validation"
+              export PH_FAILURE_SUMMARY="Jenkins Helm validation failed"
+              export PH_RESULT="FAILURE"
+              bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
+                echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
+            '''
+          }
+        } catch (err) {
+          echo "⚠️ PipelineHealer bridge credentials not configured; skipping bridge notification."
+        }
+      }
     }
   }
 }

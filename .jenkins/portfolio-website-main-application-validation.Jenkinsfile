@@ -10,15 +10,29 @@ pipeline {
       defaultContainer 'jnlp'
     }
   }
+
+  options {
+    // Avoid implicit SCM checkout so the workspace can be wiped first.
+    skipDefaultCheckout(true)
+  }
   
   // Environment variables for tool versions
   // These match the project's package.json requirements
   environment {
     NODE_VERSION = '20'      // Node.js version (required by Next.js)
     BUN_VERSION = '1.3.5'    // Bun version (package manager and runtime)
+    PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
+    PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
   }
   
   stages {
+    stage('Checkout') {
+      steps {
+        deleteDir()
+        checkout scm
+      }
+    }
+
     // Stage 1: Install Bun Runtime
     // Bun is the package manager and runtime for this Next.js project
     // Installing it here allows us to use bun commands in subsequent stages
@@ -156,6 +170,31 @@ pipeline {
     // Failure message for easy log scanning
     failure {
       echo '❌ Application validation failed'
+      script {
+        try {
+          withCredentials([
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
+          ]) {
+            sh '''
+              set +e
+              export PH_REPOSITORY="Canepro/portfolio_website-main"
+              export PH_JOB_NAME="${JOB_NAME}"
+              export PH_JOB_URL="${BUILD_URL}"
+              export PH_BUILD_NUMBER="${BUILD_NUMBER}"
+              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+              export PH_COMMIT_SHA="${GIT_COMMIT:-}"
+              export PH_FAILURE_STAGE="application-validation"
+              export PH_FAILURE_SUMMARY="Jenkins application validation failed"
+              export PH_RESULT="FAILURE"
+              bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
+                echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
+            '''
+          }
+        } catch (err) {
+          echo "⚠️ PipelineHealer bridge credentials not configured; skipping bridge notification."
+        }
+      }
     }
   }
 }

@@ -61,6 +61,15 @@ az aks stop --resource-group rg-canepro-aks --name aks-canepro
 az aks show --resource-group rg-canepro-aks --name aks-canepro --query powerState
 ```
 
+## AKS system nodepool recovery and Terraform state
+
+- Incident: AKS resources were impacted after Azure subscription credit exhaustion/suspension.
+- Recovery: the system nodepool `system2` was created and the old `system` pool was deleted to restore cluster operation.
+- IMPORTANT: Terraform state must be reconciled manually later in an environment that has backend access.
+- Import target resource ID for `system2` (for later manual state reconciliation):
+  `/subscriptions/1c6e2ceb-7310-4193-ab4d-95120348b934/resourceGroups/rg-canepro-aks/providers/Microsoft.ContainerService/managedClusters/aks-canepro/agentPools/system2`
+- Backend auth uses Azure/Key Vault, so state operations must be run from the approved operator environment.
+
 ## Repository Structure
 
 ```
@@ -156,7 +165,7 @@ Schedule is managed via Terraform in `terraform/automation.tf`.
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
-| `aks-stale-pod-cleanup` | Daily 09:00 UTC | Clean up pods after cluster restart |
+| `aks-stale-pod-cleanup` | Every 4 hours at :30 UTC (`30 */4 * * *`) | Clean up pods after cluster restart |
 
 ## CI/CD Pipeline
 

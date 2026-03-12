@@ -4,12 +4,20 @@
 // Runs on the static AKS agent (aks-agent) so it uses AKS Workload Identity and avoids OKE; AKS has auto-shutdown.
 pipeline {
   agent { label 'aks-agent' }
+
+  options {
+    // Avoid Jenkins' implicit SCM checkout so we can wipe stale workspaces first.
+    skipDefaultCheckout(true)
+  }
   
   environment {
     // Azure Storage for tfvars
     STORAGE_ACCOUNT = 'tfcaneprostate1'
     STORAGE_CONTAINER = 'tfstate'
     TFVARS_BLOB = 'terraform.tfvars'
+    GITHUB_TOKEN_CREDENTIALS = 'github-token'
+    PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
+    PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
 
     // Non-secret defaults so CI plan matches Cloud Shell (override in job config if needed)
     TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins-oke.canepro.me'}"
@@ -18,7 +26,48 @@ pipeline {
   }
   
   stages {
-    // Stage 1: Install Terraform (extract to workspace with Python so no unzip/root needed)
+    // Stage 1: Start from a clean workspace before any PR merge checkout occurs.
+    stage('Checkout') {
+      steps {
+        deleteDir()
+        script {
+          if (env.CHANGE_ID) {
+            withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+              sh '''
+                set -euo pipefail
+                ASKPASS="$(mktemp)"
+                cleanup_askpass() {
+                  rm -f "$ASKPASS"
+                  unset GIT_ASKPASS GIT_TERMINAL_PROMPT
+                }
+                trap cleanup_askpass EXIT
+
+                cat >"$ASKPASS" <<'EOF'
+#!/bin/sh
+case "$1" in
+  *Username*) printf '%s\n' "$GITHUB_USER" ;;
+  *) printf '%s\n' "$GITHUB_TOKEN" ;;
+esac
+EOF
+                chmod 700 "$ASKPASS"
+                export GIT_ASKPASS="$ASKPASS"
+                export GIT_TERMINAL_PROMPT=0
+
+                git init .
+                git remote add origin https://github.com/Canepro/rocketchat-k8s.git
+                git fetch --no-tags --force --progress origin "refs/pull/${CHANGE_ID}/merge"
+                git checkout -f FETCH_HEAD
+              '''
+            }
+          } else {
+            checkout scm
+          }
+          env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+        }
+      }
+    }
+
+    // Stage 2: Install Terraform (extract to workspace with Python so no unzip/root needed)
     stage('Setup') {
       steps {
         sh '''
@@ -78,7 +127,7 @@ pipeline {
       }
     }
     
-    // Stage 2: Verify Azure Workload Identity
+    // Stage 3: Verify Azure Workload Identity
     stage('Verify Azure Auth') {
       steps {
         sh '''
@@ -120,7 +169,7 @@ pipeline {
       }
     }
     
-    // Stage 3: Format Check
+    // Stage 4: Format Check
     stage('Terraform Format') {
       steps {
         dir('terraform') {
@@ -129,7 +178,7 @@ pipeline {
       }
     }
     
-    // Stage 4: Terraform Init & Validate
+    // Stage 5: Terraform Init & Validate
     stage('Terraform Validate') {
       steps {
         dir('terraform') {
@@ -156,7 +205,7 @@ pipeline {
       }
     }
     
-    // Stage 5: Prepare tfvars for validation
+    // Stage 6: Prepare tfvars for validation
     stage('Get Variables') {
       steps {
         dir('terraform') {
@@ -171,7 +220,7 @@ pipeline {
       }
     }
     
-    // Stage 6: Terraform Plan
+    // Stage 7: Terraform Plan
     stage('Terraform Plan') {
       steps {
         dir('terraform') {
@@ -215,6 +264,31 @@ pipeline {
     }
     failure {
       echo '❌ Terraform validation failed'
+      script {
+        try {
+          withCredentials([
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
+            string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
+          ]) {
+            sh '''
+              set +e
+              export PH_REPOSITORY="Canepro/rocketchat-k8s"
+              export PH_JOB_NAME="${JOB_NAME}"
+              export PH_JOB_URL="${BUILD_URL}"
+              export PH_BUILD_NUMBER="${BUILD_NUMBER}"
+              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+              export PH_COMMIT_SHA="${GIT_COMMIT:-}"
+              export PH_FAILURE_STAGE="terraform-validation"
+              export PH_FAILURE_SUMMARY="Jenkins Terraform validation failed"
+              export PH_RESULT="FAILURE"
+              bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
+                echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
+            '''
+          }
+        } catch (err) {
+          echo "⚠️ PipelineHealer bridge credentials not configured; skipping bridge notification."
+        }
+      }
     }
   }
 }

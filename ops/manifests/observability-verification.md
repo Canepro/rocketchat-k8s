@@ -40,6 +40,12 @@ This script checks:
 - **Namespace**: `monitoring`
 - **Resource Attributes**: `cluster`, `service.name`, `deployment.environment`
 
+### Loki Query Consumers (Optional)
+- **Base URL**: `https://observability.canepro.me`
+- **Query Endpoint**: `/loki/api/v1/query_range`
+- **Auth**: Basic Auth via `observability-credentials`
+- **Use Case**: server-side readers (for example Rocket.Chat Logs Viewer app)
+
 ---
 
 ## Step 1: Verify Prometheus Agent Status
@@ -208,6 +214,26 @@ rate(otelcol_receiver_accepted_spans_total{cluster="aks-canepro"}[5m])
 
 ---
 
+## Step 6 (Optional): Verify Loki Query Endpoint for Reader Apps
+
+Run from a workstation with hub credentials:
+
+```bash
+curl -sS -u 'observability-user:YOUR_PASSWORD_HERE' -G \
+  'https://observability.canepro.me/loki/api/v1/query_range' \
+  --data-urlencode 'query={job="rocketchat"}' \
+  --data-urlencode 'limit=1'
+```
+
+**Expected**:
+- `HTTP 200` and JSON response from Loki (result may be empty if no matching logs in range).
+
+**Failure patterns**:
+- `401`: Basic Auth mismatch.
+- `404`: ingress route for Loki query path is missing at hub.
+
+---
+
 ## Verification Checklist
 
 - [ ] Prometheus Agent pod is `Running` and healthy
@@ -219,6 +245,7 @@ rate(otelcol_receiver_accepted_spans_total{cluster="aks-canepro"}[5m])
 - [ ] OTel Collector logs show no export errors
 - [ ] Traces with `cluster=aks-canepro` are searchable in Grafana Tempo
 - [ ] Test traces (if generated) appear with correct cluster attribute
+- [ ] Optional: Loki query endpoint responds with `200` for server-side reader use cases
 
 ---
 
@@ -257,6 +284,19 @@ rate(otelcol_receiver_accepted_spans_total{cluster="aks-canepro"}[5m])
    ```bash
    kubectl logs -n monitoring -l app=otel-collector | grep "cluster"
    ```
+
+### Logs Viewer / Loki Reader Query Fails (404 or 502)
+
+1. Verify app uses base URL only:
+   - `loki_base_url=https://observability.canepro.me`
+2. Validate query endpoint directly:
+   ```bash
+   curl -sS -u 'observability-user:YOUR_PASSWORD_HERE' -G \
+     'https://observability.canepro.me/loki/api/v1/query_range' \
+     --data-urlencode 'query={job="rocketchat"}' \
+     --data-urlencode 'limit=1'
+   ```
+3. If `404`, ensure hub ingress exposes `/loki/api/v1/query` and `/loki/api/v1/query_range` and ArgoCD sync completed.
 
 ---
 

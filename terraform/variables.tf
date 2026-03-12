@@ -214,3 +214,17 @@ variable "jenkins_github_token" {
   # Must be set in terraform.tfvars (no default for security)
   # Token scopes: repo (full control), admin:repo_hook (webhook management)
 }
+
+variable "jenkins_pipelinehealer_bridge_url" {
+  description = "PipelineHealer Jenkins bridge webhook URL (sensitive - set in terraform.tfvars)" # Webhook URL consumed by Jenkins secretText credential
+  type        = string
+  sensitive   = true
+  # Must be set in terraform.tfvars (no default for security)
+}
+
+variable "jenkins_pipelinehealer_bridge_secret" {
+  description = "PipelineHealer Jenkins bridge shared secret (sensitive - set in terraform.tfvars)" # Shared HMAC secret consumed by Jenkins secretText credential
+  type        = string
+  sensitive   = true
+  # Must be set in terraform.tfvars (no default for security)
+}

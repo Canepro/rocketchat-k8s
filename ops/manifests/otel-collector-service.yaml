@@ -31,9 +31,11 @@ spec:
     - name: jaeger-compact
       port: 6831
       targetPort: 6831  # Jaeger compact thrift UDP
+      protocol: UDP
     - name: jaeger-binary
       port: 6832
       targetPort: 6832  # Jaeger binary thrift UDP
+      protocol: UDP
     # Zipkin protocol port (for compatibility with Zipkin clients)
     - name: zipkin
       port: 9411

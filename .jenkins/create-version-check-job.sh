@@ -85,13 +85,12 @@ EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
   "$JENKINS_URL/job/$JOB_NAME/api/json")
 
 if [ "$EXISTS" = "200" ]; then
-  echo "⚠️  Job '$JOB_NAME' already exists. Deleting it first..."
-  curl -X POST \
-    -u "$JENKINS_USER:$JENKINS_PASSWORD" \
-    -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-    -H "$CRUMB_FIELD:$CRUMB_VALUE" \
-    "$JENKINS_URL/job/$JOB_NAME/doDelete"
-  echo "✅ Old job deleted"
+  JOB_ENDPOINT="$JENKINS_URL/job/$JOB_NAME/config.xml"
+  ACTION_LABEL="updated"
+  echo "ℹ️  Job '$JOB_NAME' already exists. Updating config in place..."
+else
+  JOB_ENDPOINT="$JENKINS_URL/createItem?name=$JOB_NAME"
+  ACTION_LABEL="created"
 fi
 
 # Create temporary config file with repository-specific values
@@ -110,21 +109,21 @@ fi
 
 echo "Using config file: $CONFIG_FILE (customized for ${REPO_OWNER}/${REPO_NAME})"
 
-# Create job
-echo "Creating job: $JOB_NAME for repository ${REPO_OWNER}/${REPO_NAME}"
+# Create or update job
+echo "Applying job config: $JOB_NAME for repository ${REPO_OWNER}/${REPO_NAME}"
 RESPONSE=$(curl -sS -L -w "\n%{http_code}" -X POST \
   -u "$JENKINS_USER:$JENKINS_PASSWORD" \
   -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
   -H "$CRUMB_FIELD:$CRUMB_VALUE" \
   -H "Content-Type: application/xml" \
   --data-binary @"$TEMP_CONFIG" \
-  "$JENKINS_URL/createItem?name=$JOB_NAME")
+  "$JOB_ENDPOINT")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
 
 if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-  echo "✅ Job created successfully!"
+  echo "✅ Job ${ACTION_LABEL} successfully!"
   echo ""
   echo "Job URL: $JENKINS_URL/job/$JOB_NAME"
   echo "Repository: ${REPO_OWNER}/${REPO_NAME}"
@@ -133,7 +132,7 @@ if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
   echo "You can trigger it manually from the Jenkins UI or run:"
   echo "  curl -X POST -u \"\$JENKINS_USER:****\" \"$JENKINS_URL/job/$JOB_NAME/build\""
 else
-  echo "❌ Failed to create job. HTTP Status: $HTTP_CODE"
+  echo "❌ Failed to apply job config. HTTP Status: $HTTP_CODE"
   if [ -n "$RESPONSE_BODY" ]; then
     echo "Response body:"
     echo "$RESPONSE_BODY"
