@@ -29,7 +29,7 @@ pipeline {
     stage('Helm Template') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Render RocketChat Helm chart with values.yaml
           # Output: raw Kubernetes manifests for validation
           helm template rocketchat . -f values.yaml > /tmp/manifests.yaml
@@ -50,7 +50,7 @@ SCRIPT
         // Validate both RocketChat and Traefik manifests
         // kubeconform checks: API versions, required fields, schema compliance
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           kubeconform -strict /tmp/manifests.yaml /tmp/traefik-manifests.yaml
 SCRIPT
         '''
@@ -63,7 +63,7 @@ SCRIPT
     stage('YAML Lint') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install yamllint if not available in the agent image
           # || true: don't fail if yamllint is already installed
           apk add --no-cache yamllint || true

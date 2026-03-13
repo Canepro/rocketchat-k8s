@@ -156,6 +156,25 @@ export JENKINS_URL="http://127.0.0.1:8080"
 bash .jenkins/scripts/create-job.sh
 ```
 
+### Multibranch reconciliation
+If the GitHub status check shows `continuous-integration/jenkins/pr-merge: This commit cannot be built`, Jenkins failed before the repo Jenkinsfile entered its stages or `post { failure { ... } }` handler. In that case PipelineHealer will still see `summary_only` evidence because neither the shell excerpt capture nor the Groovy console-tail fallback had a chance to run.
+
+Treat `.jenkins/job-config.xml` as the source of truth for the multibranch repo job and reapply it before chasing Terraform, Helm, or bridge code:
+
+```bash
+export JENKINS_URL="https://jenkins.canepro.me"
+export JOB_NAME="rocketchat-k8s"
+export CONFIG_FILE=".jenkins/job-config.xml"
+bash .jenkins/scripts/create-job.sh
+```
+
+That updates the multibranch job config in place and triggers a fresh indexing run so Jenkins rebuilds the `PR-*` children from the repo definition.
+
+After reconciliation:
+- re-run or rescan the multibranch job
+- verify the PR build no longer stops at `This commit cannot be built`
+- if a later pipeline failure still occurs, confirm PipelineHealer now receives `bridge_evidence_quality: "log_excerpt"` instead of `summary_only`
+
 **Migrating from AKS Jenkins:** See [JENKINS-SPLIT-AGENT-PLAN-aks.md](JENKINS-SPLIT-AGENT-PLAN-aks.md) (Jobs, pipelines, multibranch, and credentials) and hub-docs plan §8.1 for recreate/export/import options and credential checklist.
 
 ## GitHub Webhook

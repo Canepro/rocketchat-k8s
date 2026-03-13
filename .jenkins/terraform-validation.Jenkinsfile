@@ -71,7 +71,7 @@ EOF
     stage('Setup') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           # Ensure we can extract zip without assuming python3 exists.
           if ! command -v python3 >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
@@ -133,7 +133,7 @@ SCRIPT
     stage('Verify Azure Auth') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           echo "=== Verifying Azure Workload Identity Configuration ==="
           
@@ -178,7 +178,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             terraform fmt -check -recursive
 SCRIPT
@@ -192,7 +192,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
@@ -221,7 +221,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             # Use example file for CI validation (contains placeholder values)
             # Real secrets are never stored in blob storage
@@ -238,7 +238,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"

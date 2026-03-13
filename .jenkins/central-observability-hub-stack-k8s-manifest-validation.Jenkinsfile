@@ -34,7 +34,7 @@ pipeline {
     stage('ArgoCD App Validation') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Validate each ArgoCD Application manifest
           # These are the GitOps control plane definitions
           for app in argocd/applications/*.yaml; do
@@ -55,7 +55,7 @@ SCRIPT
       steps {
         dir('helm') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             # Find all Helm chart directories with values.yaml
             for chart_dir in */; do
               if [ -f "${chart_dir}values.yaml" ]; then
@@ -78,7 +78,7 @@ SCRIPT
     stage('K8s Manifest Validation') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Validate raw Kubernetes manifests (non-Helm)
           # These are typically Ingress, ConfigMaps, Secrets, etc.
           if [ -d "k8s" ]; then
@@ -100,7 +100,7 @@ SCRIPT
     stage('YAML Lint') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install yamllint if not available
           apk add --no-cache yamllint || true
           

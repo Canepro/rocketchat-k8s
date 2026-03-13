@@ -30,7 +30,7 @@ pipeline {
     stage('Install Security Tools') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           WORKDIR="${WORKSPACE:-$(pwd)}"
           export WORKDIR
@@ -122,7 +122,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${HOME:-/tmp}/.local/bin:${PATH}"
             # Run tfsec scan and output JSON results
             tfsec . --format json --out ${WORKSPACE}/${TFSEC_OUTPUT} || true
@@ -140,7 +140,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${HOME:-/tmp}/.local/bin:${PATH}"
             # Run checkov scan on Terraform files
             checkov -d . --framework terraform --output json --output-file ${WORKSPACE}/${CHECKOV_OUTPUT} || true
@@ -157,7 +157,7 @@ SCRIPT
     stage('Kubernetes Security Scan') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="${WORKSPACE}/checkov-venv/bin:${WORKSPACE}:${PATH}"
           # Scan Kubernetes manifests in ops/manifests/
           if [ -d "ops/manifests" ] && command -v kube-score >/dev/null 2>&1; then
@@ -214,7 +214,7 @@ SCRIPT
               if (line.contains(':')) {
                 def image = line.trim()
                 sh """
-                  cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "\${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+                  cat <<'SCRIPT' | sh "\${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "\${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                   export PATH="\${WORKSPACE}/checkov-venv/bin:\${WORKSPACE}:\${PATH}"
                   echo "Scanning image: ${image}"
                   VEX_ARG=""
@@ -240,7 +240,7 @@ SCRIPT
         script {
           // Use jq so we don't depend on pipeline-utility-steps or script approvals.
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"
@@ -331,7 +331,7 @@ SCRIPT
             }
             withEnv(["GITHUB_REPO=${env.GITHUB_REPO}"]) {
               sh '''
-                cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+                cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
                 export PATH="${WORKDIR}/checkov-venv/bin:${WORKDIR}:${HOME:-/tmp}/.local/bin:${PATH}"

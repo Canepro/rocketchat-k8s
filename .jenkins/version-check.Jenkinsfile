@@ -29,7 +29,7 @@ pipeline {
     stage('Install Tools') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           WORKDIR="${WORKSPACE:-$(pwd)}"
           export WORKDIR
@@ -136,7 +136,7 @@ SCRIPT
           
           // Check Azure Provider version
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}:${PATH}"
@@ -191,7 +191,7 @@ SCRIPT
           
           // Check Rocket.Chat image version (prefer Docker Hub tags; fallback to GitHub releases)
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             set -e
             WORKDIR="${WORKSPACE:-$(pwd)}"
             export PATH="${WORKDIR}:${PATH}"
@@ -249,7 +249,7 @@ SCRIPT
           
           // Check other images from ops/manifests/
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             # Extract all image tags from manifests
             grep -r "image:" ops/manifests/*.yaml | grep -v "#" | sed 's/.*image: \\(.*\\)/\\1/' | sort -u > image-list.txt
 SCRIPT
@@ -269,7 +269,7 @@ SCRIPT
           // Check Helm chart versions for all ArgoCD apps
           def chartLines = sh(
             script: '''
-              cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
               set +e
               export PATH="${WORKSPACE}:${PATH}"
               for app in GrafanaLocal/argocd/applications/*.yaml; do
@@ -563,7 +563,7 @@ SCRIPT
               writeJsonFile('updates-to-apply.json', updatesToApply)
               
               sh '''
-                cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+                cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                 set -e
                 WORKDIR="${WORKSPACE:-$(pwd)}"
                 export PATH="${WORKDIR}:${PATH}"

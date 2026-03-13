@@ -39,7 +39,7 @@ pipeline {
     stage('Setup') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install unzip (required by bun installer)
           # Update package list and install unzip if not already present
           if ! command -v unzip &> /dev/null; then
@@ -72,7 +72,7 @@ SCRIPT
     stage('Install Dependencies') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Install project dependencies (Next.js, TypeScript, ESLint, etc.)
           bun install
@@ -87,7 +87,7 @@ SCRIPT
     stage('Dependency Audit') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Run security audit on dependencies
           # || echo: don't fail on warnings, only critical vulnerabilities
@@ -103,7 +103,7 @@ SCRIPT
     stage('Code Quality') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Run ESLint to catch code quality issues
           bun run lint
@@ -120,7 +120,7 @@ SCRIPT
     stage('Type Checking') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Run TypeScript compiler in check-only mode
           bun run typecheck
@@ -135,7 +135,7 @@ SCRIPT
     stage('Build Validation') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           export PATH="$HOME/.bun/bin:$PATH"
           # Build Next.js application for production
           # This validates that all code compiles and bundles correctly
@@ -157,7 +157,7 @@ SCRIPT
       }
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Container scanning (if Dockerfile exists)
           # This would use tools like Trivy, Snyk, or similar
           if [ -f Dockerfile ]; then
