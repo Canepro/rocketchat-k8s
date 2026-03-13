@@ -100,10 +100,16 @@ SCRIPT
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
           ]) {
-            if (fileExists('.jenkins/scripts/pipelinehealer-bridge-evidence.groovy')) {
+            echo 'PipelineHealer bridge: entering failure handler'
+            def groovyExists = fileExists('.jenkins/scripts/pipelinehealer-bridge-evidence.groovy')
+            echo "PipelineHealer bridge: evidence groovy exists=${groovyExists}"
+            if (groovyExists) {
+              echo 'PipelineHealer bridge: loading Groovy fallback helper'
               def bridgeEvidence = load '.jenkins/scripts/pipelinehealer-bridge-evidence.groovy'
-              bridgeEvidence.writeLogExcerpt("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")
+              def result = bridgeEvidence.writeLogExcerpt("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")
+              echo "PipelineHealer bridge: fallback helper returned=${result}"
             }
+            echo "PipelineHealer bridge: excerpt file exists=${fileExists("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")}"
             sh '''
               set +e
               export PH_REPOSITORY="Canepro/rocketchat-k8s"
