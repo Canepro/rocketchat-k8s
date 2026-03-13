@@ -117,7 +117,7 @@ SCRIPT
             if (groovyExists) {
               echo 'PipelineHealer bridge: loading Groovy fallback helper'
               def bridgeEvidence = load '.jenkins/scripts/pipelinehealer-bridge-evidence.groovy'
-              def result = bridgeEvidence.writeLogExcerpt("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")
+              def result = bridgeEvidence.writeLogExcerpt()
               echo "PipelineHealer bridge: fallback helper returned=${result}"
             }
             echo "PipelineHealer bridge: excerpt file exists=${fileExists("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")}"
