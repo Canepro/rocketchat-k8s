@@ -34,7 +34,7 @@ pipeline {
     stage('ArgoCD App Validation') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Validate each ArgoCD Application manifest
           # These are the GitOps control plane definitions
           for app in argocd/applications/*.yaml; do
@@ -55,7 +55,7 @@ SCRIPT
       steps {
         dir('helm') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             # Find all Helm chart directories with values.yaml
             for chart_dir in */; do
               if [ -f "${chart_dir}values.yaml" ]; then
@@ -78,7 +78,7 @@ SCRIPT
     stage('K8s Manifest Validation') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Validate raw Kubernetes manifests (non-Helm)
           # These are typically Ingress, ConfigMaps, Secrets, etc.
           if [ -d "k8s" ]; then
@@ -100,7 +100,7 @@ SCRIPT
     stage('YAML Lint') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           # Install yamllint if not available
           apk add --no-cache yamllint || true
           
@@ -134,13 +134,27 @@ SCRIPT
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
           ]) {
+            echo 'PipelineHealer bridge: entering failure handler'
+            def groovyExists = fileExists('.jenkins/scripts/pipelinehealer-bridge-evidence.groovy')
+            echo "PipelineHealer bridge: evidence groovy exists=${groovyExists}"
+            if (groovyExists) {
+              echo 'PipelineHealer bridge: loading Groovy fallback helper'
+              def bridgeEvidence = load '.jenkins/scripts/pipelinehealer-bridge-evidence.groovy'
+              def result = bridgeEvidence.writeLogExcerpt("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")
+              echo "PipelineHealer bridge: fallback helper returned=${result}"
+            }
+            echo "PipelineHealer bridge: excerpt file exists=${fileExists("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")}"
             sh '''
               set +e
               export PH_REPOSITORY="Canepro/central-observability-hub-stack"
               export PH_JOB_NAME="${JOB_NAME}"
               export PH_JOB_URL="${BUILD_URL}"
               export PH_BUILD_NUMBER="${BUILD_NUMBER}"
-              export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+              PH_BRANCH_VALUE="${GIT_BRANCH:-}"
+              if [ -z "${PH_BRANCH_VALUE}" ]; then
+                PH_BRANCH_VALUE="${BRANCH_NAME:-unknown}"
+              fi
+              export PH_BRANCH="${PH_BRANCH_VALUE}"
               export PH_COMMIT_SHA="${GIT_COMMIT:-}"
               export PH_FAILURE_STAGE="k8s-manifest-validation"
               export PH_FAILURE_SUMMARY="Jenkins central observability manifest validation failed"

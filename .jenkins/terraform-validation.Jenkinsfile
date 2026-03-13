@@ -71,7 +71,7 @@ EOF
     stage('Setup') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           # Ensure we can extract zip without assuming python3 exists.
           if ! command -v python3 >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
@@ -133,7 +133,7 @@ SCRIPT
     stage('Verify Azure Auth') {
       steps {
         sh '''
-          cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+          cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
           echo "=== Verifying Azure Workload Identity Configuration ==="
           
@@ -178,7 +178,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             terraform fmt -check -recursive
 SCRIPT
@@ -192,7 +192,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
@@ -221,7 +221,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             # Use example file for CI validation (contains placeholder values)
             # Real secrets are never stored in blob storage
@@ -238,7 +238,7 @@ SCRIPT
       steps {
         dir('terraform') {
           sh '''
-            cat <<'SCRIPT' | sh .jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
@@ -287,14 +287,28 @@ SCRIPT
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
           ]) {
+            echo 'PipelineHealer bridge: entering failure handler'
             if (fileExists('.jenkins/scripts/send-pipelinehealer-bridge.sh')) {
+              def groovyExists = fileExists('.jenkins/scripts/pipelinehealer-bridge-evidence.groovy')
+              echo "PipelineHealer bridge: evidence groovy exists=${groovyExists}"
+              if (groovyExists) {
+                echo 'PipelineHealer bridge: loading Groovy fallback helper'
+                def bridgeEvidence = load '.jenkins/scripts/pipelinehealer-bridge-evidence.groovy'
+                def result = bridgeEvidence.writeLogExcerpt("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")
+                echo "PipelineHealer bridge: fallback helper returned=${result}"
+              }
+              echo "PipelineHealer bridge: excerpt file exists=${fileExists("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")}"
               sh '''
                 set +e
                 export PH_REPOSITORY="Canepro/rocketchat-k8s"
                 export PH_JOB_NAME="${JOB_NAME}"
                 export PH_JOB_URL="${BUILD_URL}"
                 export PH_BUILD_NUMBER="${BUILD_NUMBER}"
-                export PH_BRANCH="${GIT_BRANCH:-${BRANCH_NAME:-unknown}}"
+                PH_BRANCH_VALUE="${GIT_BRANCH:-}"
+                if [ -z "${PH_BRANCH_VALUE}" ]; then
+                  PH_BRANCH_VALUE="${BRANCH_NAME:-unknown}"
+                fi
+                export PH_BRANCH="${PH_BRANCH_VALUE}"
                 export PH_COMMIT_SHA="${GIT_COMMIT:-}"
                 export PH_FAILURE_STAGE="terraform-validation"
                 export PH_FAILURE_SUMMARY="Jenkins Terraform validation failed"

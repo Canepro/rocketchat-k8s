@@ -127,6 +127,8 @@ If these credentials are absent, the Jenkinsfiles skip bridge notification and c
 
 Bridge-enabled Jenkinsfiles should capture the actual failing shell output into `${WORKSPACE}/.pipelinehealer-log-excerpt.txt` with `.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh` and then export `PH_LOG_EXCERPT_FILE` from the `post { failure { ... } }` block before calling `send-pipelinehealer-bridge.sh`.
 
+If the pipeline fails before that shell wrapper creates an excerpt file, load `.jenkins/scripts/pipelinehealer-bridge-evidence.groovy` in the failure handler and synthesize `${WORKSPACE}/.pipelinehealer-log-excerpt.txt` from the Jenkins console tail before sending the bridge payload.
+
 This is the supported pattern because it:
 - does not depend on Jenkins-specific plugins such as `tee`
 - does not require `currentBuild.rawBuild` or extra script approvals
@@ -135,6 +137,7 @@ This is the supported pattern because it:
 For any bridge-enabled pipeline:
 - keep workspace cleanup in `post { cleanup { ... } }`, not `post { always { ... } }`, so failure handling still has access to the checked-out scripts and captured excerpt
 - wrap the failure-prone `sh` steps that do the real validation or scanning work
+- keep the Groovy console-tail fallback in `post { failure { ... } }` so setup/bootstrap failures do not degrade to summary-only evidence
 - keep the existing signed bridge sender as the only POST implementation
 
 ### CLI setup (when UI is painful)
@@ -152,6 +155,25 @@ kubectl -n jenkins port-forward pod/jenkins-0 8080:8080
 export JENKINS_URL="http://127.0.0.1:8080"
 bash .jenkins/scripts/create-job.sh
 ```
+
+### Multibranch reconciliation
+If the GitHub status check shows `continuous-integration/jenkins/pr-merge: This commit cannot be built`, Jenkins failed before the repo Jenkinsfile entered its stages or `post { failure { ... } }` handler. In that case PipelineHealer will still see `summary_only` evidence because neither the shell excerpt capture nor the Groovy console-tail fallback had a chance to run.
+
+Treat `.jenkins/job-config.xml` as the source of truth for the multibranch repo job and reapply it before chasing Terraform, Helm, or bridge code:
+
+```bash
+export JENKINS_URL="https://jenkins.canepro.me"
+export JOB_NAME="rocketchat-k8s"
+export CONFIG_FILE=".jenkins/job-config.xml"
+bash .jenkins/scripts/create-job.sh
+```
+
+That updates the multibranch job config in place and triggers a fresh indexing run so Jenkins rebuilds the `PR-*` children from the repo definition.
+
+After reconciliation:
+- re-run or rescan the multibranch job
+- verify the PR build no longer stops at `This commit cannot be built`
+- if a later pipeline failure still occurs, confirm PipelineHealer now receives `bridge_evidence_quality: "log_excerpt"` instead of `summary_only`
 
 **Migrating from AKS Jenkins:** See [JENKINS-SPLIT-AGENT-PLAN-aks.md](JENKINS-SPLIT-AGENT-PLAN-aks.md) (Jobs, pipelines, multibranch, and credentials) and hub-docs plan §8.1 for recreate/export/import options and credential checklist.
 
