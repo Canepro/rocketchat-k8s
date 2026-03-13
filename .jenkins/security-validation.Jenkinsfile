@@ -675,6 +675,10 @@ EOF
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
           ]) {
+            if (fileExists('.jenkins/scripts/pipelinehealer-bridge-evidence.groovy')) {
+              def bridgeEvidence = load '.jenkins/scripts/pipelinehealer-bridge-evidence.groovy'
+              bridgeEvidence.writeLogExcerpt("${env.WORKSPACE}/.pipelinehealer-log-excerpt.txt")
+            }
             sh '''
               set +e
               export PH_REPOSITORY="${GITHUB_REPO}"
