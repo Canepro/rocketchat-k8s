@@ -1,45 +1,42 @@
-def trimExcerpt(String text, int maxLines = 120, int maxChars = 20000) {
-  def lines = (text ?: '').readLines()
-  if (maxLines > 0 && lines.size() > maxLines) {
-    lines = lines.takeRight(maxLines)
-  }
-  def excerpt = lines.join('\n')
-  if (maxChars > 0 && excerpt.length() > maxChars) {
-    excerpt = excerpt.substring(excerpt.length() - maxChars)
-  }
-  excerpt
-}
-
 def writeLogExcerpt(String outputPath = '.pipelinehealer-log-excerpt.txt', int maxLines = 120, int maxChars = 20000) {
   echo "PipelineHealer bridge evidence: writeLogExcerpt called (outputPath=${outputPath})"
+
   if (fileExists(outputPath)) {
-    echo "PipelineHealer bridge evidence: excerpt file already exists at ${outputPath}; reusing."
-    def existing = trimExcerpt(readFile(outputPath), maxLines, maxChars)
-    if (existing?.trim()) {
-      writeFile file: outputPath, text: existing
-      echo "PipelineHealer bridge evidence: reused existing excerpt (${existing.length()} chars)"
+    def existing = readFile(outputPath).trim()
+    if (existing) {
+      echo "PipelineHealer bridge evidence: reusing existing excerpt (${existing.length()} chars)"
       return true
     }
-    echo 'PipelineHealer bridge evidence: existing excerpt file was empty after trim; falling through to rawBuild.'
   }
 
-  try {
-    echo 'PipelineHealer bridge evidence: attempting currentBuild.rawBuild.getLog()...'
-    def lines = currentBuild?.rawBuild?.getLog(maxLines) ?: []
-    echo "PipelineHealer bridge evidence: rawBuild.getLog returned ${lines.size()} lines"
-    def excerpt = trimExcerpt(lines.join('\n'), maxLines, maxChars)
-    if (!excerpt?.trim()) {
-      echo 'PipelineHealer bridge evidence: Jenkins log excerpt is empty after trim'
-      return false
-    }
-    writeFile file: outputPath, text: excerpt
-    echo "PipelineHealer bridge evidence: wrote excerpt (${excerpt.length()} chars) to ${outputPath}"
+  echo 'PipelineHealer bridge evidence: fetching console text via BUILD_URL API...'
+  def status = sh(returnStatus: true, script: """
+    set +e
+    CONSOLE_URL="\${BUILD_URL}consoleText"
+    EXCERPT_FILE='${outputPath}'
+    EXCERPT_TMP="\${EXCERPT_FILE}.tmp"
+
+    HTTP_CODE=\$(curl -sSo "\$EXCERPT_TMP" -w '%{http_code}' "\$CONSOLE_URL" 2>/dev/null)
+
+    if [ "\$HTTP_CODE" = "200" ] && [ -s "\$EXCERPT_TMP" ]; then
+      tail -n ${maxLines} "\$EXCERPT_TMP" | tail -c ${maxChars} > "\$EXCERPT_FILE"
+      rm -f "\$EXCERPT_TMP"
+      BYTES=\$(wc -c < "\$EXCERPT_FILE")
+      echo "PipelineHealer bridge evidence: captured \${BYTES} bytes via consoleText API"
+      exit 0
+    fi
+
+    rm -f "\$EXCERPT_TMP"
+    echo "PipelineHealer bridge evidence: consoleText API returned HTTP \$HTTP_CODE"
+    exit 1
+  """)
+
+  if (status == 0) {
     return true
-  } catch (err) {
-    echo "PipelineHealer bridge evidence: rawBuild.getLog() FAILED: ${err}"
-    echo 'PipelineHealer bridge evidence: this is likely a Jenkins sandbox/script-security block.'
-    return false
   }
+
+  echo 'PipelineHealer bridge evidence: all excerpt capture methods failed.'
+  return false
 }
 
 return this
