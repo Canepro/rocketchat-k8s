@@ -4,11 +4,11 @@ This PR includes automated version updates detected by Jenkins.
 
 ## Updates Summary
 - High Risk: 0
-- Medium Risk: 1 — Azure Provider
+- Medium Risk: 1
 
 ## Files Updated
 - **VERSIONS.md**: Version tracking automatically updated
-- **VERSION_UPDATES.md**: Risk summary and build metadata updated
+- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)
 
 ## Review Checklist
 - [ ] Review all version changes in VERSIONS.md
@@ -16,4 +16,4 @@ This PR includes automated version updates detected by Jenkins.
 - [ ] Check release notes for breaking changes
 - [ ] Test in staging if applicable
 
-Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/53/
+Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/56/
