@@ -1,121 +1,52 @@
-# Azure Storage Setup for Terraform Validation
+# Azure Backend Setup for Jenkins Terraform Validation
 
-Quick reference for configuring Jenkins to download `terraform.tfvars` from Azure Storage using Key Vault.
+This repo's Jenkins Terraform validation uses Azure Workload Identity and the Azure Storage remote backend. It does not require storage account keys.
 
-## Infrastructure Details
+## Required Jenkins environment
 
-- **Key Vault**: `aks-canepro-kv-e8d280`
-- **Storage Account**: `tfcaneprostate1` (in `rg-terraform-state`)
-- **Container**: `tfstate`
-- **Tenant ID**: `c3d431f1-3e02-4c62-a825-79cd8f9e2053`
-- **ESO Identity Client ID**: `fe3d3d95-fb61-4a42-8d82-ec0852486531` (has Key Vault access)
+The AKS agent pod or Jenkins job must provide:
 
-## Quick Setup Steps (Azure Cloud Shell)
+- `ARM_CLIENT_ID`
+- `ARM_TENANT_ID`
+- `ARM_SUBSCRIPTION_ID`
+- `AZURE_FEDERATED_TOKEN_FILE`
+- `TF_BACKEND_RESOURCE_GROUP`
+- `TF_BACKEND_STORAGE_ACCOUNT`
+- `TF_BACKEND_CONTAINER`
+- `TF_BACKEND_KEY`
 
-### 1. Get Storage Account Key
+The pipeline already passes those backend values into `terraform init`.
 
-```bash
-STORAGE_ACCOUNT_NAME="tfcaneprostate1"
-RESOURCE_GROUP="rg-terraform-state"
+## Required Azure RBAC
 
-STORAGE_KEY=$(az storage account keys list \
-  --resource-group $RESOURCE_GROUP \
-  --account-name $STORAGE_ACCOUNT_NAME \
-  --query '[0].value' -o tsv)
-```
+Grant the Jenkins Azure principal:
 
-### 2. Store in Key Vault
+- `Reader` on the subscription or target resource group for `terraform plan`
+- `Storage Blob Data Contributor` on the Terraform backend storage account
 
-```bash
-KEY_VAULT_NAME="aks-canepro-kv-e8d280"
-SECRET_NAME="storage-account-key"
-STORAGE_KEY="<paste-key-from-step-1>"
+If Jenkins will ever perform `terraform apply`, it also needs:
 
-az keyvault secret set \
-  --vault-name $KEY_VAULT_NAME \
-  --name $SECRET_NAME \
-  --value "$STORAGE_KEY"
+- `Contributor` on the target resource group
 
-# Verify
-az keyvault secret show \
-  --vault-name $KEY_VAULT_NAME \
-  --name $SECRET_NAME \
-  --query value -o tsv
-```
+## Backend values
 
-### 3. Verify ESO Identity Has Access (Should Already Work)
+Use the values from the bootstrap stack output:
 
 ```bash
-ESO_CLIENT_ID="fe3d3d95-fb61-4a42-8d82-ec0852486531"
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-KEY_VAULT_RESOURCE_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/rg-canepro-aks/providers/Microsoft.KeyVault/vaults/aks-canepro-kv-e8d280"
-
-# Check access
-az role assignment list \
-  --scope $KEY_VAULT_RESOURCE_ID \
-  --assignee $ESO_CLIENT_ID \
-  --query "[?roleDefinitionName=='Key Vault Secrets User']" -o table
+cd /home/vincent/src/rocketchat-k8s/terraform/bootstrap
+terraform output -raw backend_hcl
 ```
 
-If it shows a role assignment, you're good! If not, grant access:
+Map them into Jenkins job configuration or controller-managed environment variables.
 
-```bash
-az role assignment create \
-  --assignee $ESO_CLIENT_ID \
-  --role "Key Vault Secrets User" \
-  --scope $KEY_VAULT_RESOURCE_ID
-```
+## Validation flow
 
-## Jenkins Configuration
+1. Jenkins authenticates to Azure using Workload Identity.
+2. `terraform init` uses the Azure Storage backend with OIDC and Azure AD auth.
+3. `terraform validate` and `terraform plan` run without storage keys or downloaded tfvars blobs.
 
-**✅ Already Configured!** Environment variables are set in the Jenkinsfile itself. No action needed.
+## What not to do
 
-The Jenkinsfile includes:
-
-- `AZURE_KEY_VAULT_NAME=aks-canepro-kv-e8d280`
-- `AZURE_STORAGE_ACCOUNT_NAME=tfcaneprostate1`
-- `AZURE_STORAGE_CONTAINER_NAME=tfstate`
-- `AZURE_CLIENT_ID=fe3d3d95-fb61-4a42-8d82-ec0852486531`
-- `AZURE_TENANT_ID=c3d431f1-3e02-4c62-a825-79cd8f9e2053`
-
-**Security Note**: For public repos, consider using Jenkins credentials (see `terraform-validation.Jenkinsfile.secure` in GrafanaLocal).
-
-## Status
-
-✅ **Setup Complete!**
-
-- Storage Account key stored in Key Vault
-- `terraform.tfvars` uploaded to Azure Storage
-- ESO identity has Key Vault access
-- Environment variables configured in Jenkinsfile
-
-## Test
-
-Trigger a Jenkins build and check console output for:
-
-- ✅ "Retrieving Storage Account key from Key Vault"
-- ✅ "Successfully downloaded terraform.tfvars from Azure Storage"
-- ✅ Terraform plan should run successfully
-
-## Troubleshooting
-
-**Authentication fails?**
-
-```bash
-# Verify ESO identity can access Key Vault
-az keyvault secret show \
-  --vault-name aks-canepro-kv-e8d280 \
-  --name storage-account-key \
-  --query value -o tsv
-```
-
-**Blob not found?**
-
-```bash
-# Verify terraform.tfvars exists
-az storage blob list \
-  --account-name tfcaneprostate1 \
-  --account-key $STORAGE_KEY \
-  --container-name tfstate \
-  --query "[?name=='terraform.tfvars']" -o table
-```
+- Do not store storage account keys in Key Vault for Terraform backend access.
+- Do not upload real `terraform.tfvars` into blob storage for CI.
+- Do not commit `backend.hcl`, `.tfstate`, or secret exports to Git.

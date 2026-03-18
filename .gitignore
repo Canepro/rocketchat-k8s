@@ -52,12 +52,20 @@ charts/
 
 # Terraform (local state and variable files may contain secrets)
 terraform/.terraform/
-terraform/.terraform.lock.hcl
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/terraform.tfvars
 terraform/*.tfvars
 terraform/backend.hcl
+terraform/tfplan
+terraform/tfplan.*
+terraform/bootstrap/.terraform/
+terraform/bootstrap/*.tfstate
+terraform/bootstrap/*.tfstate.*
+terraform/bootstrap/terraform.tfvars
+terraform/bootstrap/*.tfvars
+terraform/bootstrap/tfplan
+terraform/bootstrap/tfplan.*
 
 # Build artifacts
 .jenkins/artifacts/

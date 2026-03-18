@@ -21,7 +21,7 @@ spec:
     helm:
       releaseName: mongodb-kubernetes-operator  # Helm release name (used for resource naming)
   destination:
-    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
     namespace: rocketchat  # Target namespace (operator watches this namespace for MongoDB resources)
   syncPolicy:
     automated:

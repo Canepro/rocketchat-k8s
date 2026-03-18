@@ -2,47 +2,43 @@
 
 This directory contains Terraform configuration for provisioning Azure infrastructure for Rocket.Chat on AKS, including Key Vault for GitOps secrets management.
 
-## ⚠️ Important: Cloud Shell Only
+## ⚠️ Important
 
-**Per migration plan restrictions**, Terraform applies must be run **only from Azure Portal / Cloud Shell on your work machine**. Do not run Terraform from other machines or CI/CD pipelines.
+The main AKS stack uses an **Azure Storage remote backend** authenticated through Azure CLI and Microsoft Entra ID. Only the small bootstrap stack in `terraform/bootstrap/` uses local state, because it creates the backend itself.
 
-## 🚀 Quick Reference: Cloud Shell Setup
+## 🚀 Quick Reference: Authenticated Machine Setup
 
 **First time setup:**
 ```bash
-cd ~/clouddrive
 git clone https://github.com/Canepro/rocketchat-k8s.git
-cd rocketchat-k8s/terraform
-cat <<EOF > backend.hcl
-resource_group_name  = "rg-terraform-state"
-storage_account_name = "tfcaneprostate1"
-container_name       = "tfstate"
-key                  = "aks.terraform.tfstate"
-EOF
-terraform init -reconfigure -backend-config=backend.hcl
+cd rocketchat-k8s/terraform/bootstrap
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+terraform output -raw backend_hcl > ../backend.hcl
+cd ../
 cp terraform.tfvars.example terraform.tfvars
-nano terraform.tfvars  # Update with your values
-```
-
-**Subsequent Cloud Shell sessions:**
-```bash
-cd ~/clouddrive/rocketchat-k8s/terraform
-git pull
-cat <<EOF > backend.hcl
-resource_group_name  = "rg-terraform-state"
-storage_account_name = "tfcaneprostate1"
-container_name       = "tfstate"
-key                  = "aks.terraform.tfstate"
-EOF
+nano terraform.tfvars
 terraform init -reconfigure -backend-config=backend.hcl
 ```
 
-**See [`CLOUD_SHELL_QUICK_START.md`](CLOUD_SHELL_QUICK_START.md) for detailed guide.**
+**Subsequent sessions on the same machine:**
+```bash
+cd /home/vincent/src/rocketchat-k8s/terraform
+git pull
+cd bootstrap
+terraform init
+terraform output -raw backend_hcl > ../backend.hcl
+cd ..
+terraform init -reconfigure -backend-config=backend.hcl
+```
+
+**See [`REMOTE_BACKEND_QUICK_START.md`](REMOTE_BACKEND_QUICK_START.md) for the detailed backend workflow.**
 
 ## Prerequisites
 
 - Azure CLI installed and authenticated (`az login`)
-- Terraform >= 1.8 installed in Cloud Shell
+- Terraform >= 1.8 installed on the machine you use for applies
 - Appropriate Azure permissions (Contributor or higher on target subscription/resource group)
 
 ## Quick Start
@@ -131,9 +127,9 @@ The `keyvault.tf` file provisions:
 - **User Assigned Managed Identity** for External Secrets Operator
 - **RBAC role assignment**: UAMI gets "Key Vault Secrets User" role (read secrets)
 
-### Plan stability (Cloud Shell vs Jenkins identity)
+### Plan stability (human operator vs Jenkins identity)
 
-This repo may be planned/applied by different Azure identities (e.g., your Cloud Shell user vs Jenkins Workload Identity).
+This repo may be planned/applied by different Azure identities (for example, your interactive Azure CLI login vs Jenkins Workload Identity).
 
 To avoid noisy plans (or destructive replacements) caused solely by “who ran Terraform”, the Key Vault role assignment that grants the Terraform runner permissions is configured to **ignore changes to `principal_id`**.
 
@@ -178,168 +174,74 @@ The `keyvault.tf` file includes `azurerm_key_vault_secret` resources that create
 
 **Security Note:** Secret values are marked as `sensitive = true` in Terraform, so they won't appear in plan/apply output. However, they will be stored in Terraform state. Use a secure backend (Azure Storage) and ensure state access is restricted.
 
-## State Management (Best Practices for Cloud Shell)
+## State Management
 
-**Recommended:** Use Azure Storage backend for Terraform state with `backend.hcl` configuration file.
+The repo uses a two-step backend pattern:
 
-### Backend Configuration Structure
+1. `terraform/bootstrap/` creates the Azure Storage backend in your personal subscription.
+2. `terraform/` stores the main AKS state in that backend using `backend.hcl`.
 
-This repo uses a **best practice pattern** for Cloud Shell:
+### Why this pattern
 
-1. **`backend.tf`** - Defines backend structure (committed to git)
-2. **`backend.hcl.example`** - Template showing required values (committed to git)
-3. **`backend.hcl`** - Your actual backend config (gitignored, contains sensitive storage account details)
+- avoids the backend chicken-and-egg problem
+- keeps the main stack on remote state with locking and versioning
+- uses Azure AD auth instead of storage account keys
+- keeps backend details out of Git
 
-### Quick Start: First-Time Setup
+### Files
 
-**Step 1:** Copy the example backend config:
+1. `bootstrap/main.tf` and related files: create the state storage account and container
+2. `backend.tf`: partial `azurerm` backend block for the main stack
+3. `backend.hcl.example`: template for the local-only backend config
+4. `backend.hcl`: generated locally from bootstrap outputs, never committed
 
-```bash
-cd terraform
-cp backend.hcl.example backend.hcl
-```
-
-**Step 2:** Edit `backend.hcl` with your actual storage account details:
-
-```bash
-nano backend.hcl
-# Update with your values:
-# - resource_group_name
-# - storage_account_name
-# - container_name
-# - key
-```
-
-**Step 3:** Initialize Terraform using the helper script:
+### First-time setup
 
 ```bash
-./scripts/tf-init.sh
-```
+cd /home/vincent/src/rocketchat-k8s/terraform/bootstrap
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+terraform output -raw backend_hcl > ../backend.hcl
 
-Or manually:
-
-```bash
+cd ../
 terraform init -reconfigure -backend-config=backend.hcl
 ```
 
-### Cloud Shell Workflow (Ephemeral Sessions)
-
-Since Cloud Shell sessions are ephemeral, you'll need to recreate `backend.hcl` each session. **Recommended workflow:**
-
-**Option A: Quick Setup (Recommended for Cloud Shell)**
+If you already created local state for the main stack and want to move it into the backend:
 
 ```bash
-# 1. Clone repo to clouddrive (persists across sessions)
-cd ~/clouddrive
-git clone https://github.com/Canepro/rocketchat-k8s.git
-cd rocketchat-k8s/terraform
-
-# 2. Create backend.hcl (one-time per session)
-cat <<EOF > backend.hcl
-resource_group_name  = "rg-terraform-state"
-storage_account_name = "tfcaneprostate1"
-container_name       = "tfstate"
-key                  = "aks.terraform.tfstate"
-EOF
-
-# 3. Initialize Terraform
-terraform init -reconfigure -backend-config=backend.hcl
-
-# 4. Configure variables (first time only)
-cp terraform.tfvars.example terraform.tfvars
-nano terraform.tfvars  # Update with your values
-
-# 5. Use Terraform normally
-terraform plan
-terraform apply
+terraform init -reconfigure -backend-config=backend.hcl -migrate-state
 ```
 
-**For subsequent Cloud Shell sessions:**
-```bash
-cd ~/clouddrive/rocketchat-k8s/terraform
-git pull  # Update to latest
-cat <<EOF > backend.hcl
-resource_group_name  = "rg-terraform-state"
-storage_account_name = "tfcaneprostate1"
-container_name       = "tfstate"
-key                  = "aks.terraform.tfstate"
-EOF
-terraform init -reconfigure -backend-config=backend.hcl
-```
+### What the bootstrap stack creates
 
-**See [`CLOUD_SHELL_QUICK_START.md`](CLOUD_SHELL_QUICK_START.md) for complete step-by-step guide.**
+- dedicated resource group for state
+- `StorageV2` account with `Standard_LRS`
+- private blob container
+- blob versioning and soft delete
+- `Storage Blob Data Contributor` for the current Azure principal
+- optional `Storage Blob Data Contributor` assignments for Jenkins or other workload identities
+- OAuth preferred for backend access; shared keys remain enabled for AzureRM provider compatibility
 
-**Option B: Use helper script**
+### Security notes
 
-```bash
-# 1. Create backend.hcl first
-cat <<EOF > backend.hcl
-resource_group_name  = "rg-terraform-state"
-storage_account_name = "tfcaneprostate1"
-container_name       = "tfstate"
-key                  = "aks.terraform.tfstate"
-EOF
-
-# 2. Use helper script
-./scripts/tf-init.sh
-```
-
-**Option C: Quick inline command (Alternative)**
-
-If you prefer not to use `backend.hcl`, you can use inline backend config:
-
-```bash
-terraform init -reconfigure \
-  -backend-config="resource_group_name=rg-terraform-state" \
-  -backend-config="storage_account_name=tfcaneprostate1" \
-  -backend-config="container_name=tfstate" \
-  -backend-config="key=aks.terraform.tfstate"
-```
-
-**Option D: Cloud Shell alias (Pro-Tip)**
-
-Create a persistent alias in Cloud Shell (survives sessions if you mount clouddrive):
-
-```bash
-# Add to ~/.bashrc or ~/clouddrive/.bashrc
-echo 'alias tfinit="cd ~/clouddrive/rocketchat-k8s/terraform && cp backend.hcl.example backend.hcl && nano backend.hcl && terraform init -reconfigure -backend-config=backend.hcl"' >> ~/.bashrc
-source ~/.bashrc
-
-# Then just type:
-tfinit
-```
-
-### Benefits of This Approach
-
-✅ **Security**: Backend config (storage account details) never committed to git  
-✅ **Flexibility**: Easy to switch between environments  
-✅ **Best Practice**: Follows Terraform recommended patterns  
-✅ **Cloud Shell Friendly**: Works well with ephemeral sessions  
-✅ **State Persistence**: State stored in Azure Storage, survives Cloud Shell sessions  
-✅ **State Locking**: Prevents concurrent modifications  
-✅ **Versioning**: Azure Storage provides state file versioning and backup
-
-### Important Security Notes
-
-1. **Never commit `backend.hcl`** - It's gitignored for a reason (contains storage account details)
-2. **Secure storage account** - Ensure your state storage account has:
-   - Encryption at rest enabled (default)
-   - Access restricted to authorized users only
-   - Consider using Azure Key Vault for state encryption keys
-3. **State contains secrets** - Terraform state may contain sensitive values from `terraform.tfvars`
-4. **Backend access** - Only authorized users should have access to the storage account container
+1. Never commit `backend.hcl`
+2. Never commit `.tfstate` or state backups
+3. Terraform state contains secrets, so restrict access to the storage account
+4. Use Azure CLI / Entra ID authentication for backend access instead of storage keys
 
 ## Cost Optimization: Automated Cluster Scheduling
 
 The AKS cluster uses **Azure Automation** to automatically start and stop the cluster on a schedule, significantly reducing costs.
 
-### Current Schedule (2026-01-25)
+### Current Recommended Schedule (2026-03-18)
 
-- **Start Time**: 16:00 (4 PM) on weekdays
-- **Stop Time**: 23:00 (11 PM) on weekdays
+- **Start Time**: 13:30 (1:30 PM) on weekdays
+- **Stop Time**: 16:15 (4:15 PM) on weekdays
 - **Weekends**: Cluster stays off
-- **Runtime**: ~7 hours/day × 5 weekdays = ~35 hours/week = ~140 hours/month
-- **Estimated Monthly Cost**: ~£55-70 (within £90/month budget)
+- **Runtime**: ~2.75 hours/day × 5 weekdays = ~13.75 hours/week = ~55 hours/month
+- **Reasoning**: Leaves ~30 minutes for startup and ~15 minutes for shutdown while keeping the cluster available for a 14:00-16:00 work window
 
 ### Configuration
 
@@ -348,8 +250,8 @@ Schedule is managed via Terraform variables in `terraform.tfvars`:
 ```hcl
 enable_auto_shutdown = true
 shutdown_timezone    = "Europe/London"
-shutdown_time        = "23:00"  # 11 PM stop
-startup_time         = "16:00"  # 4 PM start (evening-only schedule)
+shutdown_time        = "16:15"  # 4:15 PM stop
+startup_time         = "13:30"  # 1:30 PM start
 ```
 
 **Terraform Resources:**
@@ -374,9 +276,10 @@ az aks stop --resource-group rg-canepro-aks --name aks-canepro
 
 ### Cost Savings
 
-- **Previous schedule** (08:30-23:00): ~72.5 hours/week = ~290 hours/month ≈ £200/month
-- **Current schedule** (16:00-23:00): ~35 hours/week = ~140 hours/month ≈ £55-70/month
-- **Savings**: ~52% reduction in runtime hours, saving ~£75-88/month
+- **Previous schedule** (08:30-23:00): ~72.5 hours/week = ~290 hours/month
+- **Later evening schedule** (16:00-23:00): ~35 hours/week = ~140 hours/month
+- **Current recommended schedule** (13:30-16:15): ~13.75 hours/week = ~55 hours/month
+- **Savings vs 16:00-23:00**: ~61% reduction in runtime hours
 
 ## Jenkins + Terraform (CI Validation)
 
@@ -387,18 +290,18 @@ Jenkins is configured to run Terraform validation on every push/PR using **Azure
 2. **Azure Login**: Authenticates via Workload Identity (federated token)
 3. **Terraform Format**: `terraform fmt -check -recursive`
 4. **Terraform Validate**: `terraform init` + `terraform validate`
-5. **Terraform Plan**: `terraform plan` with state from Azure Storage
+5. **Terraform Plan**: `terraform plan` against the Azure Storage remote backend
 
 ### How It Works
 - **Authentication**: Uses the `jenkins` service account with federated credentials to the ESO managed identity
-- **State Backend**: Reads/writes to `tfcaneprostate1` storage account using Azure AD auth
+- **State Backend**: Reads/writes to the bootstrap-created Azure Storage account using Azure AD auth
 - **Variables**: Uses `terraform.tfvars.example` for CI (placeholder values, no real secrets)
 - **Plan Output**: Archived as build artifact for review
 
 ### Permissions Required (Already Configured)
 The ESO identity has these roles for Jenkins terraform validation:
 - `Reader` on subscription (read Azure resources)
-- `Storage Blob Data Contributor` on tfcaneprostate1 (read/write/lock state)
+- `Storage Blob Data Contributor` on the Terraform backend storage account (read/write/lock state)
 - `Azure Kubernetes Service Cluster User Role` on AKS (list cluster credentials)
 
 See `.jenkins/WORKLOAD_IDENTITY_SETUP.md` for full details.
@@ -409,7 +312,7 @@ See `.jenkins/WORKLOAD_IDENTITY_SETUP.md` for full details.
 2. Add manual approval step in the pipeline
 3. Implement secure handling of real `terraform.tfvars` (e.g., fetch from Key Vault)
 
-For now, `terraform apply` should be run from **Azure Cloud Shell** on your work machine (per current operational guidelines).
+For now, `terraform apply` should be run interactively by you from your authenticated machine.
 
 ## Destroying Resources
 
@@ -428,9 +331,10 @@ az keyvault update --name "<key-vault-name>" --enable-purge-protection false
 ## Files
 
 - `main.tf` - Provider configuration, resource group
-- `backend.tf` - Backend configuration structure (committed)
+- `backend.tf` - Partial remote backend configuration (committed)
 - `backend.hcl.example` - Backend config template (committed)
-- `backend.hcl` - Your backend config (gitignored, never commit - recreate each Cloud Shell session)
+- `backend.hcl` - Your local backend config (gitignored, never commit)
+- `bootstrap/` - Bootstrap stack that creates the Azure Storage backend
 - `aks.tf` - AKS cluster configuration
 - `network.tf` - Networking configuration
 - `automation.tf` - Azure Automation for scheduled start/stop
@@ -439,14 +343,14 @@ az keyvault update --name "<key-vault-name>" --enable-purge-protection false
 - `outputs.tf` - Output values (Key Vault name, UAMI client ID, etc.)
 - `terraform.tfvars.example` - Example variables (safe to commit)
 - `terraform.tfvars` - Your actual variables (gitignored, never commit)
-- `scripts/tf-init.sh` - Helper script for Cloud Shell initialization
-- `CLOUD_SHELL_QUICK_START.md` - Quick reference guide for Cloud Shell workflow
+- `scripts/tf-init.sh` - Helper script for backend initialization
+- `REMOTE_BACKEND_QUICK_START.md` - Quick reference guide for the backend workflow
 
 ## Security Notes
 
 1. **Never commit `terraform.tfvars`** - It contains sensitive secret values (gitignored)
 2. **Never commit `.tfstate` files** - They contain sensitive resource IDs and secret values (gitignored)
-3. **Use secure backend** - Store state in Azure Storage with proper access controls and encryption
+3. **Use secure backend** - Store state in Azure Storage with proper access controls and Azure AD auth
 4. **Secret values in state** - Terraform state will contain secret values. Ensure backend storage has:
    - Encryption at rest enabled
    - Access restricted to authorized users only

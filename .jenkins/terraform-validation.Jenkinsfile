@@ -11,15 +11,17 @@ pipeline {
   }
   
   environment {
-    // Azure Storage for tfvars
-    STORAGE_ACCOUNT = 'tfcaneprostate1'
-    STORAGE_CONTAINER = 'tfstate'
-    TFVARS_BLOB = 'terraform.tfvars'
+    // Azure Storage remote backend for Terraform state.
+    // Override these in Jenkins job configuration during backend cutover if needed.
+    TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: 'rg-canepro-tfstate'}"
+    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: 'tfcaneprostate1'}"
+    TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: 'tfstate'}"
+    TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: 'aks.terraform.tfstate'}"
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
 
-    // Non-secret defaults so CI plan matches Cloud Shell (override in job config if needed)
+    // Non-secret defaults so CI plans match interactive plans (override in job config if needed)
     TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins-oke.canepro.me'}"
     TF_VAR_jenkins_graceful_disconnect_user = "${env.TF_VAR_jenkins_graceful_disconnect_user ?: 'admin'}"
     TF_VAR_jenkins_graceful_disconnect_agent_name = "${env.TF_VAR_jenkins_graceful_disconnect_agent_name ?: 'aks-agent'}"
@@ -199,10 +201,10 @@ SCRIPT
             fi
             # Initialize with backend (uses Workload Identity for auth)
             terraform init \
-              -backend-config="resource_group_name=rg-terraform-state" \
-              -backend-config="storage_account_name=${STORAGE_ACCOUNT}" \
-              -backend-config="container_name=${STORAGE_CONTAINER}" \
-              -backend-config="key=aks.terraform.tfstate" \
+              -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+              -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
+              -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
+              -backend-config="key=${TF_BACKEND_KEY}" \
               -backend-config="use_oidc=true" \
               -backend-config="use_azuread_auth=true" \
               -backend-config="tenant_id=${ARM_TENANT_ID}" \
