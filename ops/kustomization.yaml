@@ -48,9 +48,6 @@ resources:
   - manifests/maintenance-stale-pod-cleanup.yaml  # Stale pod cleanup CronJob (daily after cluster restart)
   # Note: Grafana dashboard available at manifests/grafana-dashboard-maintenance-jobs.json (import manually)
   
-  # TLS: Certificate management
-  - manifests/clusterissuer.yaml  # cert-manager ClusterIssuer for Let's Encrypt TLS certificates
-
   # Logs Viewer Web UI (same-origin path: /logs-viewer)
   - manifests/logs-viewer-web-assets-configmap.yaml  # Built web assets (index + JS + CSS)
   - manifests/logs-viewer-web-nginx-configmap.yaml  # Nginx config for /logs-viewer path routing
