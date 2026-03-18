@@ -200,21 +200,22 @@ SCRIPT
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
             fi
             if [ -z "${TF_BACKEND_STORAGE_ACCOUNT:-}" ]; then
-              echo "ERROR: TF_BACKEND_STORAGE_ACCOUNT must be set to the bootstrap output backend_storage_account_name"
-              exit 1
+              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; running PR validation with backend disabled"
+              terraform init -backend=false
+            else
+              # Initialize with backend (uses Workload Identity for auth)
+              terraform init \
+                -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+                -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
+                -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
+                -backend-config="key=${TF_BACKEND_KEY}" \
+                -backend-config="use_oidc=true" \
+                -backend-config="use_azuread_auth=true" \
+                -backend-config="tenant_id=${ARM_TENANT_ID}" \
+                -backend-config="client_id=${ARM_CLIENT_ID}" \
+                -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
             fi
-            # Initialize with backend (uses Workload Identity for auth)
-            terraform init \
-              -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
-              -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
-              -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
-              -backend-config="key=${TF_BACKEND_KEY}" \
-              -backend-config="use_oidc=true" \
-              -backend-config="use_azuread_auth=true" \
-              -backend-config="tenant_id=${ARM_TENANT_ID}" \
-              -backend-config="client_id=${ARM_CLIENT_ID}" \
-              -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
-            
+
             terraform validate
 SCRIPT
           '''
@@ -248,6 +249,10 @@ SCRIPT
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
+            fi
+            if [ -z "${TF_BACKEND_STORAGE_ACCOUNT:-}" ]; then
+              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; skipping remote-backed terraform plan until backend cutover is complete"
+              exit 0
             fi
             terraform plan \
               -no-color \
