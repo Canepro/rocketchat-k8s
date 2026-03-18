@@ -12,6 +12,9 @@ spec:
     authentication:
       modes: ["SCRAM"]
     tls:
+      # Temporary migration bootstrap: keep operator-managed MongoDB TLS disabled until
+      # data restore is complete and we can roll out cert/secret wiring in one pass.
+      # Track production hardening in GitHub issue #113.
       enabled: false
   users:
     - name: admin
