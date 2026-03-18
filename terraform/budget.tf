@@ -35,7 +35,6 @@ resource "azurerm_consumption_budget_subscription" "personal" {
     operator       = "GreaterThan"
     threshold      = 50
     threshold_type = "Actual"
-    contact_emails = [var.budget_alert_email]
     contact_groups = [azurerm_monitor_action_group.budget.id]
   }
 
@@ -44,7 +43,6 @@ resource "azurerm_consumption_budget_subscription" "personal" {
     operator       = "GreaterThan"
     threshold      = 80
     threshold_type = "Actual"
-    contact_emails = [var.budget_alert_email]
     contact_groups = [azurerm_monitor_action_group.budget.id]
   }
 
@@ -53,7 +51,6 @@ resource "azurerm_consumption_budget_subscription" "personal" {
     operator       = "GreaterThan"
     threshold      = 100
     threshold_type = "Actual"
-    contact_emails = [var.budget_alert_email]
     contact_groups = [azurerm_monitor_action_group.budget.id]
   }
 }
