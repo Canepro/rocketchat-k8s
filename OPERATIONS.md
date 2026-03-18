@@ -609,7 +609,7 @@ kubectl -n monitoring logs job/manual-prune-<timestamp>
 ```
 
 ### Stale Pod Cleanup (Daily after Cluster Restart)
-The `aks-stale-pod-cleanup` CronJob runs daily at 16:30 UTC (30 minutes after cluster auto-start at 16:00) to remove orphaned pods left in terminal states after AKS cluster shutdown/restart cycles.
+The `aks-stale-pod-cleanup` CronJob runs on weekdays at 14:00 Europe/London (`0 14 * * 1-5` with `timeZone: Europe/London`), 30 minutes after cluster auto-start, to remove orphaned pods left in terminal states after AKS cluster shutdown/restart cycles.
 
 **What it cleans:**
 - `Succeeded` pods (Completed jobs from before shutdown)

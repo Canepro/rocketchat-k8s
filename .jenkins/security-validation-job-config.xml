@@ -6,13 +6,13 @@ It performs security scanning and creates PRs/issues for remediation.
 -->
 <flow-definition plugin="workflow-job@2.50">
   <actions/>
-  <description>Automated security validation pipeline. Scans infrastructure code for vulnerabilities and creates PRs/issues for remediation. Runs weekdays at 6 PM (after cluster starts at 4 PM).</description>
+  <description>Automated security validation pipeline. Scans infrastructure code for vulnerabilities and creates PRs/issues for remediation. Runs on weekdays during 15:00-15:59 Europe/London before the AKS agent stops.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
       <triggers>
         <hudson.triggers.TimerTrigger>
-          <spec>H 18 * * 1-5</spec>
+          <spec>H 15 * * 1-5</spec>
         </hudson.triggers.TimerTrigger>
       </triggers>
     </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>

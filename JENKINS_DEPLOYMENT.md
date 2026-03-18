@@ -54,7 +54,7 @@ When the Jenkins **controller** runs on OKE (always-on) and a **static agent** r
 
 - **Connection**: WebSocket over HTTPS (443) is the chosen method: the controller is reachable at `https://jenkins.canepro.me` with no need to expose JNLP port 50000. The AKS static agent in this repo uses `-webSocket` to that URL.
 - **AKS-side manifest**: Static agent pod and Workload Identity RBAC are in `ops/manifests/jenkins-static-agent.yaml` and `ops/manifests/jenkins-agent-rbac.yaml` (deployed by `aks-rocketchat-ops`). Create Secret `jenkins-agent-secret` in namespace `jenkins` with the agent secret from the OKE Jenkins UI.
-- **Plan and runbook**: Full design, phases, and shutdown/startup procedure are in the **hub-docs** repo: `JENKINS-SPLIT-AGENT-PLAN.md` and `JENKINS-SPLIT-AGENT-RUNBOOK.md`. Before stopping AKS, follow the runbook: check for running builds on the `aks-agent` node, put the node offline, then run the existing AKS stop (e.g. Azure Automation at 23:00).
+- **Plan and runbook**: Full design, phases, and shutdown/startup procedure are in the **hub-docs** repo: `JENKINS-SPLIT-AGENT-PLAN.md` and `JENKINS-SPLIT-AGENT-RUNBOOK.md`. Before stopping AKS, follow the runbook: check for running builds on the `aks-agent` node, put the node offline, then run the current AKS stop window documented in `OPERATIONS.md` (16:15 Europe/London on weekdays unless changed by Terraform).
 
 #### One-time AKS agent bootstrap
 
@@ -339,7 +339,7 @@ pipeline {
 ### Current Security Posture
 
 ✅ **Implemented**:
-- Latest LTS version (2.516.3) with Java 21
+- Latest LTS version (2.528.3) with Java 21
 - CSRF protection enabled
 - No executors on controller (agents only)
 - Secrets in Azure Key Vault (never in git)
@@ -616,7 +616,7 @@ kubectl rollout restart statefulset jenkins -n jenkins
    # To:     targetRevision: 5.x.x  (new version)
    
    # Update jenkins-values.yaml
-   # Change: tag: "2.516.3-lts-jdk21"
+   # Change: tag: "2.528.3-lts-jdk21"
    # To:     tag: "2.xxx.x-lts-jdk21"  (new version)
    
    # Update VERSIONS.md
@@ -667,7 +667,7 @@ kubectl rollout restart statefulset jenkins -n jenkins
 - Network: LoadBalancer (shared with Traefik)
 
 **What You Get**:
-- ✅ Latest Jenkins LTS (2.516.3) with Java 21
+- ✅ Latest Jenkins LTS (2.528.3) with Java 21
 - ✅ Secure by default (CSRF, RBAC, TLS)
 - ✅ Dynamic Kubernetes agents (3 types)
 - ✅ GitHub integration ready

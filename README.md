@@ -58,7 +58,6 @@ flowchart LR
   AzureKV --> ESO
   ESO --> RC
   ESO --> Data
-  ESO --> Agent
   Users --> Edge
   Edge --> RC
   Edge --> ArgoCD
@@ -247,14 +246,14 @@ The cluster runs on an automated schedule to minimize costs:
 - **Monthly Hours**: ~55 hours
 - **Reasoning**: enough startup buffer for Argo resync plus a short working window on a personal PAYG budget
 
-Schedule is managed via Terraform in `terraform/automation.tf`.
+Schedule resources live in `terraform/automation.tf`, and operators change the actual start/stop times through `terraform.tfvars` as documented in [`terraform/README.md`](terraform/README.md).
 
 ### Maintenance Jobs
 
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
-| `aks-stale-pod-cleanup` | Every 4 hours at :30 UTC (`30 */4 * * *`) | Clean up pods after cluster restart |
+| `aks-stale-pod-cleanup` | Weekdays at 14:00 Europe/London (`0 14 * * 1-5`) | Clean up pods after cluster restart |
 
 ## CI/CD Pipeline
 
@@ -268,6 +267,8 @@ Jenkins performs CI validation on pull requests:
 - Security: `tfsec`, `checkov`, `trivy`
 
 This repo also runs two scheduled automation jobs that report to GitHub so you don’t have to check Jenkins daily:
+
+The static Jenkins agent uses a manually created Kubernetes Secret named `jenkins-agent-secret` during bootstrap; it is not currently projected by External Secrets Operator.
 - **Version updates**: `.jenkins/version-check.Jenkinsfile`; breaking issue + non-breaking PR (de-duped); uses secure Git push and workspace-scoped git commands.
 - **Security validation**: `.jenkins/security-validation.Jenkinsfile`; issue/PR updates (de-duped).
 

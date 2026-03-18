@@ -75,7 +75,7 @@ variable "startup_time" {
 
 # Jenkins graceful disconnect (Phase 4: put aks-agent offline before AKS stop)
 variable "jenkins_graceful_disconnect_url" {
-  description = "Jenkins base URL for graceful disconnect (e.g. https://jenkins-oke.canepro.me). If set, stop runbook will disable the static agent node before stopping AKS. Store API token in Automation Variable 'JenkinsAksAgentDisconnectToken'."
+  description = "Jenkins base URL for graceful disconnect (e.g. https://jenkins.canepro.me). If set, stop runbook will disable the static agent node before stopping AKS. Store API token in Automation Variable 'JenkinsAksAgentDisconnectToken'."
   type        = string
   default     = "" # Empty = skip Jenkins step (current behaviour)
 }
