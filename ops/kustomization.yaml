@@ -7,9 +7,15 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  # Namespaces required by ops components on the target cluster
+  - manifests/monitoring-namespace.yaml
+
   # NATS: Message queue for Rocket.Chat microservices
   - manifests/rocketchat-nats-connection.yaml  # NATS connection string Secret (for microservices)
   - manifests/rocketchat-nats.yaml  # NATS StatefulSet, Services, and sidecars (see VERSIONS.md for versions)
+
+  # MongoDB: Operator-managed replica set used by Rocket.Chat
+  - manifests/mongodb-community.yaml
 
   # Monitoring: Prometheus ServiceMonitors for metrics scraping
   - manifests/rocketchat-servicemonitors.yaml  # ServiceMonitors for Rocket.Chat, MongoDB, and NATS metrics
