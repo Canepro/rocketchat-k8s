@@ -2,7 +2,7 @@
 
 This document tracks all software versions used in the AKS Rocket.Chat deployment. Update this file when upgrading any component.
 
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-03-18
 
 ## Upgrade Status Legend
 
@@ -173,7 +173,7 @@ kubectl logs -n monitoring -l app=prometheus-agent --tail=50
 | Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
 |-----------|----------------|----------------|----------------|----------|---------------|
 | **Terraform** | `>= 1.8` | `Check latest` | ⚠️ **Check latest** (test Terraform upgrades carefully) | `terraform/main.tf` | [Terraform Releases](https://github.com/hashicorp/terraform/releases) |
-| **Azure Provider** | ~> 4.64.0 | `Check latest` | ⚠️ **Check latest** (v4 upgrade; run Cloud Shell plan/apply) | `terraform/main.tf` | [Azure Provider Releases](https://github.com/hashicorp/terraform-provider-azurerm/releases) |
+| **Azure Provider** | `4.63.0` | `Check latest` | ⚠️ **Check latest** (v4 upgrade; run Cloud Shell plan/apply) | `terraform/main.tf` | [Azure Provider Releases](https://github.com/hashicorp/terraform-provider-azurerm/releases) |
 | **Kubernetes Version** | `latest` | `Check latest` | ⚠️ **Check latest** (AKS managed, test upgrades carefully) | `terraform/aks.tf` | [AKS Supported Versions](https://learn.microsoft.com/en-us/azure/aks/supported-kubernetes-versions) |
 
 ---
