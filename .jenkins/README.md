@@ -41,7 +41,7 @@ Automated version checking pipeline:
 - Automatically updates `VERSIONS.md` and code files
 
 **Agent**: `aks-agent` (static AKS agent)
-**Schedule**: Weekdays at 5 PM (`H 17 * * 1-5`, after cluster auto-start at 13:30 Europe/London)
+**Schedule**: Weekdays during the AKS uptime window (`H 14 * * 1-5`, randomized within 14:00-14:59 Europe/London)
 
 **GitHub output (summary)**:
 - **Breaking updates**: one open issue (updated via comments)
@@ -58,7 +58,7 @@ Automated security validation pipeline:
 - **Issues only** (no PRs): one canonical issue title **"Security: automated scan findings"**; de-dupe by finding that open issue and adding a comment; create the issue only if it doesn’t exist. Bodies built with jq; API failures are not hidden (`if ! curl ...; then echo "⚠️ WARNING: ..."; fi`).
 
 **Agent**: `aks-agent` (static AKS agent)
-**Schedule**: Weekdays at 6 PM (`H 18 * * 1-5`, after cluster auto-start at 13:30 Europe/London)
+**Schedule**: Weekdays during the AKS uptime window (`H 15 * * 1-5`, randomized within 15:00-15:59 Europe/London)
 
 ## Usage
 

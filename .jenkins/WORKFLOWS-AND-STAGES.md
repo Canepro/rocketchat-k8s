@@ -40,7 +40,7 @@ This document describes the **current** workflows for the version-check job, the
 **Jenkins setup:**
 - **Job type:** Usually a **Pipeline** or **Multibranch** with a single branch (e.g. `master`) and Script Path `.jenkins/version-check.Jenkinsfile`
 - **Script Path:** `.jenkins/version-check.Jenkinsfile`
-- **Schedule:** Weekdays at 5 PM, e.g. `H 17 * * 1-5` (after AKS auto-start at 16:00)
+- **Schedule:** Weekdays during 14:00-14:59 Europe/London, e.g. `H 14 * * 1-5` (after AKS auto-start at 13:30)
 - **Config:** `.jenkins/version-check-job-config.xml` uses this script path
 
 **Agent:** `aks-agent`.
@@ -72,7 +72,7 @@ This document describes the **current** workflows for the version-check job, the
 **Jenkins setup:**
 - **Job type:** Pipeline (or multibranch with one branch) with Script Path `.jenkins/security-validation.Jenkinsfile`
 - **Script Path:** `.jenkins/security-validation.Jenkinsfile`
-- **Schedule:** Weekdays at 6 PM, e.g. `H 18 * * 1-5`
+- **Schedule:** Weekdays during 15:00-15:59 Europe/London, e.g. `H 15 * * 1-5`
 - **Config:** `.jenkins/security-validation-job-config.xml`
 
 **Agent:** `aks-agent`.

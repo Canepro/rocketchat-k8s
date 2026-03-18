@@ -100,11 +100,11 @@ bash .jenkins/create-security-validation-job.sh Canepro central-observability-hu
      - For security-validation: `.jenkins/security-validation.Jenkinsfile`
 
 3. **Configure Schedule**
-   - Scroll to **Build Triggers**
-   - Check **Build periodically**
+  - Scroll to **Build Triggers**
+  - Check **Build periodically**
   - **Schedule**:
-    - Version-check: `H 17 * * 1-5` (weekdays at 5 PM, after cluster starts at 4 PM)
-    - Security-validation: `H 18 * * 1-5` (weekdays at 6 PM, after cluster starts at 4 PM)
+    - Version-check: `H 14 * * 1-5` (weekdays during 14:00-14:59 Europe/London, after the 13:30 AKS start)
+    - Security-validation: `H 15 * * 1-5` (weekdays during 15:00-15:59 Europe/London, before the 16:15 AKS stop)
 
 4. **Save** the job
 
@@ -189,10 +189,10 @@ bash .jenkins/test-job-trigger.sh security-validation-rocketchat-k8s
 
 Both jobs use cron syntax for scheduling:
 
-- **version-check**: `H 17 * * 1-5` - Weekdays (Mon-Fri) at 5 PM (randomized minute, 17:00-17:59)
-- **security-validation**: `H 18 * * 1-5` - Weekdays (Mon-Fri) at 6 PM (randomized minute, 18:00-18:59)
+- **version-check**: `H 14 * * 1-5` - Weekdays (Mon-Fri), randomized within 14:00-14:59 Europe/London
+- **security-validation**: `H 15 * * 1-5` - Weekdays (Mon-Fri), randomized within 15:00-15:59 Europe/London
 
-**Note**: These schedules are set to run after the cluster auto-starts at 4 PM and before it shuts down at 11 PM on weekdays.
+**Note**: These schedules are set to run after the cluster auto-starts at 13:30 Europe/London and before it shuts down at 16:15 on weekdays.
 
 The `H` symbol randomizes the minute to avoid all jobs running at exactly the same time.
 

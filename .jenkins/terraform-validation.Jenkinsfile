@@ -12,17 +12,17 @@ pipeline {
   
   environment {
     // Azure Storage remote backend for Terraform state.
-    // Override these in Jenkins job configuration during backend cutover if needed.
-    TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: ''}"
-    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: ''}"
-    TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: ''}"
-    TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: ''}"
+    // Override these in Jenkins job configuration only if you need a different backend.
+    TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: 'rg-canepro-tfstate'}"
+    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: 'caneprotfgmhl5a'}"
+    TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: 'tfstate'}"
+    TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: 'aks.terraform.tfstate'}"
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
 
     // Non-secret defaults so CI plans match interactive plans (override in job config if needed)
-    TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins-oke.canepro.me'}"
+    TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins.canepro.me'}"
     TF_VAR_jenkins_graceful_disconnect_user = "${env.TF_VAR_jenkins_graceful_disconnect_user ?: 'admin'}"
     TF_VAR_jenkins_graceful_disconnect_agent_name = "${env.TF_VAR_jenkins_graceful_disconnect_agent_name ?: 'aks-agent'}"
   }
@@ -208,7 +208,7 @@ SCRIPT
               fi
             done
             if [ "$BACKEND_SET_COUNT" -eq 0 ]; then
-              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; running PR validation with backend disabled"
+              echo "INFO: Backend settings are unset; running PR validation with backend disabled"
               terraform init -backend=false
             else
               if [ "$BACKEND_SET_COUNT" -ne 4 ]; then
@@ -271,7 +271,7 @@ SCRIPT
               fi
             done
             if [ "$BACKEND_SET_COUNT" -eq 0 ]; then
-              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; skipping remote-backed terraform plan until backend cutover is complete"
+              echo "INFO: Backend settings are unset; skipping remote-backed terraform plan"
               exit 0
             fi
             if [ "$BACKEND_SET_COUNT" -ne 4 ]; then
