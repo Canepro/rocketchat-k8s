@@ -3,7 +3,6 @@
 
 locals {
   personal_subscription_resource_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  budget_start_date                 = "${formatdate("YYYY-MM", plantimestamp())}-01T00:00:00Z"
 }
 
 resource "azurerm_monitor_action_group" "budget" {
@@ -28,7 +27,7 @@ resource "azurerm_consumption_budget_subscription" "personal" {
   time_grain      = "Monthly"
 
   time_period {
-    start_date = local.budget_start_date
+    start_date = var.budget_start_date
   }
 
   notification {

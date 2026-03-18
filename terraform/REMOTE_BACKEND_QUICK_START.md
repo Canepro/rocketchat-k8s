@@ -6,7 +6,7 @@ You can run this from any authenticated machine. Cloud Shell is optional, not re
 ## First-time setup
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform/bootstrap
+cd <repo-root>/terraform/bootstrap
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
@@ -20,7 +20,7 @@ terraform init -reconfigure -backend-config=backend.hcl
 ## Subsequent sessions
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s
+cd <repo-root>
 git pull
 cd terraform/bootstrap
 terraform init
@@ -32,7 +32,7 @@ terraform init -reconfigure -backend-config=backend.hcl
 ## Day-to-day commands
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform
+cd <repo-root>/terraform
 terraform plan -out=tfplan
 terraform apply tfplan
 terraform output

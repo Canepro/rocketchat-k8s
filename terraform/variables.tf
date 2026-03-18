@@ -241,8 +241,13 @@ variable "monthly_budget_amount" {
   default     = 100
 }
 
+variable "budget_start_date" {
+  description = "Stable ISO-8601 start date for the Azure subscription budget"
+  type        = string
+  default     = "2026-01-01T00:00:00Z"
+}
+
 variable "budget_alert_email" {
   description = "Email address that receives budget notifications"
   type        = string
-  default     = "mogah.vincent@hotmail.com"
 }

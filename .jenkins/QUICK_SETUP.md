@@ -33,7 +33,7 @@ If Jenkins will ever perform `terraform apply`, it also needs:
 Use the values from the bootstrap stack output:
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform/bootstrap
+cd <repo-root>/terraform/bootstrap
 terraform output -raw backend_hcl
 ```
 

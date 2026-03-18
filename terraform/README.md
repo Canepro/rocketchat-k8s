@@ -11,7 +11,8 @@ The main AKS stack uses an **Azure Storage remote backend** authenticated throug
 **First time setup:**
 ```bash
 git clone https://github.com/Canepro/rocketchat-k8s.git
-cd rocketchat-k8s/terraform/bootstrap
+cd rocketchat-k8s
+cd terraform/bootstrap
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
@@ -24,7 +25,7 @@ terraform init -reconfigure -backend-config=backend.hcl
 
 **Subsequent sessions on the same machine:**
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform
+cd <repo-root>/terraform
 git pull
 cd bootstrap
 terraform init
@@ -198,7 +199,7 @@ The repo uses a two-step backend pattern:
 ### First-time setup
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform/bootstrap
+cd <repo-root>/terraform/bootstrap
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
