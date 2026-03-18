@@ -7,6 +7,8 @@ kind: Application
 metadata:
   name: aks-rocketchat-helm
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
   labels:
     app: rocketchat  # Application identifier in ArgoCD
     cluster: aks-canepro  # Cluster identifier for filtering in ArgoCD
