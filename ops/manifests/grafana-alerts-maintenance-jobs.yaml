@@ -13,14 +13,15 @@ groups:
   - name: maintenance_jobs
     interval: 5m
     rules:
-      # Alert if stale pod cleanup hasn't run for longer than a full workweek gap.
-      # Threshold is intentionally >72h so weekends do not trigger false positives.
+      # Alert if stale pod cleanup hasn't run for longer than a weekday-plus-weekend gap.
+      # Keep this just above 72h so weekends do not trigger false positives,
+      # but still below the Monday 16:15 shutdown window if the Monday run is missed.
       - alert: StalePodCleanupNotRunning
         expr: |
           time() - kube_cronjob_status_last_schedule_time{
             namespace="monitoring",
             cronjob="aks-stale-pod-cleanup"
-          } > 288000
+          } > 262800
         for: 5m
         labels:
           severity: warning

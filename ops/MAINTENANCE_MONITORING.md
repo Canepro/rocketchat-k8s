@@ -147,9 +147,9 @@ kubectl get pods -A --field-selector=status.phase=Succeeded
    ```bash
    kubectl get cronjob aks-stale-pod-cleanup -n monitoring -o jsonpath='{.spec.suspend}'
    ```
-2. Check cluster time vs schedule:
+2. Check Europe/London time vs schedule:
    ```bash
-   date
+   TZ=Europe/London date
    ```
 3. Check for recent jobs:
    ```bash

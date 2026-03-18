@@ -21,7 +21,7 @@ It is intentionally separate so the main stack can use remote state without a ch
 ## Usage
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform/bootstrap
+cd <repo-root>/terraform/bootstrap
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
@@ -42,6 +42,6 @@ The storage account keeps shared access keys enabled because the current AzureRM
 Then initialize the main stack:
 
 ```bash
-cd /home/vincent/src/rocketchat-k8s/terraform
+cd <repo-root>/terraform
 terraform init -reconfigure -backend-config=backend.hcl -migrate-state
 ```

@@ -14,7 +14,7 @@ pipeline {
     // Azure Storage remote backend for Terraform state.
     // Override these in Jenkins job configuration during backend cutover if needed.
     TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: 'rg-canepro-tfstate'}"
-    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: 'caneprotfgmhl5a'}"
+    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: ''}"
     TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: 'tfstate'}"
     TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: 'aks.terraform.tfstate'}"
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
@@ -198,6 +198,10 @@ SCRIPT
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
+            fi
+            if [ -z "${TF_BACKEND_STORAGE_ACCOUNT:-}" ]; then
+              echo "ERROR: TF_BACKEND_STORAGE_ACCOUNT must be set to the bootstrap output backend_storage_account_name"
+              exit 1
             fi
             # Initialize with backend (uses Workload Identity for auth)
             terraform init \

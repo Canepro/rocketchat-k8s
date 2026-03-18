@@ -46,7 +46,7 @@ tags = {
 
 # Budget guardrails for the personal subscription
 monthly_budget_amount = 100
-budget_alert_email    = "mogah.vincent@hotmail.com"
+budget_alert_email    = "REPLACE_ME@example.com"
 
 # Key Vault Secret Values (SENSITIVE - DO NOT COMMIT THIS FILE)
 # Copy this file to terraform.tfvars and fill in actual values
