@@ -30,16 +30,16 @@ variable "node_count" {
 }
 
 variable "vm_size" {
-  description = "VM size for worker nodes (Standard_D4as_v5 recommended for RocketChat + Jenkins + Observability)" # VM size for worker nodes
+  description = "VM size for worker nodes (Standard_B4ms is the cost-optimized default for the personal migration)" # VM size for worker nodes
   type        = string
-  # See VERSIONS.md for VM size tracking. Current: Standard_D4as_v5 (upgraded from Standard_B2s on 2026-01-16)
-  default = "Standard_D4as_v5" # 4 vCPU, 16GB RAM - sufficient for RocketChat + Jenkins + Loki + traces + metrics
+  # Cost-optimized personal deployment default. Fall back to DS3_v2 or D4s_v3 if B-series CPU credits prove insufficient.
+  default = "Standard_B4ms" # 4 vCPU, 16GB RAM - fits current UK South quota and keeps costs lower than D-series
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version (leave empty for latest)" # Kubernetes version for AKS cluster
+  description = "Kubernetes version for AKS" # Kubernetes version for AKS cluster
   type        = string
-  default     = "" # Empty = use latest stable version (can be overridden in terraform.tfvars to pin version)
+  default     = "1.34.3" # Latest GA version verified in UK South on 2026-03-18
 }
 
 variable "dns_prefix" {
@@ -192,6 +192,12 @@ variable "observability_password" {
   # Example: Grafana Cloud API key or custom password
 }
 
+variable "rocketchat_smtp_password" {
+  description = "SMTP password for Rocket.Chat outbound email (sensitive - set in terraform.tfvars)"
+  type        = string
+  sensitive   = true
+}
+
 # Jenkins Credentials: Admin username and password for Jenkins login
 variable "jenkins_admin_username" {
   description = "Jenkins admin username (sensitive - set in terraform.tfvars)" # Admin username for Jenkins login
@@ -227,4 +233,16 @@ variable "jenkins_pipelinehealer_bridge_secret" {
   type        = string
   sensitive   = true
   # Must be set in terraform.tfvars (no default for security)
+}
+
+variable "monthly_budget_amount" {
+  description = "Monthly Azure budget amount for the personal subscription"
+  type        = number
+  default     = 100
+}
+
+variable "budget_alert_email" {
+  description = "Email address that receives budget notifications"
+  type        = string
+  default     = "mogah.vincent@hotmail.com"
 }

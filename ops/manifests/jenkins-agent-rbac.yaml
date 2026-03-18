@@ -17,5 +17,5 @@ metadata:
   labels:
     app.kubernetes.io/name: jenkins
   annotations:
-    azure.workload.identity/client-id: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
-    azure.workload.identity/tenant-id: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"
+    azure.workload.identity/client-id: "8035be61-f232-4c44-8ca5-13378b33c2d9"
+    azure.workload.identity/tenant-id: "040f4d47-c5be-488d-a48b-4b43fe04cac4"

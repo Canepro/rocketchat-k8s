@@ -1,6 +1,6 @@
 #!/bin/bash
-# Terraform Initialization Script for Cloud Shell
-# This script helps initialize Terraform with backend configuration in ephemeral Cloud Shell sessions.
+# Terraform initialization helper
+# This script initializes the main AKS stack with the local backend.hcl file.
 #
 # Usage:
 #   ./scripts/tf-init.sh
@@ -8,7 +8,7 @@
 #   bash scripts/tf-init.sh
 #
 # Prerequisites:
-#   1. Copy backend.hcl.example to backend.hcl and update with your values
+#   1. Create backend.hcl from terraform/bootstrap output or backend.hcl.example
 #   2. Ensure you're authenticated: az login
 #   3. Ensure you're in the terraform/ directory
 
@@ -22,11 +22,11 @@ if [ ! -f "$TERRAFORM_DIR/backend.hcl" ]; then
     echo "❌ Error: backend.hcl not found!"
     echo ""
     echo "📝 To fix this:"
-    echo "   1. Copy backend.hcl.example to backend.hcl:"
-    echo "      cp backend.hcl.example backend.hcl"
+    echo "   1. Create backend.hcl from bootstrap outputs:"
+    echo "      cd bootstrap && terraform output -raw backend_hcl > ../backend.hcl && cd .."
     echo ""
-    echo "   2. Edit backend.hcl with your actual storage account details:"
-    echo "      nano backend.hcl"
+    echo "   2. Or copy the example and fill it manually:"
+    echo "      cp backend.hcl.example backend.hcl"
     echo ""
     echo "   3. Run this script again:"
     echo "      ./scripts/tf-init.sh"

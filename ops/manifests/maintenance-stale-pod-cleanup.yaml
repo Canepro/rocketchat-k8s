@@ -1,7 +1,7 @@
 # Maintenance CronJob: Stale Pod Cleanup
 # This CronJob removes orphaned pods after cluster auto-shutdown/restart cycles.
-# Target: aks-canepro (auto-stops 23:00, starts 16:00)
-# Schedule: Runs every 4 hours to clean orphaned pods
+# Target: aks-canepro (auto-stops 16:15, starts 13:30 Europe/London on weekdays)
+# Schedule: Runs once per workday shortly after cluster startup
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -10,8 +10,8 @@ metadata:
   annotations:
     canepro.me/description: "Cleans up Completed/Failed/Unknown pods left after cluster restarts"
 spec:
-  schedule: "30 */4 * * *"  # Every 4 hours at :30 (catches pods created after startup)
-  timeZone: "UTC"  # Explicit timezone for clarity
+  schedule: "0 14 * * 1-5"  # Weekdays at 14:00 Europe/London (30 min after cluster startup)
+  timeZone: "Europe/London"
   concurrencyPolicy: Forbid  # Don't run multiple instances simultaneously
   startingDeadlineSeconds: 600  # Avoid running if the cluster was down for too long
   successfulJobsHistoryLimit: 3  # Keep last 3 successful runs for audit

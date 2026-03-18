@@ -97,3 +97,13 @@ output "azure_tenant_id" {
   description = "Azure AD Tenant ID (for ClusterSecretStore configuration)" # Azure AD tenant ID (for ClusterSecretStore tenantId)
   value       = data.azurerm_client_config.current.tenant_id                # Tenant ID (from current client config)
 }
+
+output "azure_subscription_id" {
+  description = "Azure subscription ID for the personal deployment"
+  value       = data.azurerm_client_config.current.subscription_id
+}
+
+output "aks_oidc_issuer_url" {
+  description = "OIDC issuer URL for AKS workload identity federation"
+  value       = azurerm_kubernetes_cluster.main.oidc_issuer_url
+}

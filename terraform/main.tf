@@ -18,8 +18,6 @@ terraform {
     }
   }
 
-  # Backend configuration moved to backend.tf
-  # See backend.tf and backend.hcl.example for configuration details
 }
 
 # Configure the Azure Provider

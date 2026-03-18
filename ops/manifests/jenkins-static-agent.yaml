@@ -63,11 +63,11 @@ spec:
             - name: AZURE_FEDERATED_TOKEN_FILE
               value: "/var/run/secrets/azure/tokens/azure-identity-token"
             - name: ARM_TENANT_ID
-              value: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"
+              value: "040f4d47-c5be-488d-a48b-4b43fe04cac4"
             - name: ARM_CLIENT_ID
-              value: "fe3d3d95-fb61-4a42-8d82-ec0852486531"
+              value: "8035be61-f232-4c44-8ca5-13378b33c2d9"
             - name: ARM_SUBSCRIPTION_ID
-              value: "1c6e2ceb-7310-4193-ab4d-95120348b934"
+              value: "d3b51a0d-cdf1-445e-bac3-28e65892afbc"
           command:
             - /bin/sh
             - -c

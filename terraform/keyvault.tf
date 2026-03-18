@@ -61,11 +61,28 @@ resource "azurerm_role_assignment" "eso_secrets_user" {
   principal_id         = azurerm_user_assigned_identity.eso.principal_id # UAMI principal ID (ESO identity)
 }
 
+resource "azurerm_federated_identity_credential" "eso" {
+  name      = "${var.cluster_name}-eso-fic"
+  audience  = ["api://AzureADTokenExchange"]
+  issuer    = azurerm_kubernetes_cluster.main.oidc_issuer_url
+  parent_id = azurerm_user_assigned_identity.eso.id
+  subject   = "system:serviceaccount:external-secrets:external-secrets"
+}
+
+resource "azurerm_federated_identity_credential" "jenkins" {
+  name      = "${var.cluster_name}-jenkins-fic"
+  audience  = ["api://AzureADTokenExchange"]
+  issuer    = azurerm_kubernetes_cluster.main.oidc_issuer_url
+  parent_id = azurerm_user_assigned_identity.eso.id
+  subject   = "system:serviceaccount:jenkins:jenkins"
+}
+
 # Grant the current Terraform runner permission to manage Key Vault secrets.
 # This role assignment allows Terraform to create/update/delete secrets in Key Vault.
 # Required because Key Vault is in RBAC mode and the provider performs GetSecret/SetSecret calls.
 # Note: Uses lifecycle ignore_changes to prevent replacement when Jenkins (different identity) runs terraform plan.
-# Terraform applies only run from Cloud Shell, so the role assignment should remain with the Cloud Shell user's object ID.
+# Terraform apply is performed interactively by a human operator, so this role assignment should remain tied
+# to that operator's Azure object ID unless you intentionally rotate the automation model.
 resource "azurerm_role_assignment" "terraform_runner_secrets_officer" {
   scope                = azurerm_key_vault.rocketchat.id              # Key Vault resource ID (scope for role assignment)
   role_definition_name = "Key Vault Secrets Officer"                  # Azure RBAC role (allows managing secrets)
@@ -73,8 +90,8 @@ resource "azurerm_role_assignment" "terraform_runner_secrets_officer" {
 
   lifecycle {
     # Ignore principal_id changes to prevent replacement when Jenkins (ESO identity) runs terraform plan.
-    # Terraform applies only run from Cloud Shell (per OPERATIONS.md), so the role assignment should remain
-    # with the Cloud Shell user's object ID. Jenkins only runs terraform plan for validation.
+    # Human-run applies and Jenkins validation plans may use different identities.
+    # Keep the apply identity stable unless you intentionally want to replace this assignment.
     ignore_changes = [principal_id]
   }
 }
@@ -235,6 +252,26 @@ resource "azurerm_key_vault_secret" "observability_password" {
 
   tags = merge(var.tags, {
     Purpose = "ObservabilityCredentials" # Purpose tag (for resource organization)
+  })
+}
+
+# SMTP password: Mailgun password used by Rocket.Chat for outbound email.
+resource "azurerm_key_vault_secret" "rocketchat_smtp_password" {
+  name            = "rocketchat-smtp-password"                                 # Secret name (referenced by ExternalSecret in ops/secrets/externalsecret-smtp-credentials.yaml)
+  value           = var.rocketchat_smtp_password                               # Secret value (from terraform.tfvars, sensitive - never committed)
+  key_vault_id    = azurerm_key_vault.rocketchat.id                            # Key Vault resource ID (from Key Vault resource above)
+  content_type    = "text/plain"                                               # Metadata for secret consumers
+  expiration_date = "2099-01-01T00:00:00Z"                                     # Prevents accidental expiry while satisfying scanner expectations
+  depends_on      = [azurerm_role_assignment.terraform_runner_secrets_officer] # Wait for RBAC role assignment (required for RBAC mode)
+
+  lifecycle {
+    # Ignore value changes to prevent Terraform from overwriting secrets when tfvars has placeholders
+    # Secrets can be updated manually via Azure CLI/Portal without Terraform interference
+    ignore_changes = [value]
+  }
+
+  tags = merge(var.tags, {
+    Purpose = "RocketChatSmtpPassword" # Purpose tag (for resource organization)
   })
 }
 
