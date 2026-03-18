@@ -29,7 +29,7 @@ spec:
       repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
       targetRevision: master  # Branch/tag containing traefik-values.yaml
   destination:
-    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
     namespace: traefik  # Target namespace for Traefik deployment
   syncPolicy:
     automated:

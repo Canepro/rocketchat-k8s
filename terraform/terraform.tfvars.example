@@ -10,20 +10,21 @@ location            = "uksouth"
 cluster_name        = "aks-canepro"
 dns_prefix          = "aks-canepro"
 node_count          = 2
-vm_size             = "Standard_D4as_v5"  # 4 vCPU, 16GB RAM - recommended for RocketChat + Jenkins + Observability (Loki, traces, metrics)
+vm_size             = "Standard_B4ms"     # 4 vCPU, 16GB RAM - cost-optimized personal default with current UK South quota
 
-# Kubernetes version (leave empty for latest)
-# kubernetes_version = "1.28.0"
+# Kubernetes version (pinned to the newest GA version verified in UK South on 2026-03-18)
+kubernetes_version = "1.34.3"
 
 # Auto-shutdown for cost optimization
-# Cluster stops at shutdown_time, starts at startup_time on weekdays only
-# Stays OFF all weekend (Friday evening -> Monday morning)
-# Evening-only schedule: 16:00-23:00 (7 hours/day) saves ~£75-88/month vs 08:30-23:00
-# If cluster needed urgently during day, manually start: az aks start -g rg-canepro-aks -n aks-canepro
+# Cluster runs on weekdays only and stays OFF all weekend.
+# Recommended personal schedule: 13:30-16:15 Europe/London
+# This gives ~30 minutes for startup/Argo resync before a 14:00 work window,
+# and ~15 minutes of shutdown buffer after a 16:00 work window.
+# If the cluster is needed outside this window, start it manually.
 enable_auto_shutdown = true
 shutdown_timezone    = "Europe/London"      # UK timezone (IANA format required by Azure Automation)
-shutdown_time        = "23:00"              # 11 PM stop
-startup_time         = "16:00"              # 4 PM start (evening-only schedule for maximum cost savings)
+shutdown_time        = "16:15"              # 4:15 PM stop
+startup_time         = "13:30"              # 1:30 PM start
 
 # Phase 4: Jenkins graceful disconnect (optional)
 # Before stopping AKS, the stop runbook disables the Jenkins aks-agent node so builds don't get stuck.
@@ -43,6 +44,10 @@ tags = {
 # key_vault_network_ip_rules = ["203.0.113.10/32"] # Example: your public IP (optional)
 # key_vault_purge_protection = true # Optional; makes destroy/recreate harder
 
+# Budget guardrails for the personal subscription
+monthly_budget_amount = 100
+budget_alert_email    = "REPLACE_ME@example.com"
+
 # Key Vault Secret Values (SENSITIVE - DO NOT COMMIT THIS FILE)
 # Copy this file to terraform.tfvars and fill in actual values
 # terraform.tfvars is gitignored and should never be committed
@@ -60,6 +65,7 @@ mongodb_metrics_endpoint_password = "CHANGE_ME"
 # Used by Prometheus Agent, OTel Collector, and Promtail for authenticating to observability hub
 observability_username = "CHANGE_ME"  # Grafana username or instance ID
 observability_password = "CHANGE_ME"  # Grafana API key or password
+rocketchat_smtp_password = "CHANGE_ME_MAILGUN_SMTP_PASSWORD"
 
 # Jenkins credentials (replace with your actual values)
 # Used by Jenkins controller for admin authentication and GitHub integration

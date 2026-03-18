@@ -15,11 +15,15 @@ Validates Terraform infrastructure code using **Azure Workload Identity** for au
 
 **Note**: The pipeline uses `terraform.tfvars.example` for CI validation (placeholder values). Real secrets are never stored in blob storage or git.
 
-**Plan parity with Cloud Shell**: Set non-secret TF_VARs so CI plans match production inputs:
+**Plan parity with interactive Terraform runs**: Set non-secret TF_VARs so CI plans match production inputs:
 - `TF_VAR_jenkins_graceful_disconnect_url`
 - `TF_VAR_jenkins_graceful_disconnect_user`
 - `TF_VAR_jenkins_graceful_disconnect_agent_name`
 - `ARM_SUBSCRIPTION_ID` (required for Azure auth)
+- `TF_BACKEND_RESOURCE_GROUP`
+- `TF_BACKEND_STORAGE_ACCOUNT`
+- `TF_BACKEND_CONTAINER`
+- `TF_BACKEND_KEY`
 
 ### `helm-validation.Jenkinsfile`
 Validates Helm charts and Kubernetes manifests:
