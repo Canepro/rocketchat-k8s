@@ -1,8 +1,8 @@
 # Jenkins Deployment Guide
 
-This guide covers deploying a general-purpose Jenkins CI server on AKS for CI validation across multiple projects.
+This guide covers the current Jenkins split-agent design: the controller runs on OKE and the static validation agent runs on AKS.
 
-**Last Updated**: 2026-01-29
+**Last Updated**: 2026-03-18
 
 > **📖 New to Jenkins?** Start with **"Jenkins Strategy (CI vs CD)"** below to understand why this repo keeps Jenkins validation-only and lets ArgoCD deploy.
 
@@ -22,7 +22,7 @@ Keeping Jenkins “validation-only” avoids out-of-band drift and keeps Git as 
 ### Jenkins Configuration
 - **Version**: Jenkins LTS 2.528.3 with Java 21
 - **Helm Chart**: 5.8.110 (latest)
-- **Purpose**: General-purpose CI server for all projects on the cluster
+- **Purpose**: General-purpose CI server for validation across projects
 - **Role**: CI validation only (no applies by default)
 - **Access**: `https://jenkins.canepro.me`
 - **Secrets**: Managed via External Secrets Operator + Azure Key Vault
@@ -36,16 +36,16 @@ Keeping Jenkins “validation-only” avoids out-of-band drift and keeps Git as 
 - Policy checks (OPA/Conftest)
 
 ❌ **NOT Done by Default**:
-- `terraform apply` (Cloud Shell only - can be enabled)
+- `terraform apply` (interactive operator workflow only - can be enabled later)
 - `kubectl apply` (ArgoCD deploys - can be enabled)
 
 **Scheduled automation jobs** (version-check, security-validation) run on weekdays and report to GitHub (de-duped issues/PRs). Version-check uses secure Git push (GIT_ASKPASS, workspace-scoped git) and validated version extraction. See [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md) and [.jenkins/SECURITY_VALIDATION.md](.jenkins/SECURITY_VALIDATION.md).
 
 ### Architecture
 ```
-GitHub PR → Webhook → Jenkins → Dynamic K8s Agents → PR Status Check
-                                     ↓
-                              (terraform/helm/default)
+GitHub PR → Webhook → Jenkins controller on OKE → AKS static agent / K8s agents → PR Status Check
+                                                           ↓
+                                                    (terraform/helm/default)
 ```
 
 ### Split-Agent Hybrid (Controller on OKE, Agent on AKS)
@@ -55,6 +55,31 @@ When the Jenkins **controller** runs on OKE (always-on) and a **static agent** r
 - **Connection**: WebSocket over HTTPS (443) is the chosen method: the controller is reachable at `https://jenkins.canepro.me` with no need to expose JNLP port 50000. The AKS static agent in this repo uses `-webSocket` to that URL.
 - **AKS-side manifest**: Static agent pod and Workload Identity RBAC are in `ops/manifests/jenkins-static-agent.yaml` and `ops/manifests/jenkins-agent-rbac.yaml` (deployed by `aks-rocketchat-ops`). Create Secret `jenkins-agent-secret` in namespace `jenkins` with the agent secret from the OKE Jenkins UI.
 - **Plan and runbook**: Full design, phases, and shutdown/startup procedure are in the **hub-docs** repo: `JENKINS-SPLIT-AGENT-PLAN.md` and `JENKINS-SPLIT-AGENT-RUNBOOK.md`. Before stopping AKS, follow the runbook: check for running builds on the `aks-agent` node, put the node offline, then run the existing AKS stop (e.g. Azure Automation at 23:00).
+
+#### One-time AKS agent bootstrap
+
+After ArgoCD creates the `jenkins` namespace and `jenkins-static-agent` deployment on AKS:
+
+1. In Jenkins on OKE, create or open the permanent inbound node named `aks-agent`
+2. Copy the current node secret from the launch command shown by Jenkins
+3. Create the Kubernetes secret on AKS:
+
+```bash
+kubectl -n jenkins create secret generic jenkins-agent-secret \
+  --from-literal=secret='PASTE_SECRET_HERE' \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n jenkins delete pod -l app=jenkins-static-agent
+kubectl -n jenkins get pods -w
+```
+
+Expected success signal:
+- `kubectl -n jenkins logs deploy/jenkins-static-agent` shows `WebSocket connection open` and `Connected`
+
+If the pod exits with a WebSocket `400` handshake error:
+- delete and recreate the Jenkins node `aks-agent`
+- copy the newly generated secret
+- update `jenkins-agent-secret` on AKS
+- restart the pod again
 
 ---
 

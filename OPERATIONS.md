@@ -86,13 +86,13 @@ argocd app get aks-rocketchat-ops
 
 The AKS cluster uses **Azure Automation** to automatically start and stop on a schedule, significantly reducing costs.
 
-### Current Schedule (2026-01-25)
+### Current Schedule (2026-03-18)
 
-- **Start Time**: 16:00 (4 PM) on weekdays
-- **Stop Time**: 23:00 (11 PM) on weekdays
+- **Start Time**: 13:30 Europe/London on weekdays
+- **Stop Time**: 16:15 Europe/London on weekdays
 - **Weekends**: Cluster stays off
-- **Runtime**: ~7 hours/day × 5 weekdays = ~35 hours/week = ~140 hours/month
-- **Estimated Monthly Cost**: ~£55-70 (within £90/month budget)
+- **Runtime**: ~2.75 hours/day × 5 weekdays = ~13.75 hours/week = ~55 hours/month
+- **Goal**: keep the personal PAYG cluster available only during the active work window
 
 ## 🔔 CI notifications (avoid daily Jenkins logins)
 
@@ -163,12 +163,12 @@ az aks show --name aks-canepro --resource-group rg-canepro-aks --query "powerSta
 
 To change the schedule times:
 
-1. **Update `terraform.tfvars`** (in Cloud Shell):
+1. **Update `terraform.tfvars`** (from your operator machine):
    ```bash
    cd ~/rocketchat-k8s/terraform
    nano terraform.tfvars
-   # Update: startup_time = "16:00" (or desired time)
-   # Update: shutdown_time = "23:00" (or desired time)
+   # Update: startup_time = "13:30" (or desired time)
+   # Update: shutdown_time = "16:15" (or desired time)
    ```
 
 2. **Temporarily remove `ignore_changes`** in `terraform/automation.tf`:
@@ -186,9 +186,10 @@ To change the schedule times:
 
 ### Cost Savings
 
-- **Previous schedule** (08:30-23:00): ~72.5 hours/week ≈ £200/month
-- **Current schedule** (16:00-23:00): ~35 hours/week ≈ £55-70/month
-- **Savings**: ~52% reduction, saving ~£75-88/month
+- **Previous schedule** (08:30-23:00): ~72.5 hours/week
+- **Later evening schedule** (16:00-23:00): ~35 hours/week
+- **Current schedule** (13:30-16:15): ~13.75 hours/week
+- **Savings vs 16:00-23:00**: ~61% reduction in runtime hours
 
 ## 🛠️ Troubleshooting
 If pods are not running or healthy:
