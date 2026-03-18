@@ -14,7 +14,7 @@ pipeline {
     // Azure Storage remote backend for Terraform state.
     // Override these in Jenkins job configuration during backend cutover if needed.
     TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: 'rg-canepro-tfstate'}"
-    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: 'tfcaneprostate1'}"
+    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: 'caneprotfgmhl5a'}"
     TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: 'tfstate'}"
     TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: 'aks.terraform.tfstate'}"
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
