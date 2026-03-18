@@ -7,7 +7,7 @@ spec:
   # The upstream guide uses 3 members for HA. Reduce to 1 for a cheaper dev/test cluster.
   members: 1
   type: ReplicaSet
-  # Rocket.Chat 8+ requires MongoDB 8.2+. Pin an 8.2.x version here.
+  # Rocket.Chat 8.0 and 8.1 require MongoDB 8.2.
   version: "8.2.3"
   security:
     authentication:
