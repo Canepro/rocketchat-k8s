@@ -1,0 +1,58 @@
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mongodb
+  namespace: rocketchat
+spec:
+  # Single-member replica set keeps cost down on the personal AKS cluster.
+  members: 1
+  type: ReplicaSet
+  version: "8.2.3"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+    tls:
+      enabled: false
+  users:
+    - name: admin
+      db: admin
+      passwordSecretRef:
+        name: mongodb-admin-password
+      scramCredentialsSecretName: admin
+      roles:
+        - name: root
+          db: admin
+    - name: rocketchat
+      db: rocketchat
+      passwordSecretRef:
+        name: mongodb-rocketchat-password
+      scramCredentialsSecretName: rocketchat
+      roles:
+        - name: readWrite
+          db: rocketchat
+  prometheus:
+    username: prometheus-username
+    passwordSecretRef:
+      name: metrics-endpoint-password
+  statefulSet:
+    spec:
+      volumeClaimTemplates:
+        - metadata:
+            name: data-volume
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: managed-premium
+            resources:
+              requests:
+                storage: 50Gi
+      template:
+        spec:
+          containers:
+            - name: mongod
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 1Gi
+                limits:
+                  cpu: 1000m
+                  memory: 2Gi
