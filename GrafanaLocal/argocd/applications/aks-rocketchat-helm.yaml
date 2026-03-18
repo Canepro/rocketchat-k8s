@@ -30,7 +30,7 @@ spec:
       repoURL: https://github.com/Canepro/rocketchat-k8s.git  # Git repository URL
       targetRevision: master  # Branch/tag containing values.yaml
   destination:
-    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
     namespace: rocketchat  # Target namespace for Rocket.Chat deployment
   # Ignore cert-manager's in-place edits to ingress for ACME challenges
   # cert-manager adds temporary paths to the ingress during TLS certificate validation.

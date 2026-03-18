@@ -2,13 +2,11 @@
 # Copy this file to backend.hcl and update with your actual values
 # backend.hcl is gitignored and should never be committed
 
-resource_group_name  = "rg-terraform-state"  # Resource group containing the storage account
-storage_account_name = "tfcaneprostate1"     # Storage account name (must be globally unique)
-container_name       = "tfstate"             # Blob container name (for state files)
-key                  = "aks.terraform.tfstate"  # State file name (path within container)
-
-# Optional: Enable state encryption (recommended for production)
-# encryption = true
-
-# Optional: Use Azure Key Vault for state encryption key
-# key_vault_key_id = "/subscriptions/.../keys/terraform-state-key"
+resource_group_name  = "rg-canepro-tfstate"         # Created by terraform/bootstrap
+storage_account_name = "REPLACE_WITH_BOOTSTRAP_OUTPUT"
+container_name       = "tfstate"
+key                  = "aks.terraform.tfstate"
+subscription_id      = "d3b51a0d-cdf1-445e-bac3-28e65892afbc"
+tenant_id            = "040f4d47-c5be-488d-a48b-4b43fe04cac4"
+use_azuread_auth     = true
+use_cli              = true

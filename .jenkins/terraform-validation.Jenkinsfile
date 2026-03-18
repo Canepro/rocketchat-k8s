@@ -11,15 +11,17 @@ pipeline {
   }
   
   environment {
-    // Azure Storage for tfvars
-    STORAGE_ACCOUNT = 'tfcaneprostate1'
-    STORAGE_CONTAINER = 'tfstate'
-    TFVARS_BLOB = 'terraform.tfvars'
+    // Azure Storage remote backend for Terraform state.
+    // Override these in Jenkins job configuration during backend cutover if needed.
+    TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: ''}"
+    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: ''}"
+    TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: ''}"
+    TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: ''}"
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
 
-    // Non-secret defaults so CI plan matches Cloud Shell (override in job config if needed)
+    // Non-secret defaults so CI plans match interactive plans (override in job config if needed)
     TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins-oke.canepro.me'}"
     TF_VAR_jenkins_graceful_disconnect_user = "${env.TF_VAR_jenkins_graceful_disconnect_user ?: 'admin'}"
     TF_VAR_jenkins_graceful_disconnect_agent_name = "${env.TF_VAR_jenkins_graceful_disconnect_agent_name ?: 'aks-agent'}"
@@ -197,18 +199,35 @@ SCRIPT
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
             fi
-            # Initialize with backend (uses Workload Identity for auth)
-            terraform init \
-              -backend-config="resource_group_name=rg-terraform-state" \
-              -backend-config="storage_account_name=${STORAGE_ACCOUNT}" \
-              -backend-config="container_name=${STORAGE_CONTAINER}" \
-              -backend-config="key=aks.terraform.tfstate" \
-              -backend-config="use_oidc=true" \
-              -backend-config="use_azuread_auth=true" \
-              -backend-config="tenant_id=${ARM_TENANT_ID}" \
-              -backend-config="client_id=${ARM_CLIENT_ID}" \
-              -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
-            
+            BACKEND_VARS="TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY"
+            BACKEND_SET_COUNT=0
+            for var_name in $BACKEND_VARS; do
+              var_value="$(printenv "$var_name" 2>/dev/null || true)"
+              if [ -n "$var_value" ]; then
+                BACKEND_SET_COUNT=$((BACKEND_SET_COUNT + 1))
+              fi
+            done
+            if [ "$BACKEND_SET_COUNT" -eq 0 ]; then
+              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; running PR validation with backend disabled"
+              terraform init -backend=false
+            else
+              if [ "$BACKEND_SET_COUNT" -ne 4 ]; then
+                echo "ERROR: TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT, TF_BACKEND_CONTAINER, and TF_BACKEND_KEY must either all be set or all be unset"
+                exit 1
+              fi
+              # Initialize with backend (uses Workload Identity for auth)
+              terraform init \
+                -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+                -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
+                -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
+                -backend-config="key=${TF_BACKEND_KEY}" \
+                -backend-config="use_oidc=true" \
+                -backend-config="use_azuread_auth=true" \
+                -backend-config="tenant_id=${ARM_TENANT_ID}" \
+                -backend-config="client_id=${ARM_CLIENT_ID}" \
+                -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
+            fi
+
             terraform validate
 SCRIPT
           '''
@@ -242,6 +261,22 @@ SCRIPT
             export PATH="${WORKSPACE}/.bin:${PATH}"
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
+            fi
+            BACKEND_VARS="TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY"
+            BACKEND_SET_COUNT=0
+            for var_name in $BACKEND_VARS; do
+              var_value="$(printenv "$var_name" 2>/dev/null || true)"
+              if [ -n "$var_value" ]; then
+                BACKEND_SET_COUNT=$((BACKEND_SET_COUNT + 1))
+              fi
+            done
+            if [ "$BACKEND_SET_COUNT" -eq 0 ]; then
+              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; skipping remote-backed terraform plan until backend cutover is complete"
+              exit 0
+            fi
+            if [ "$BACKEND_SET_COUNT" -ne 4 ]; then
+              echo "ERROR: TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT, TF_BACKEND_CONTAINER, and TF_BACKEND_KEY must either all be set or all be unset"
+              exit 1
             fi
             terraform plan \
               -no-color \
@@ -278,6 +313,74 @@ SCRIPT
     }
     success {
       echo '✅ Terraform validation passed'
+      script {
+        try {
+          withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+            def repo = 'Canepro/rocketchat-k8s'
+            def apiBase = "https://api.github.com/repos/${repo}"
+            def jobFragment = "/job/${(env.JOB_NAME ?: '').replace('/', '/job/')}/"
+            def slurper = new groovy.json.JsonSlurperClassic()
+
+            def openApiConnection = { String method, String url, String body = null ->
+              def conn = (HttpURLConnection) new URL(url).openConnection()
+              conn.requestMethod = method
+              conn.setRequestProperty('Authorization', "token ${GITHUB_TOKEN}")
+              conn.setRequestProperty('Accept', 'application/vnd.github+json')
+              conn.setRequestProperty('X-GitHub-Api-Version', '2022-11-28')
+              if (body != null) {
+                conn.doOutput = true
+                conn.setRequestProperty('Content-Type', 'application/json')
+                conn.outputStream.withWriter('UTF-8') { writer ->
+                  writer << body
+                }
+              }
+              conn
+            }
+
+            def matchingIssues = []
+            for (int page = 1; page <= 10; page++) {
+              def conn = openApiConnection('GET', "${apiBase}/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=${page}")
+              def response = slurper.parseText(conn.inputStream.getText('UTF-8'))
+              if (!(response instanceof List) || response.isEmpty()) {
+                break
+              }
+              matchingIssues.addAll(response.findAll { issue ->
+                issue.pull_request == null &&
+                  (issue.title ?: '').startsWith('[PipelineHealer]') &&
+                  (issue.body ?: '').contains(jobFragment)
+              })
+              if (response.size() < 100) {
+                break
+              }
+            }
+
+            if (matchingIssues.isEmpty()) {
+              echo 'No stale PipelineHealer issues matched this job.'
+            } else {
+              matchingIssues.each { issue ->
+                def commentConn = openApiConnection(
+                  'POST',
+                  "${apiBase}/issues/${issue.number}/comments",
+                  groovy.json.JsonOutput.toJson([
+                    body: "Closing automatically after successful Jenkins validation run ${env.BUILD_URL} on commit `${env.GIT_COMMIT}`."
+                  ])
+                )
+                commentConn.inputStream.close()
+
+                def closeConn = openApiConnection(
+                  'PATCH',
+                  "${apiBase}/issues/${issue.number}",
+                  groovy.json.JsonOutput.toJson([state: 'closed'])
+                )
+                closeConn.inputStream.close()
+                echo "Closed stale PipelineHealer issue #${issue.number}"
+              }
+            }
+          }
+        } catch (err) {
+          echo "⚠️ Failed to auto-close PipelineHealer issues: ${err}"
+        }
+      }
     }
     failure {
       echo '❌ Terraform validation failed'

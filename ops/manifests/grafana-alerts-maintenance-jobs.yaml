@@ -13,26 +13,28 @@ groups:
   - name: maintenance_jobs
     interval: 5m
     rules:
-      # Alert if stale pod cleanup hasn't run in > 5 hours (should run every 4 hours)
+      # Alert if stale pod cleanup hasn't run for longer than a weekday-plus-weekend gap.
+      # Keep this just above 72h so weekends do not trigger false positives,
+      # but still below the Monday 16:15 shutdown window if the Monday run is missed.
       - alert: StalePodCleanupNotRunning
         expr: |
           time() - kube_cronjob_status_last_schedule_time{
             namespace="monitoring",
             cronjob="aks-stale-pod-cleanup"
-          } > 18000
+          } > 262800
         for: 5m
         labels:
           severity: warning
           component: maintenance
           cluster: aks-canepro
         annotations:
-          summary: "Stale pod cleanup job hasn't run in > 5 hours"
+          summary: "Stale pod cleanup job has missed its weekday run"
           description: |
-            The aks-stale-pod-cleanup CronJob should run every 4 hours but hasn't run in over 5 hours.
+            The aks-stale-pod-cleanup CronJob should run once per weekday shortly after cluster startup but has not run for longer than an expected weekday-plus-weekend gap.
             This may indicate the CronJob is suspended or there's a scheduling issue.
             
             Current time since last run: {{ $value | humanizeDuration }}
-            Expected schedule: Every 4 hours at :30
+            Expected schedule: Weekdays at 14:00 Europe/London
             
             Actions:
             1. Check CronJob status: kubectl get cronjob aks-stale-pod-cleanup -n monitoring

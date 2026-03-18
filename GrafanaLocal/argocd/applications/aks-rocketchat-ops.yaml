@@ -21,7 +21,7 @@ spec:
       # Resources in ops/manifests/ and ops/secrets/ include namespace declarations
       # Namespaces: rocketchat (NATS, PVCs) and monitoring (observability stack)
   destination:
-    server: https://aks-canepro-wfcra91z.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
+    server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443  # AKS cluster API server
     # Kustomize manages multiple namespaces, but ArgoCD requires a default namespace
     # The actual namespaces are defined in the manifest files (metadata.namespace)
     namespace: rocketchat  # Default namespace (for ArgoCD, not all resources)
