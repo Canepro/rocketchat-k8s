@@ -202,7 +202,7 @@ SCRIPT
             BACKEND_VARS="TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY"
             BACKEND_SET_COUNT=0
             for var_name in $BACKEND_VARS; do
-              eval "var_value=\${$var_name:-}"
+              var_value="$(printenv "$var_name" 2>/dev/null || true)"
               if [ -n "$var_value" ]; then
                 BACKEND_SET_COUNT=$((BACKEND_SET_COUNT + 1))
               fi
@@ -265,7 +265,7 @@ SCRIPT
             BACKEND_VARS="TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY"
             BACKEND_SET_COUNT=0
             for var_name in $BACKEND_VARS; do
-              eval "var_value=\${$var_name:-}"
+              var_value="$(printenv "$var_name" 2>/dev/null || true)"
               if [ -n "$var_value" ]; then
                 BACKEND_SET_COUNT=$((BACKEND_SET_COUNT + 1))
               fi
