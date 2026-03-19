@@ -70,6 +70,15 @@ resource "azurerm_role_assignment" "eso_subscription_reader" {
   principal_id         = azurerm_user_assigned_identity.eso.principal_id
 }
 
+# Grant the shared ESO/Jenkins workload identity AKS cluster-user access.
+# Terraform refreshes the AKS resource by calling listClusterUserCredential,
+# which requires the built-in AKS Cluster User role on the managed cluster.
+resource "azurerm_role_assignment" "eso_aks_cluster_user" {
+  scope                = azurerm_kubernetes_cluster.main.id
+  role_definition_name = "Azure Kubernetes Service Cluster User Role"
+  principal_id         = azurerm_user_assigned_identity.eso.principal_id
+}
+
 resource "azurerm_federated_identity_credential" "eso" {
   name      = "${var.cluster_name}-eso-fic"
   audience  = ["api://AzureADTokenExchange"]
