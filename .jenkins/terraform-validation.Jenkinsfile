@@ -229,8 +229,14 @@ SCRIPT
               # Use example file for CI validation, then override placeholder-only values with Jenkins secrets.
               echo "INFO: Using example tfvars for validation (placeholder values)"
               cp terraform.tfvars.example terraform.tfvars
-              BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/\\/\\\\/g; s/\"/\\"/g')"
-              printf 'budget_alert_email = "%s"\n' "${BUDGET_ALERT_EMAIL_ESCAPED}" > zz_ci.auto.tfvars
+              rm -f zz_ci.auto.tfvars
+              if [ -n "${BUDGET_ALERT_EMAIL:-}" ]; then
+                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/\\/\\\\/g; s/\"/\\"/g')"
+                printf 'budget_alert_email = "%s"\n' "${BUDGET_ALERT_EMAIL_ESCAPED}" > zz_ci.auto.tfvars
+                echo "INFO: Overriding budget_alert_email from Jenkins credential"
+              else
+                echo "INFO: budget-alert-email credential is empty; keeping terraform.tfvars.example placeholder"
+              fi
 SCRIPT
             '''
           }
