@@ -42,7 +42,7 @@ Keeping Jenkins “validation-only” avoids out-of-band drift and keeps Git as 
 **Scheduled automation jobs** (version-check, security-validation) run on weekdays and report to GitHub (de-duped issues/PRs). Version-check uses secure Git push (GIT_ASKPASS, workspace-scoped git) and validated version extraction. See [.jenkins/VERSION_CHECKING.md](.jenkins/VERSION_CHECKING.md) and [.jenkins/SECURITY_VALIDATION.md](.jenkins/SECURITY_VALIDATION.md).
 
 ### Architecture
-```
+```text
 GitHub PR → Webhook → Jenkins controller on OKE → AKS static agent / K8s agents → PR Status Check
                                                            ↓
                                                     (terraform/helm/default)
