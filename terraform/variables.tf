@@ -242,9 +242,9 @@ variable "monthly_budget_amount" {
 }
 
 variable "budget_start_date" {
-  description = "Stable ISO-8601 start date for the Azure subscription budget"
+  description = "Optional ISO-8601 budget start date override. Leave empty to use the start of the current month."
   type        = string
-  default     = "2026-01-01T00:00:00Z"
+  default     = ""
 }
 
 variable "budget_alert_email" {
