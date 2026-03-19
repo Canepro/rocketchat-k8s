@@ -250,4 +250,5 @@ variable "budget_start_date" {
 variable "budget_alert_email" {
   description = "Email address that receives budget notifications"
   type        = string
+  default     = ""
 }
