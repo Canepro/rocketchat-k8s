@@ -57,6 +57,21 @@ az role assignment list \
   --output table
 ```
 
+### 4. AKS Cluster Credential Access (Configured via Terraform)
+For Terraform to refresh the AKS cluster resource and read user kubeconfig credentials during plan:
+
+| Role | Scope | Purpose |
+|------|-------|---------|
+| `Azure Kubernetes Service Cluster User Role` | AKS managed cluster | Allow `listClusterUserCredential` during terraform refresh |
+
+```bash
+# Verify AKS cluster-user role
+az role assignment list \
+  --assignee-object-id "63b247e6-f016-47e2-b103-b38ac92ae389" \
+  --scope "/subscriptions/d3b51a0d-cdf1-445e-bac3-28e65892afbc/resourceGroups/rg-canepro-aks/providers/Microsoft.ContainerService/managedClusters/aks-canepro" \
+  --output table
+```
+
 ### Full Role Summary
 
 | Role | Scope | Status |
@@ -64,6 +79,7 @@ az role assignment list \
 | Key Vault Secrets User | Key Vault | Managed by Terraform |
 | Storage Blob Data Contributor | Backend storage account (`caneprotfgmhl5a`) | Managed by backend bootstrap |
 | Reader | Subscription | Managed by Terraform |
+| Azure Kubernetes Service Cluster User Role | AKS cluster (`aks-canepro`) | Managed by Terraform |
 
 **Note**: For `terraform apply` (not currently enabled), the identity would need `Contributor` role on the resource group instead of just `Reader`.
 
