@@ -75,7 +75,7 @@ variable "startup_time" {
 
 # Jenkins graceful disconnect (Phase 4: put aks-agent offline before AKS stop)
 variable "jenkins_graceful_disconnect_url" {
-  description = "Jenkins base URL for graceful disconnect (e.g. https://jenkins-oke.canepro.me). If set, stop runbook will disable the static agent node before stopping AKS. Store API token in Automation Variable 'JenkinsAksAgentDisconnectToken'."
+  description = "Jenkins base URL for graceful disconnect (e.g. https://jenkins.canepro.me). If set, stop runbook will disable the static agent node before stopping AKS. Store API token in Automation Variable 'JenkinsAksAgentDisconnectToken'."
   type        = string
   default     = "" # Empty = skip Jenkins step (current behaviour)
 }
@@ -242,12 +242,13 @@ variable "monthly_budget_amount" {
 }
 
 variable "budget_start_date" {
-  description = "Stable ISO-8601 start date for the Azure subscription budget"
+  description = "Optional ISO-8601 budget start date override. Leave empty to use the start of the current month."
   type        = string
-  default     = "2026-01-01T00:00:00Z"
+  default     = ""
 }
 
 variable "budget_alert_email" {
   description = "Email address that receives budget notifications"
   type        = string
+  default     = ""
 }
