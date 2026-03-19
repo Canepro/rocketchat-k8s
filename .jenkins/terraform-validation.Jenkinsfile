@@ -12,17 +12,17 @@ pipeline {
   
   environment {
     // Azure Storage remote backend for Terraform state.
-    // Override these in Jenkins job configuration during backend cutover if needed.
-    TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: ''}"
-    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: ''}"
-    TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: ''}"
-    TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: ''}"
+    // Override these in Jenkins job configuration only if you need a different backend.
+    TF_BACKEND_RESOURCE_GROUP = "${env.TF_BACKEND_RESOURCE_GROUP ?: 'rg-canepro-tfstate'}"
+    TF_BACKEND_STORAGE_ACCOUNT = "${env.TF_BACKEND_STORAGE_ACCOUNT ?: 'caneprotfgmhl5a'}"
+    TF_BACKEND_CONTAINER = "${env.TF_BACKEND_CONTAINER ?: 'tfstate'}"
+    TF_BACKEND_KEY = "${env.TF_BACKEND_KEY ?: 'aks.terraform.tfstate'}"
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
 
     // Non-secret defaults so CI plans match interactive plans (override in job config if needed)
-    TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins-oke.canepro.me'}"
+    TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins.canepro.me'}"
     TF_VAR_jenkins_graceful_disconnect_user = "${env.TF_VAR_jenkins_graceful_disconnect_user ?: 'admin'}"
     TF_VAR_jenkins_graceful_disconnect_agent_name = "${env.TF_VAR_jenkins_graceful_disconnect_agent_name ?: 'aks-agent'}"
   }
@@ -199,34 +199,18 @@ SCRIPT
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
             fi
-            BACKEND_VARS="TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY"
-            BACKEND_SET_COUNT=0
-            for var_name in $BACKEND_VARS; do
-              var_value="$(printenv "$var_name" 2>/dev/null || true)"
-              if [ -n "$var_value" ]; then
-                BACKEND_SET_COUNT=$((BACKEND_SET_COUNT + 1))
-              fi
-            done
-            if [ "$BACKEND_SET_COUNT" -eq 0 ]; then
-              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; running PR validation with backend disabled"
-              terraform init -backend=false
-            else
-              if [ "$BACKEND_SET_COUNT" -ne 4 ]; then
-                echo "ERROR: TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT, TF_BACKEND_CONTAINER, and TF_BACKEND_KEY must either all be set or all be unset"
-                exit 1
-              fi
-              # Initialize with backend (uses Workload Identity for auth)
-              terraform init \
-                -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
-                -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
-                -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
-                -backend-config="key=${TF_BACKEND_KEY}" \
-                -backend-config="use_oidc=true" \
-                -backend-config="use_azuread_auth=true" \
-                -backend-config="tenant_id=${ARM_TENANT_ID}" \
-                -backend-config="client_id=${ARM_CLIENT_ID}" \
-                -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
-            fi
+            unset TF_VAR_budget_alert_email
+            echo "INFO: Initializing terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
+            terraform init \
+              -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
+              -backend-config="storage_account_name=${TF_BACKEND_STORAGE_ACCOUNT}" \
+              -backend-config="container_name=${TF_BACKEND_CONTAINER}" \
+              -backend-config="key=${TF_BACKEND_KEY}" \
+              -backend-config="use_oidc=true" \
+              -backend-config="use_azuread_auth=true" \
+              -backend-config="tenant_id=${ARM_TENANT_ID}" \
+              -backend-config="client_id=${ARM_CLIENT_ID}" \
+              -backend-config="subscription_id=${ARM_SUBSCRIPTION_ID}"
 
             terraform validate
 SCRIPT
@@ -239,15 +223,25 @@ SCRIPT
     stage('Get Variables') {
       steps {
         dir('terraform') {
-          sh '''
-            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
-            export PATH="${WORKSPACE}/.bin:${PATH}"
-            # Use example file for CI validation (contains placeholder values)
-            # Real secrets are never stored in blob storage
-            echo "INFO: Using example tfvars for validation (placeholder values)"
-            cp terraform.tfvars.example terraform.tfvars
+          withCredentials([string(credentialsId: 'budget-alert-email', variable: 'BUDGET_ALERT_EMAIL')]) {
+            sh '''
+              cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              export PATH="${WORKSPACE}/.bin:${PATH}"
+              # Use example file for CI validation, then override placeholder-only values with Jenkins secrets.
+              echo "INFO: Using example tfvars for validation (placeholder values)"
+              cp terraform.tfvars.example terraform.tfvars
+              if [ -n "${BUDGET_ALERT_EMAIL:-}" ]; then
+                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/\\/\\\\/g; s/\"/\\"/g')"
+                BUDGET_ALERT_EMAIL_VALUE="${BUDGET_ALERT_EMAIL_ESCAPED}"
+                echo "INFO: Overriding budget_alert_email from Jenkins credential"
+              else
+                BUDGET_ALERT_EMAIL_VALUE="REPLACE_ME@example.com"
+                echo "INFO: budget-alert-email credential is empty; using placeholder override to keep CI deterministic"
+              fi
+              printf 'budget_alert_email = "%s"\n' "${BUDGET_ALERT_EMAIL_VALUE}" > zz_ci.auto.tfvars
 SCRIPT
-          '''
+            '''
+          }
         }
       }
     }
@@ -262,22 +256,8 @@ SCRIPT
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
             fi
-            BACKEND_VARS="TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY"
-            BACKEND_SET_COUNT=0
-            for var_name in $BACKEND_VARS; do
-              var_value="$(printenv "$var_name" 2>/dev/null || true)"
-              if [ -n "$var_value" ]; then
-                BACKEND_SET_COUNT=$((BACKEND_SET_COUNT + 1))
-              fi
-            done
-            if [ "$BACKEND_SET_COUNT" -eq 0 ]; then
-              echo "INFO: TF_BACKEND_STORAGE_ACCOUNT is not set; skipping remote-backed terraform plan until backend cutover is complete"
-              exit 0
-            fi
-            if [ "$BACKEND_SET_COUNT" -ne 4 ]; then
-              echo "ERROR: TF_BACKEND_RESOURCE_GROUP, TF_BACKEND_STORAGE_ACCOUNT, TF_BACKEND_CONTAINER, and TF_BACKEND_KEY must either all be set or all be unset"
-              exit 1
-            fi
+            unset TF_VAR_budget_alert_email
+            echo "INFO: Planning against terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
             terraform plan \
               -no-color \
               -input=false \

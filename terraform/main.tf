@@ -16,6 +16,10 @@ terraform {
       version = "~> 4.0"            # Azure provider version constraint (4.x.x)
       # See VERSIONS.md for latest Azure provider version and upgrade status
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
   }
 
 }

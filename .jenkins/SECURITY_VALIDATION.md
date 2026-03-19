@@ -47,7 +47,7 @@ bash .jenkins/create-security-validation-job.sh
 **Manual Setup:**
 1. **Create Pipeline job** (not multibranch) named `security-validation-{repo-name}` (recommended)
 2. **Use**: `.jenkins/security-validation.Jenkinsfile`
-3. **Schedule**: `H 18 * * 1-5` (weekdays at 6 PM, after cluster starts at 4 PM)
+3. **Schedule**: `H 15 * * 1-5` (weekdays during 15:00-15:59 Europe/London, while the AKS agent is online)
 4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `master`
 5. **Credentials**: Use `github-token` for GitHub API access
 

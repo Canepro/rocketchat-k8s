@@ -6,13 +6,13 @@ It checks for version updates and creates PRs/issues automatically.
 -->
 <flow-definition plugin="workflow-job@2.50">
   <actions/>
-  <description>Automated version checking pipeline. Checks for latest versions of all components and creates PRs/issues for updates. Runs weekdays at 5 PM (after cluster starts at 4 PM).</description>
+  <description>Automated version checking pipeline. Checks for latest versions of all components and creates PRs/issues for updates. Runs on weekdays during 14:00-14:59 Europe/London after the AKS agent starts.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
       <triggers>
         <hudson.triggers.TimerTrigger>
-          <spec>H 17 * * 1-5</spec>
+          <spec>H 14 * * 1-5</spec>
         </hudson.triggers.TimerTrigger>
       </triggers>
     </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>

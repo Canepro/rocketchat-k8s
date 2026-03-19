@@ -1,29 +1,31 @@
 # RocketChat Kubernetes Platform
 
-Production-grade RocketChat deployment on Azure Kubernetes Service (AKS) using GitOps principles with ArgoCD.
+Production-grade Rocket.Chat deployment with an OKE-hosted control plane and an AKS-hosted workload cluster, managed through GitOps.
 
 ## Overview
 
-This repository contains the complete infrastructure-as-code for deploying and operating RocketChat at scale:
+This repository contains the complete infrastructure-as-code for deploying and operating Rocket.Chat at scale:
 
 - **Application**: RocketChat monolith + microservices (account, authorization, presence, ddp-streamer)
 - **Database**: MongoDB via Community Kubernetes Operator
 - **Messaging**: NATS for microservices communication
 - **Ingress**: Traefik with automatic TLS via cert-manager
+- **Control Plane**: ArgoCD + Jenkins controller on OKE
 - **Observability**: Prometheus, Grafana, Loki, Tempo (hosted on separate OKE hub cluster)
 - **Secrets**: External Secrets Operator + Azure Key Vault
-- **CI/CD**: ArgoCD (GitOps) + Jenkins (validation)
+- **CI/CD**: ArgoCD (GitOps CD) + Jenkins (validation CI)
 
 ## Platform at a Glance
 
 | Layer | Primary Components | Source of Truth |
 |------|---------------------|-----------------|
+| Control Plane | ArgoCD, Jenkins controller, Grafana, Tempo | OKE hub cluster + GitOps |
 | Traffic & TLS | Traefik, cert-manager, public DNS | GitOps manifests + ArgoCD |
 | Application | RocketChat Helm release, microservices | `values.yaml` |
 | Data | MongoDB operator, NATS | `ops/` manifests |
 | Secrets | External Secrets Operator, Azure Key Vault | `ops/secrets/` + Key Vault |
-| Observability | Prometheus Agent, Grafana, Promtail, OTel, Tempo | `ops/` manifests |
-| CI Validation | Jenkins on OKE + AKS agent | `.jenkins/` + Jenkins GitOps |
+| Observability | Prometheus Agent, Promtail, OTel on AKS; Grafana/Tempo on OKE | `ops/` manifests |
+| CI Validation | Jenkins on OKE + AKS static agent | `.jenkins/` + Jenkins GitOps |
 | Delivery | ArgoCD split applications | `master` branch |
 
 ## Architecture
@@ -33,21 +35,22 @@ flowchart LR
   GitHub[GitHub<br/>rocketchat-k8s]
   AzureKV[Azure Key Vault]
   Users[Users]
-  Jenkins[Jenkins<br/>OKE controller + AKS agent]
-
-  subgraph AKS["AKS Cluster (aks-canepro)"]
+  
+  subgraph OKE["Control Plane (OKE)"]
     ArgoCD[ArgoCD]
+    Jenkins[Jenkins<br/>controller]
+    Grafana[Grafana]
+    Tempo[Tempo]
+  end
+
+  subgraph AKS["Target Cluster (AKS: aks-canepro)"]
     ESO[External Secrets Operator]
     Edge[Traefik + cert-manager]
     RC[RocketChat]
     Data[MongoDB + NATS]
     Obs[Prometheus Agent + Promtail + OTel]
     Maint[Maintenance CronJobs]
-  end
-
-  subgraph Hub["Observability Hub (OKE)"]
-    Grafana[Grafana]
-    Tempo[Tempo]
+    Agent[Jenkins static agent]
   end
 
   GitHub --> ArgoCD
@@ -55,16 +58,13 @@ flowchart LR
   AzureKV --> ESO
   ESO --> RC
   ESO --> Data
-  ESO --> Jenkins
   Users --> Edge
   Edge --> RC
   Edge --> ArgoCD
   Edge --> Grafana
   Edge --> Jenkins
-  ArgoCD --> RC
-  ArgoCD --> Data
-  ArgoCD --> Obs
-  ArgoCD --> Maint
+  ArgoCD --> AKS
+  Jenkins --> Agent
   RC --> Data
   RC --> Obs
   Obs --> Grafana
@@ -74,10 +74,10 @@ flowchart LR
 ### GitOps Workflow
 
 1. Changes land in `master`.
-2. ArgoCD reconciles the split applications.
+2. ArgoCD on OKE reconciles the split applications into the AKS target cluster.
 3. ESO projects Key Vault values into Kubernetes Secrets.
 4. RocketChat, ops manifests, and maintenance jobs converge from Git.
-5. Jenkins validates pull requests, but does not deploy.
+5. Jenkins validates pull requests through the AKS static agent, but does not deploy.
 
 ### Secrets Management Flow
 
@@ -242,18 +242,18 @@ spec:
 
 The cluster runs on an automated schedule to minimize costs:
 
-- **Runtime**: Weekdays 16:00-23:00 UTC (7 hours/day)
-- **Monthly Hours**: ~140 hours
-- **Estimated Cost**: £55-70/month
+- **Runtime**: Weekdays 13:30-16:15 Europe/London (~2.75 hours/day)
+- **Monthly Hours**: ~55 hours
+- **Reasoning**: enough startup buffer for Argo resync plus a short working window on a personal PAYG budget
 
-Schedule is managed via Terraform in `terraform/automation.tf`.
+Schedule resources live in `terraform/automation.tf`, and operators change the actual start/stop times through `terraform.tfvars` as documented in [`terraform/README.md`](terraform/README.md).
 
 ### Maintenance Jobs
 
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
-| `aks-stale-pod-cleanup` | Every 4 hours at :30 UTC (`30 */4 * * *`) | Clean up pods after cluster restart |
+| `aks-stale-pod-cleanup` | Weekdays at 14:00 Europe/London (`0 14 * * 1-5`) | Clean up pods after cluster restart |
 
 ## CI/CD Pipeline
 
@@ -267,6 +267,8 @@ Jenkins performs CI validation on pull requests:
 - Security: `tfsec`, `checkov`, `trivy`
 
 This repo also runs two scheduled automation jobs that report to GitHub so you don’t have to check Jenkins daily:
+
+The static Jenkins agent uses a manually created Kubernetes Secret named `jenkins-agent-secret` during bootstrap; it is not currently projected by External Secrets Operator.
 - **Version updates**: `.jenkins/version-check.Jenkinsfile`; breaking issue + non-breaking PR (de-duped); uses secure Git push and workspace-scoped git commands.
 - **Security validation**: `.jenkins/security-validation.Jenkinsfile`; issue/PR updates (de-duped).
 

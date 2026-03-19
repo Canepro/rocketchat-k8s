@@ -149,7 +149,7 @@ RocketChat → OTel Collector → Tempo → Grafana Trace UI
 Two CronJobs ensure cluster health:
 
 1. **Stale Pod Cleanup** (`aks-stale-pod-cleanup`)
-   - **Schedule**: Daily at 09:00 UTC (30 min after cluster auto-start)
+   - **Schedule**: Weekdays at 14:00 Europe/London (`0 14 * * 1-5`, 30 min after cluster auto-start)
    - **Purpose**: Remove Succeeded/Failed/Unknown pods after cluster restarts
    - **Dashboard**: "AKS Maintenance Jobs" in Grafana
 

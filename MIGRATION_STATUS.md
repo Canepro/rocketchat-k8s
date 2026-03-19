@@ -11,12 +11,12 @@ The AKS migration has been **successfully completed** and merged to the `master`
 
 This file tracks **where we are vs** the original migration plan (`.cursor/plans/rocketchat_migration_to_azure_aks_-_complete_with_observability_1ffff811.plan.md`).
 
-## Current State (as of 2026‑02‑04)
+## Current State (as of 2026‑03‑18)
 
 - **Migration Status**: ✅ **COMPLETE** - Merged to `master` branch, all ArgoCD apps tracking `master`
-- **AKS cluster**: running (auto-start/stop configured: 16:00-23:00 weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply (2026-02-04).
+- **AKS cluster**: running (auto-start/stop configured: 13:30-16:15 Europe/London on weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply.
 - **Jenkins CI**: Terraform plan parity clean (no changes detected) after azurerm v4 apply (2026-02-04).
-- **Cost Optimization**: Evening-only schedule reduces monthly costs from ~£200 to ~£55-70 (within £90/month budget)
+- **Cost Optimization**: Short work-window schedule reduces monthly runtime to ~55 hours/month on the personal PAYG subscription.
 - **ArgoCD apps (AKS)** - All tracking `master` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
@@ -110,7 +110,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Completed Tasks (2026-01-20)
 
 - [x] **Automated maintenance jobs deployed** (2026-01-20):
-  - `aks-stale-pod-cleanup` CronJob: Daily cleanup of orphaned pods after cluster restart (16:30 UTC)
+  - `aks-stale-pod-cleanup` CronJob: Weekday cleanup of orphaned pods after cluster restart (`0 14 * * 1-5`, 14:00 Europe/London)
   - Grafana monitoring dashboard imported (`grafana-dashboard-maintenance-jobs.json`)
   - Alert rules created (`grafana-alerts-maintenance-jobs.yaml`)
   - Documentation: `ops/MAINTENANCE_MONITORING.md`
@@ -128,16 +128,16 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - [x] **TLS certificate issued** (Let's Encrypt, `READY: True`)
 - [x] **Network Security Group configured** (subnet-level HTTP/HTTPS rules via Terraform)
 - [x] **Node pool upgraded** (`Standard_B2s` → `Standard_D4as_v5`) - Memory: 90-95% → 9-26%
-- [x] **Azure Automation configured** (scheduled start/stop: 16:00 start, 23:00 stop on weekdays) - **Updated 2026-01-25** for cost optimization
+- [x] **Azure Automation configured** (current schedule: 13:30 start, 16:15 stop Europe/London on weekdays) - updated post-cutover for personal PAYG cost control
 - [x] **Jenkins infrastructure ready** (2026-01-19):
   - ArgoCD application manifest created (`aks-jenkins.yaml`)
-  - Helm values configured (`jenkins-values.yaml`) - Latest LTS 2.516.3 + JDK 21
+  - Helm values configured (`jenkins-values.yaml`) - Latest LTS 2.528.3 + JDK 21
   - External Secrets configured (`externalsecret-jenkins.yaml`)
   - Terraform variables added for Jenkins credentials
   - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
   - Deployment guide created (`JENKINS_DEPLOYMENT.md`)
   - DNS A record configured (`jenkins.canepro.me`)
-  - **Status**: ⏳ Ready to deploy (pending cluster start tomorrow 16:00 / 4:00 PM)
+  - **Status**: Historical pre-cutover note; Jenkins was staged before the old 16:00 Europe/London weekday startup window and is now superseded by the current 13:30 Europe/London schedule.
 
 ## Completed Upgrades (2026-01-16)
 

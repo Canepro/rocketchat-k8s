@@ -29,7 +29,7 @@ startup_time         = "13:30"              # 1:30 PM start
 # Phase 4: Jenkins graceful disconnect (optional)
 # Before stopping AKS, the stop runbook disables the Jenkins aks-agent node so builds don't get stuck.
 # Create Automation Variable 'JenkinsAksAgentDisconnectToken' in Azure (Jenkins API token) — never put token in tfvars.
-# jenkins_graceful_disconnect_url  = "https://jenkins-oke.canepro.me"
+# jenkins_graceful_disconnect_url  = "https://jenkins.canepro.me"
 # jenkins_graceful_disconnect_user = "admin"
 # jenkins_graceful_disconnect_agent_name = "aks-agent"
 
