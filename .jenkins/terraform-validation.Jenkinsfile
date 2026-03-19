@@ -199,6 +199,7 @@ SCRIPT
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
             fi
+            unset TF_VAR_budget_alert_email
             echo "INFO: Initializing terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
             terraform init \
               -backend-config="resource_group_name=${TF_BACKEND_RESOURCE_GROUP}" \
@@ -229,14 +230,15 @@ SCRIPT
               # Use example file for CI validation, then override placeholder-only values with Jenkins secrets.
               echo "INFO: Using example tfvars for validation (placeholder values)"
               cp terraform.tfvars.example terraform.tfvars
-              rm -f zz_ci.auto.tfvars
               if [ -n "${BUDGET_ALERT_EMAIL:-}" ]; then
                 BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/\\/\\\\/g; s/\"/\\"/g')"
-                printf 'budget_alert_email = "%s"\n' "${BUDGET_ALERT_EMAIL_ESCAPED}" > zz_ci.auto.tfvars
+                BUDGET_ALERT_EMAIL_VALUE="${BUDGET_ALERT_EMAIL_ESCAPED}"
                 echo "INFO: Overriding budget_alert_email from Jenkins credential"
               else
-                echo "INFO: budget-alert-email credential is empty; keeping terraform.tfvars.example placeholder"
+                BUDGET_ALERT_EMAIL_VALUE="REPLACE_ME@example.com"
+                echo "INFO: budget-alert-email credential is empty; using placeholder override to keep CI deterministic"
               fi
+              printf 'budget_alert_email = "%s"\n' "${BUDGET_ALERT_EMAIL_VALUE}" > zz_ci.auto.tfvars
 SCRIPT
             '''
           }
@@ -254,6 +256,7 @@ SCRIPT
             if [ -n "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
               export ARM_OIDC_TOKEN_FILE="${AZURE_FEDERATED_TOKEN_FILE}"
             fi
+            unset TF_VAR_budget_alert_email
             echo "INFO: Planning against terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
             terraform plan \
               -no-color \
