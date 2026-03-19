@@ -8,6 +8,8 @@ Workload Identity allows Kubernetes pods to authenticate to Azure services using
 
 ## Current Configuration
 
+These values are specific to the current personal Azure deployment. If you fork this repo or deploy the same pattern to another environment, replace the IDs and resource names below with values from `terraform output`, Azure Portal, or `az` CLI for that target environment.
+
 - **Jenkins Service Account**: `jenkins` (in `jenkins` namespace)
 - **Managed Identity Client ID**: `8035be61-f232-4c44-8ca5-13378b33c2d9` (shared ESO/Jenkins identity)
 - **Managed Identity Principal ID**: `63b247e6-f016-47e2-b103-b38ac92ae389`
@@ -95,19 +97,24 @@ az role assignment list \
 After granting permissions, test from a Jenkins pod:
 
 ```bash
+VAULT_NAME="aks-canepro-kv-2e552c"
+STORAGE_ACCOUNT="caneprotfgmhl5a"
+CONTAINER_NAME="tfstate"
+SECRET_NAME="jenkins-github-token"
+
 # Get into a Jenkins agent pod
 kubectl exec -it -n jenkins <jenkins-agent-pod> -- bash
 
 # Test Key Vault access
 az keyvault secret show \
-  --vault-name aks-canepro-kv-2e552c \
-  --name jenkins-github-token \
+  --vault-name "${VAULT_NAME}" \
+  --name "${SECRET_NAME}" \
   --query value -o tsv
 
 # Test backend access (if Storage Blob Data Contributor is granted)
 az storage blob list \
-  --account-name caneprotfgmhl5a \
-  --container-name tfstate \
+  --account-name "${STORAGE_ACCOUNT}" \
+  --container-name "${CONTAINER_NAME}" \
   --auth-mode login \
   --output table
 ```

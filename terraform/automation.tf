@@ -173,8 +173,11 @@ locals {
   # Use a date one day after the last schedule-input change so the first occurrence is
   # always safely in the future when schedules are created or when their times are updated.
   schedule_base_date = formatdate("YYYY-MM-DD", timeadd(time_static.automation_schedule_anchor.rfc3339, "24h"))
-  shutdown_start     = "${local.schedule_base_date}T${var.shutdown_time}:00Z" # Shutdown time (from variables.tf, default: "20:00")
-  startup_start      = "${local.schedule_base_date}T${var.startup_time}:00Z"  # Startup time (from variables.tf, default: "07:00")
+  # AzureRM requires RFC3339 with an explicit offset here. Azure Automation still
+  # honors the separate timezone field for weekday recurrence, which is the behavior
+  # we verified live after apply for the 13:30 / 16:15 Europe/London schedule.
+  shutdown_start = "${local.schedule_base_date}T${var.shutdown_time}:00Z"
+  startup_start  = "${local.schedule_base_date}T${var.startup_time}:00Z"
 }
 
 # Schedule: Stop cluster in the evening on weekdays
