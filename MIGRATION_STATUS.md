@@ -137,7 +137,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
   - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
   - Deployment guide created (`JENKINS_DEPLOYMENT.md`)
   - DNS A record configured (`jenkins.canepro.me`)
-  - **Status**: ⏳ Ready to deploy (pending cluster start tomorrow 16:00 / 4:00 PM)
+  - **Status**: Historical pre-cutover note; Jenkins was staged before the old 16:00 Europe/London weekday startup window and is now superseded by the current 13:30 Europe/London schedule.
 
 ## Completed Upgrades (2026-01-16)
 
