@@ -239,15 +239,19 @@ SCRIPT
     stage('Get Variables') {
       steps {
         dir('terraform') {
-          sh '''
-            cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
-            export PATH="${WORKSPACE}/.bin:${PATH}"
-            # Use example file for CI validation (contains placeholder values)
-            # Real secrets are never stored in blob storage
-            echo "INFO: Using example tfvars for validation (placeholder values)"
-            cp terraform.tfvars.example terraform.tfvars
+          withCredentials([string(credentialsId: 'budget-alert-email', variable: 'BUDGET_ALERT_EMAIL')]) {
+            sh '''
+              cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
+              export PATH="${WORKSPACE}/.bin:${PATH}"
+              # Use example file for CI validation, then override placeholder-only values with Jenkins secrets.
+              echo "INFO: Using example tfvars for validation (placeholder values)"
+              cp terraform.tfvars.example terraform.tfvars
+              cat > zz_ci.auto.tfvars <<EOF
+budget_alert_email = "${BUDGET_ALERT_EMAIL}"
+EOF
 SCRIPT
-          '''
+            '''
+          }
         }
       }
     }
