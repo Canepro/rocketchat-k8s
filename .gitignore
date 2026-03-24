@@ -70,3 +70,6 @@ terraform/bootstrap/tfplan.*
 # Build artifacts
 .jenkins/artifacts/
 *.zip
+
+# Python bytecode (e.g. terraform/scripts helpers run by external data source)
+**/__pycache__/
