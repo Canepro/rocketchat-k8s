@@ -157,9 +157,9 @@ resource "azurerm_automation_runbook" "start_aks" {
   tags = var.tags # Tags for Runbook (from variables.tf)
 }
 
-# Stable schedule anchor: records the time the automation schedule inputs last changed.
-# This avoids perpetual diffs from timestamp()-based start times while still letting
-# Terraform update Azure Automation when the desired weekday clock times change.
+# Stable schedule anchor: records when the schedule inputs last changed.
+# We derive the first schedule occurrence from this anchor so Terraform only
+# recalculates when the intended times/timezone change, not on every plan.
 resource "time_static" "automation_schedule_anchor" {
   triggers = {
     startup_time      = var.startup_time
@@ -168,16 +168,26 @@ resource "time_static" "automation_schedule_anchor" {
   }
 }
 
-# Local values: compute schedule start times from a stable anchor.
+# Compute the first valid weekday occurrence in the configured timezone. This keeps
+# same-day starts possible when we apply after midnight but before the desired hour,
+# and it naturally skips weekends when the anchor lands on Saturday/Sunday.
+data "external" "automation_schedule_seed" {
+  program = ["python3", "${path.module}/scripts/automation_schedule_seed.py"]
+
+  query = {
+    anchor_rfc3339 = time_static.automation_schedule_anchor.rfc3339
+    timezone       = var.shutdown_timezone
+    startup_time   = var.startup_time
+    shutdown_time  = var.shutdown_time
+  }
+}
+
 locals {
-  # Use a date one day after the last schedule-input change so the first occurrence is
-  # always safely in the future when schedules are created or when their times are updated.
-  schedule_base_date = formatdate("YYYY-MM-DD", timeadd(time_static.automation_schedule_anchor.rfc3339, "24h"))
-  # AzureRM requires RFC3339 with an explicit offset here. Azure Automation still
-  # honors the separate timezone field for weekday recurrence, which is the behavior
-  # we verified live after apply for the 13:30 / 16:15 Europe/London schedule.
-  shutdown_start = "${local.schedule_base_date}T${var.shutdown_time}:00Z"
-  startup_start  = "${local.schedule_base_date}T${var.startup_time}:00Z"
+  # AzureRM requires RFC3339 with an explicit offset here. We compute UTC start
+  # timestamps from the target timezone so Azure Automation can still respect the
+  # separate timezone field for future weekday recurrences.
+  startup_start  = data.external.automation_schedule_seed.result.startup_start
+  shutdown_start = data.external.automation_schedule_seed.result.shutdown_start
 }
 
 # Schedule: Stop cluster in the evening on weekdays
