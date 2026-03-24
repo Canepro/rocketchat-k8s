@@ -118,7 +118,7 @@ metadata:
   annotations:
     prometheus.io/path: "/metrics"  # Prometheus scrape path
     prometheus.io/scrape: "true"    # Enable scraping
-    prometheus.io/port: "8222"      # Port for scraping
+    prometheus.io/port: "7777"      # Scrape the exporter sidecar, not the NATS HTTP monitor
 spec:
   type: ClusterIP
   selector:
@@ -127,10 +127,10 @@ spec:
   publishNotReadyAddresses: true
   ports:
   - appProtocol: http
-    name: monitor
-    port: 8222
+    name: metrics
+    port: 7777
     protocol: TCP
-    targetPort: monitor  # Routes to the metrics sidecar container
+    targetPort: metrics  # Routes to the prometheus-nats-exporter sidecar
   sessionAffinity: None
 ---
 # NATS Box Deployment: Debugging and testing tool for NATS

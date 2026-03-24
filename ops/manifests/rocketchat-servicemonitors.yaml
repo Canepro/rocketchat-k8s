@@ -86,8 +86,8 @@ spec:
 
 ---
 # ServiceMonitor: NATS metrics
-# Scrapes metrics from NATS server's monitoring service
-# NATS exposes Prometheus metrics on port 8222 (HTTP monitoring port)
+# Scrapes metrics from the prometheus-nats-exporter sidecar
+# The NATS HTTP monitoring port (8222) serves JSON/HTML, not Prometheus text format.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -107,7 +107,7 @@ spec:
       - rocketchat
   endpoints:
     # Metrics endpoint configuration
-    - port: "8222"  # NATS monitoring port (HTTP endpoint for Prometheus scraping)
+    - port: metrics  # Prometheus exporter port from the NATS sidecar service
       interval: 30s  # Scrape interval (how often to collect metrics)
-      path: /metrics  # Metrics path (NATS exposes Prometheus metrics here via prometheus-nats-exporter)
+      path: /metrics  # Metrics path exposed by prometheus-nats-exporter
 
