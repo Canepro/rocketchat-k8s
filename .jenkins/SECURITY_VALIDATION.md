@@ -48,7 +48,7 @@ bash .jenkins/create-security-validation-job.sh
 1. **Create Pipeline job** (not multibranch) named `security-validation-{repo-name}` (recommended)
 2. **Use**: `.jenkins/security-validation.Jenkinsfile`
 3. **Schedule**: `H 15 * * 1-5` (weekdays during 15:00-15:59 Europe/London, while the AKS agent is online)
-4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `master`
+4. **SCM**: Git repository `https://github.com/Canepro/rocketchat-k8s`, branch `main`
 5. **Credentials**: Use `github-token` for GitHub API access
 
 **Credential type note**: the GitHub multibranch integration expects **Username with password** credentials (password = PAT). In this repo it’s designed to be provisioned via ESO + Kubernetes Credentials Provider. See `.jenkins/GITHUB_CREDENTIALS_SETUP.md`.

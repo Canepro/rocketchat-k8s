@@ -1,6 +1,6 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://github.com/Canepro/rocketchat-k8s/blob/master/vex/rocketchat-vex.json",
+  "@id": "https://github.com/Canepro/rocketchat-k8s/blob/main/vex/rocketchat-vex.json",
   "author": "Canepro",
   "timestamp": "2026-02-05T00:00:00Z",
   "version": 1,

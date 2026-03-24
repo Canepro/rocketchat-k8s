@@ -13,7 +13,7 @@ This guide covers the current Jenkins split-agent design: the controller runs on
 This repo follows a **GitOps split**:
 
 - **CI (Jenkins)**: validates changes (lint/plan/template/security scans) and reports back to GitHub PRs.
-- **CD (ArgoCD)**: deploys what’s in `master` to the cluster.
+- **CD (ArgoCD)**: deploys what’s in `main` to the cluster.
 
 Keeping Jenkins “validation-only” avoids out-of-band drift and keeps Git as the source of truth.
 
@@ -1163,7 +1163,7 @@ pipeline {
       when {
         anyOf {
           branch 'main'
-          branch 'master'
+          branch 'main'
         }
       }
       steps {

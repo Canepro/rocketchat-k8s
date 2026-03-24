@@ -2,10 +2,12 @@
 
 ## 🎉 MIGRATION COMPLETE (2026-01-20)
 
-The AKS migration has been **successfully completed** and merged to the `master` branch:
+> **Git default branch (2026-03-24):** Default branch on GitHub is now **main** (renamed from **master**). ArgoCD apps and Jenkins jobs for this repo track **main**.
+
+The AKS migration has been **successfully completed** and merged to the `main` branch:
 - ✅ All infrastructure deployed on AKS
 - ✅ DNS cutover complete and stable (4+ days)
-- ✅ All ArgoCD applications tracking `master` branch
+- ✅ All ArgoCD applications tracking `main` branch
 - ✅ Production traffic running on AKS
 - ✅ Monitoring and maintenance automation deployed
 
@@ -13,11 +15,11 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 ## Current State (as of 2026‑03‑18)
 
-- **Migration Status**: ✅ **COMPLETE** - Merged to `master` branch, all ArgoCD apps tracking `master`
+- **Migration Status**: ✅ **COMPLETE** - Merged to `main` branch, all ArgoCD apps tracking `main`
 - **AKS cluster**: running (auto-start/stop configured: 13:30-16:15 Europe/London on weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply.
 - **Jenkins CI**: Terraform plan parity clean (no changes detected) after azurerm v4 apply (2026-02-04).
 - **Cost Optimization**: Short work-window schedule reduces monthly runtime to ~55 hours/month on the personal PAYG subscription.
-- **ArgoCD apps (AKS)** - All tracking `master` branch:
+- **ArgoCD apps (AKS)** - All tracking `main` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
   - `aks-rocketchat-mongodb-operator`: MongoDB Community Operator (Helm) deployed.
@@ -152,8 +154,8 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Next Steps (Post-Migration)
 
 1. ✅ **Migration Complete** (2026-01-20):
-   - Merged to `master` branch
-   - All ArgoCD apps tracking `master`
+   - Merged to `main` branch
+   - All ArgoCD apps tracking `main`
    - All systems healthy and stable
 
 2. **Ongoing Monitoring** (Current):
@@ -175,10 +177,10 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ### Completion Summary
 - ✅ **DNS cutover complete**: `k8.canepro.me` → AKS LoadBalancer (`85.210.181.37`)
 - ✅ **TLS certificate issued**: Let's Encrypt certificate valid and working
-- ✅ **All ArgoCD apps syncing**: All AKS applications now tracking `master` branch
+- ✅ **All ArgoCD apps syncing**: All AKS applications now tracking `main` branch
 - ✅ **Production traffic**: All users accessing AKS cluster
-- ✅ **Branch merge complete**: `aks-migration` merged to `master` (2026-01-20)
-- ✅ **ArgoCD apps updated**: All apps switched from `aks-migration` → `master` (2026-01-20)
+- ✅ **Branch merge complete**: `aks-migration` merged to `main` (2026-01-20)
+- ✅ **ArgoCD apps updated**: All apps switched from `aks-migration` → `main` (2026-01-20)
 - ✅ **Old cluster apps removed**: Legacy `k8-canepro-rocketchat` apps deleted from ArgoCD
 
 ### When to Merge to Main
@@ -204,13 +206,13 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 ### Merge Process ✅ COMPLETE (2026-01-20)
 
-1. ✅ **Merge `aks-migration` → `master`** (Complete)
+1. ✅ **Merge `aks-migration` → `main`** (Complete)
    - Fast-forward merge completed
    - 68 files changed (+7,628 insertions, -1,064 deletions)
    - Commit: `41ef826` → `25e3603`
 
 2. ✅ **Update ArgoCD Applications** (Complete)
-   - Updated `targetRevision: aks-migration` → `targetRevision: master` in all 5 apps:
+   - Updated `targetRevision: aks-migration` to track the post-migration default branch in all 5 apps (was **master**, renamed **main** on 2026-03-24):
      - ✅ `GrafanaLocal/argocd/applications/aks-rocketchat-helm.yaml`
      - ✅ `GrafanaLocal/argocd/applications/aks-rocketchat-ops.yaml`
      - ✅ `GrafanaLocal/argocd/applications/aks-rocketchat-secrets.yaml`
@@ -221,11 +223,11 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 3. ✅ **Update Documentation** (Complete)
    - Updated `README.md`, `OPERATIONS.md`, `MIGRATION_STATUS.md`
-   - All references to `aks-migration` branch replaced with `master`
+   - All references to `aks-migration` branch replaced with `main`
 
 4. ✅ **Verify ArgoCD Sync** (Complete)
    - All apps showing `Synced & Healthy`
-   - All apps tracking `master` branch
+   - All apps tracking `main` branch
    - All pods running successfully
 
 ### Detaching Old Cluster
@@ -255,14 +257,14 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ```
 Day 0:  DNS cutover (✅ Done - 2026-01-16)
 Day 1-4: Monitor stability, verify all systems (✅ Complete)
-Day 4:  Merge to master, update ArgoCD apps (✅ Done - 2026-01-20)
+Day 4:  Merge to default branch (**main**), update ArgoCD apps (✅ Done - 2026-01-20)
 Day 30+: Detach old cluster (Scheduled)
 ```
 
 **Actual Timeline:**
 - **2026-01-16**: DNS cutover to AKS
 - **2026-01-16 to 2026-01-20**: Stability monitoring (4 days)
-- **2026-01-20**: Merged to `master`, updated ArgoCD apps
+- **2026-01-20**: Merged to `main`, updated ArgoCD apps
 - **Result**: Migration completed in 4 days (faster than planned 14 days due to excellent stability)
 
 ## Troubleshooting Documentation

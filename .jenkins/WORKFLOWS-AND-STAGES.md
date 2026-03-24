@@ -38,7 +38,7 @@ This document describes the **current** workflows for the version-check job, the
 **What it is:** A **scheduled** pipeline that checks for new versions of Terraform provider, container images, and Helm charts, then creates **one breaking-upgrade issue** and/or **one non-breaking-updates PR** (de-duped).
 
 **Jenkins setup:**
-- **Job type:** Usually a **Pipeline** or **Multibranch** with a single branch (e.g. `master`) and Script Path `.jenkins/version-check.Jenkinsfile`
+- **Job type:** Usually a **Pipeline** or **Multibranch** with a single branch (e.g. `main`) and Script Path `.jenkins/version-check.Jenkinsfile`
 - **Script Path:** `.jenkins/version-check.Jenkinsfile`
 - **Schedule:** Weekdays during 14:00-14:59 Europe/London, e.g. `H 14 * * 1-5` (after AKS auto-start at 13:30)
 - **Config:** `.jenkins/version-check-job-config.xml` uses this script path

@@ -94,7 +94,7 @@ bash .jenkins/create-security-validation-job.sh Canepro central-observability-hu
    - **SCM**: Git
    - **Repository URL**: `https://github.com/Canepro/rocketchat-k8s`
    - **Credentials**: Select `github-token`
-   - **Branches to build**: `*/master`
+   - **Branches to build**: `*/main`
    - **Script Path**: 
      - For version-check: `.jenkins/version-check.Jenkinsfile`
      - For security-validation: `.jenkins/security-validation.Jenkinsfile`

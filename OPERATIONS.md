@@ -7,7 +7,7 @@ To upgrade RocketChat (monolith and microservices):
 1.  Open `values.yaml` in the root of this repo.
 2.  Locate the `image.tag` field (e.g., `7.12.2`).
 3.  Change the version to the desired release (e.g., `7.13.2`).
-4.  Commit and push to the `master` branch.
+4.  Commit and push to the `main` branch.
 5.  ArgoCD will detect the change and perform a rolling update of all components.
 
 ## 📈 Scaling Microservices
@@ -15,7 +15,7 @@ To adjust the number of replicas for a specific service:
 1.  Open `values.yaml`.
 2.  Find the `microservices` block.
 3.  Modify the `replicas` field for the desired service (e.g., `account`, `presence`, `ddpStreamer`).
-4.  Commit and push to `master`.
+4.  Commit and push to `main`.
 
 ## 🔐 ArgoCD CLI Login and Application Management
 
@@ -369,7 +369,7 @@ Jenkins runs these stages on every push/PR to validate Terraform code:
 - `TF_VAR_jenkins_graceful_disconnect_agent_name`
 
 **View CI Results**:
-- Jenkins: `https://jenkins.canepro.me/job/rocketchat-k8s/job/master/`
+- Jenkins: `https://jenkins.canepro.me/job/rocketchat-k8s/job/main/`
 - Plan output is archived as a build artifact
 
 **Jenkins Apply (Not Enabled):**
@@ -418,7 +418,7 @@ az identity federated-credential create \
    - Replace `REPLACE_WITH_TENANT_ID` with `TENANT_ID` from Terraform output
    - Replace `REPLACE_WITH_KEYVAULT_NAME` with `KEYVAULT_NAME` from Terraform output
 
-3. **Commit and push** to `master` branch
+3. **Commit and push** to `main` branch
 
 ##### Step 5: Sync ArgoCD applications
 
@@ -527,7 +527,7 @@ After this, Kubernetes Secrets like `rocketchat-mongodb-external` will be **cont
 1. Edit `ops/manifests/otel-tracegen-job.yaml`
    - **Bump the Job name** (Jobs are immutable; a new name = a new run).
    - **Bump** `canepro.me/otel-tracegen-rev` (for bookkeeping).
-2. Commit + push to `master`. ArgoCD will create the new Job and prune old runs (by default).
+2. Commit + push to `main`. ArgoCD will create the new Job and prune old runs (by default).
 
 **Verify (cluster-side)**
 ```bash

@@ -102,7 +102,7 @@ controller:
                           url('https://github.com/Canepro/rocketchat-k8s')
                           credentials('github-token')
                         }
-                        branch('*/master')
+                        branch('*/main')
                         extensions {
                           cleanBeforeCheckout()
                         }
@@ -126,7 +126,7 @@ controller:
                           url('https://github.com/Canepro/rocketchat-k8s')
                           credentials('github-token')
                         }
-                        branch('*/master')
+                        branch('*/main')
                         extensions {
                           cleanBeforeCheckout()
                         }
