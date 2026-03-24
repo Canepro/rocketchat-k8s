@@ -26,7 +26,7 @@ This repository contains the complete infrastructure-as-code for deploying and o
 | Secrets | External Secrets Operator, Azure Key Vault | `ops/secrets/` + Key Vault |
 | Observability | Prometheus Agent, Promtail, OTel on AKS; Grafana/Tempo on OKE | `ops/` manifests |
 | CI Validation | Jenkins on OKE + AKS static agent | `.jenkins/` + Jenkins GitOps |
-| Delivery | ArgoCD split applications | `master` branch |
+| Delivery | ArgoCD split applications | `main` branch |
 
 ## Architecture
 
@@ -73,7 +73,7 @@ flowchart LR
 
 ### GitOps Workflow
 
-1. Changes land in `master`.
+1. Changes land in `main`.
 2. ArgoCD on OKE reconciles the split applications into the AKS target cluster.
 3. ESO projects Key Vault values into Kubernetes Secrets.
 4. RocketChat, ops manifests, and maintenance jobs converge from Git.
@@ -126,7 +126,7 @@ vim values.yaml
 # 2. Commit and push
 git add values.yaml
 git commit -m "chore: upgrade RocketChat to X.Y.Z"
-git push origin master
+git push origin main
 ```
 
 ArgoCD automatically syncs changes within 3 minutes.
@@ -182,7 +182,7 @@ This repository follows a **Split-App Pattern** with ArgoCD:
 | `aks-rocketchat-secrets` | `ops/secrets/` | External Secrets definitions |
 
 **Deployment Flow**:
-1. Commit changes to `master` branch
+1. Commit changes to `main` branch
 2. ArgoCD detects changes (3-min sync interval)
 3. ArgoCD applies changes to cluster
 4. Rollback via `git revert` if needed
@@ -280,7 +280,7 @@ See:
 
 ArgoCD handles all deployments via GitOps:
 
-- Auto-sync enabled on `master` branch
+- Auto-sync enabled on `main` branch
 - Self-heal enabled (drift correction)
 - Prune enabled (remove orphaned resources)
 
@@ -307,11 +307,11 @@ For emergency access or initial setup, see [OPERATIONS.md](OPERATIONS.md).
 
 ## Contributing
 
-1. Create a feature branch from `master`
+1. Create a feature branch from `main`
 2. Make changes and test locally where possible
 3. Submit a pull request
 4. Jenkins validates the changes
-5. Merge to `master` triggers ArgoCD deployment
+5. Merge to `main` triggers ArgoCD deployment
 
 ## License
 

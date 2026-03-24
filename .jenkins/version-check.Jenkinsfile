@@ -734,7 +734,7 @@ EOF
                 PR_BODY=$(jq -rn --arg high "$HIGH_COUNT" --arg med "$MEDIUM_COUNT" --arg buildurl "${BUILD_URL:-}" '\''
                   "## Automated Version Updates\n\nThis PR includes version updates detected by automated checks.\n\n### Updates Summary\n- High Risk: " + $high + "\n- Medium Risk: " + $med + "\n\n### Files Updated\n- **VERSIONS.md**: Automatically updated with new versions\n- **Code files**: Version numbers updated in values.yaml, terraform/main.tf, etc.\n\n### Review Checklist\n- [ ] Review all version changes in VERSIONS.md\n- [ ] Verify code file changes are correct\n- [ ] Check release notes for breaking changes\n- [ ] Test in staging if applicable\n\nBuild: " + $buildurl + "\n\n---\n*This PR was automatically created by Jenkins version check pipeline.*"
                 '\'')
-                jq -n --arg title "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium" --arg head "${BRANCH_NAME}" --arg base "master" --arg body "$PR_BODY" \
+                jq -n --arg title "⬆️ Version Updates: ${HIGH_COUNT} high, ${MEDIUM_COUNT} medium" --arg head "${BRANCH_NAME}" --arg base "main" --arg body "$PR_BODY" \
                   '{title:$title, head:$head, base:$base, body:$body}' > "$WORKDIR/pr-body.json"
 
                 PR_CREATE_JSON=$(curl -sS -X POST \

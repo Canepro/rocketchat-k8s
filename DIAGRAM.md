@@ -49,7 +49,7 @@ flowchart LR
 
 ## 🔄 GitOps Workflow
 
-1. **Developer Push**: Changes committed to `master` branch in GitHub
+1. **Developer Push**: Changes committed to `main` branch in GitHub
 2. **ArgoCD Detection**: ArgoCD polls repository every 3 minutes (configurable)
 3. **Sync Decision**: ArgoCD compares desired state (Git) vs actual state (K8s)
 4. **Application Deployment**:

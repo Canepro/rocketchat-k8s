@@ -24,7 +24,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Canepro/rocketchat-k8s.git
-    targetRevision: master
+    targetRevision: main
     path: GrafanaLocal/argocd/applications
     # Directory type: ArgoCD will discover all Application manifests in this directory
     directory:

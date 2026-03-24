@@ -76,7 +76,7 @@ For PR builds, `.jenkins/terraform-validation.Jenkinsfile` checks out GitHub's `
 ### Automated Jobs (Scheduled)
 
 The version-check and security-validation pipelines run as scheduled jobs:
-- Run on a weekday schedule (see above) on `master`
+- Run on a weekday schedule (see above) on `main`
 - Create PRs/issues automatically
 - Update code and documentation
 
