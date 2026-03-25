@@ -20,6 +20,8 @@ pipeline {
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
+    PH_FAILURE_STEP = ''
+    PH_FAILURE_COMMAND = ''
 
     // Non-secret defaults so CI plans match interactive plans (override in job config if needed)
     TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins.canepro.me'}"
@@ -31,6 +33,10 @@ pipeline {
     // Stage 1: Start from a clean workspace before any PR merge checkout occurs.
     stage('Checkout') {
       steps {
+        script {
+          env.PH_FAILURE_STEP = 'Checkout'
+          env.PH_FAILURE_COMMAND = 'git fetch refs/pull/${CHANGE_ID}/merge and checkout merge ref'
+        }
         deleteDir()
         script {
           if (env.CHANGE_ID) {
@@ -72,6 +78,10 @@ EOF
     // Stage 2: Install Terraform (extract to workspace with Python so no unzip/root needed)
     stage('Setup') {
       steps {
+        script {
+          env.PH_FAILURE_STEP = 'Setup'
+          env.PH_FAILURE_COMMAND = 'Download Terraform from HashiCorp releases and install into workspace'
+        }
         sh '''
           cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
@@ -134,6 +144,10 @@ SCRIPT
     // Stage 3: Verify Azure Workload Identity
     stage('Verify Azure Auth') {
       steps {
+        script {
+          env.PH_FAILURE_STEP = 'Verify Azure Auth'
+          env.PH_FAILURE_COMMAND = 'Validate ARM and workload-identity environment variables and token file'
+        }
         sh '''
           cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
@@ -179,6 +193,10 @@ SCRIPT
     stage('Terraform Format') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Terraform Format'
+            env.PH_FAILURE_COMMAND = 'terraform fmt -check -recursive'
+          }
           sh '''
             cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
@@ -193,6 +211,10 @@ SCRIPT
     stage('Terraform Validate') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Terraform Validate'
+            env.PH_FAILURE_COMMAND = 'terraform init (backend + OIDC auth) and terraform validate'
+          }
           sh '''
             cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
@@ -223,6 +245,10 @@ SCRIPT
     stage('Get Variables') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Get Variables'
+            env.PH_FAILURE_COMMAND = 'Generate terraform.tfvars + zz_ci.auto.tfvars for CI'
+          }
           withCredentials([string(credentialsId: 'budget-alert-email', variable: 'BUDGET_ALERT_EMAIL')]) {
             sh '''
               cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
@@ -250,6 +276,10 @@ SCRIPT
     stage('Terraform Plan') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Terraform Plan'
+            env.PH_FAILURE_COMMAND = 'terraform plan -detailed-exitcode (-refresh=false fallback)'
+          }
           sh '''
             cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
@@ -258,11 +288,24 @@ SCRIPT
             fi
             unset TF_VAR_budget_alert_email
             echo "INFO: Planning against terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
+            PLAN_EXIT=0
             terraform plan \
               -no-color \
               -input=false \
               -out=tfplan \
-              -detailed-exitcode || PLAN_EXIT=$?
+              -detailed-exitcode \
+              -refresh=true || PLAN_EXIT=$?
+
+            if [ "${PLAN_EXIT:-0}" = "1" ]; then
+              echo "Terraform plan failed; retrying with refresh disabled to isolate config errors from transient state refresh failures."
+              PLAN_EXIT=0
+              terraform plan \
+                -no-color \
+                -input=false \
+                -out=tfplan \
+                -detailed-exitcode \
+                -refresh=false || PLAN_EXIT=$?
+            fi
             
             # Exit codes: 0 = no changes, 1 = error, 2 = changes present
             if [ "${PLAN_EXIT:-0}" = "1" ]; then
@@ -366,6 +409,7 @@ SCRIPT
       echo '❌ Terraform validation failed'
       script {
         try {
+          env.PH_DURATION_MS = "${currentBuild.duration}"
           withCredentials([
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
@@ -391,6 +435,8 @@ SCRIPT
                 if [ -z "${PH_BRANCH_VALUE}" ]; then
                   PH_BRANCH_VALUE="${BRANCH_NAME:-unknown}"
                 fi
+                export PH_FAILURE_STEP="${PH_FAILURE_STEP:-terraform-validation}"
+                export PH_FAILURE_COMMAND="${PH_FAILURE_COMMAND:-terraform command failure}"
                 export PH_BRANCH="${PH_BRANCH_VALUE}"
                 export PH_COMMIT_SHA="${GIT_COMMIT:-}"
                 export PH_FAILURE_STAGE="terraform-validation"
@@ -399,6 +445,7 @@ SCRIPT
                 if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
                   export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                 fi
+                export PH_DURATION_MS="${PH_DURATION_MS:-0}"
                 bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                   echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
               '''
