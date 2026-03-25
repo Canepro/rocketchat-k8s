@@ -20,6 +20,10 @@ sub next_weekday_occurrence {
 
     my ($hour, $minute) = split /:/, $hhmm, 2;
     die "invalid time format: $hhmm" unless defined $hour && defined $minute;
+    die "invalid time format: $hhmm" unless $hour =~ /^\d{1,2}$/ && $minute =~ /^\d{1,2}$/;
+    $hour = int($hour);
+    $minute = int($minute);
+    die "invalid time format: $hhmm" unless $hour >= 0 && $hour <= 23 && $minute >= 0 && $minute <= 59;
 
     my $candidate_date = run_cmd('env', "TZ=$tz", 'date', '-d', "\@$anchor_epoch", '+%Y-%m-%d');
     while (1) {
