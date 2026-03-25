@@ -337,72 +337,86 @@ SCRIPT
     success {
       echo '✅ Terraform validation passed'
       script {
-        try {
-          withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
-            def repo = 'Canepro/rocketchat-k8s'
-            def apiBase = "https://api.github.com/repos/${repo}"
-            def jobFragment = "/job/${(env.JOB_NAME ?: '').replace('/', '/job/')}/"
-            def slurper = new groovy.json.JsonSlurperClassic()
+        env.PH_JOB_FRAGMENT = "/job/${(env.JOB_NAME ?: '').replace('/', '/job/')}/"
+      }
+      withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+        sh '''
+          set -eu
+          API_BASE="https://api.github.com/repos/Canepro/rocketchat-k8s"
+          JOB_FRAGMENT="${PH_JOB_FRAGMENT:-}"
 
-            def openApiConnection = { String method, String url, String body = null ->
-              def conn = (HttpURLConnection) new URL(url).openConnection()
-              conn.requestMethod = method
-              conn.setRequestProperty('Authorization', "token ${GITHUB_TOKEN}")
-              conn.setRequestProperty('Accept', 'application/vnd.github+json')
-              conn.setRequestProperty('X-GitHub-Api-Version', '2022-11-28')
-              if (body != null) {
-                conn.doOutput = true
-                conn.setRequestProperty('Content-Type', 'application/json')
-                conn.outputStream.withWriter('UTF-8') { writer ->
-                  writer << body
-                }
+          if [ -z "$JOB_FRAGMENT" ]; then
+            echo "No JOB_FRAGMENT available; skipping stale issue auto-close."
+            exit 0
+          fi
+
+          MATCHING_ISSUES="$(perl -MJSON::PP=decode_json -e '
+            use strict;
+            use warnings;
+
+            my ($api_base, $token, $job_fragment) = @ARGV;
+            my @matches = ();
+
+            for my $page (1..10) {
+              my $url = sprintf("%s/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=%d", $api_base, $page);
+              my $cmd = sprintf(
+                q{curl -fsSL -H "Authorization: token %s" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "%s"},
+                $token,
+                $url
+              );
+              my $raw = qx{$cmd};
+              my $items = eval { decode_json($raw) };
+              last if $@ || ref($items) ne "ARRAY" || scalar(@$items) == 0;
+
+              for my $issue (@$items) {
+                next if ref($issue) ne "HASH";
+                next if exists $issue->{pull_request};
+                my $title = $issue->{title} // q{};
+                my $body  = $issue->{body}  // q{};
+                next unless $title =~ /^\\[PipelineHealer\\]/;
+                next unless index($body, $job_fragment) >= 0;
+                push @matches, $issue->{number};
               }
-              conn
+
+              last if scalar(@$items) < 100;
             }
 
-            def matchingIssues = []
-            for (int page = 1; page <= 10; page++) {
-              def conn = openApiConnection('GET', "${apiBase}/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=${page}")
-              def response = slurper.parseText(conn.inputStream.getText('UTF-8'))
-              if (!(response instanceof List) || response.isEmpty()) {
-                break
-              }
-              matchingIssues.addAll(response.findAll { issue ->
-                issue.pull_request == null &&
-                  (issue.title ?: '').startsWith('[PipelineHealer]') &&
-                  (issue.body ?: '').contains(jobFragment)
-              })
-              if (response.size() < 100) {
-                break
-              }
-            }
+            print join("\\n", @matches);
+          ' "$API_BASE" "$GITHUB_TOKEN" "$JOB_FRAGMENT")"
 
-            if (matchingIssues.isEmpty()) {
-              echo 'No stale PipelineHealer issues matched this job.'
-            } else {
-              matchingIssues.each { issue ->
-                def commentConn = openApiConnection(
-                  'POST',
-                  "${apiBase}/issues/${issue.number}/comments",
-                  groovy.json.JsonOutput.toJson([
-                    body: "Closing automatically after successful Jenkins validation run ${env.BUILD_URL} on commit `${env.GIT_COMMIT}`."
-                  ])
-                )
-                commentConn.inputStream.close()
+          if [ -z "$MATCHING_ISSUES" ]; then
+            echo "No stale PipelineHealer issues matched this job."
+            exit 0
+          fi
 
-                def closeConn = openApiConnection(
-                  'PATCH',
-                  "${apiBase}/issues/${issue.number}",
-                  groovy.json.JsonOutput.toJson([state: 'closed'])
-                )
-                closeConn.inputStream.close()
-                echo "Closed stale PipelineHealer issue #${issue.number}"
-              }
-            }
-          }
-        } catch (err) {
-          echo "⚠️ Failed to auto-close PipelineHealer issues: ${err}"
-        }
+          while IFS= read -r issue_number; do
+            [ -n "$issue_number" ] || continue
+            COMMENT_TEXT="Closing automatically after successful Jenkins validation run ${BUILD_URL} on commit ${GIT_COMMIT}."
+            COMMENT_PAYLOAD="$(perl -MJSON::PP=encode_json -e 'print encode_json({ body => $ARGV[0] })' "$COMMENT_TEXT")"
+
+            curl -fsSL \
+              -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "Content-Type: application/json" \
+              "${API_BASE}/issues/${issue_number}/comments" \
+              -d "${COMMENT_PAYLOAD}" >/dev/null
+
+            curl -fsSL \
+              -X PATCH \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "Content-Type: application/json" \
+              "${API_BASE}/issues/${issue_number}" \
+              -d '{"state":"closed"}' >/dev/null
+
+            echo "Closed stale PipelineHealer issue #${issue_number}"
+          done <<EOF
+$MATCHING_ISSUES
+EOF
+        '''
       }
     }
     failure {
