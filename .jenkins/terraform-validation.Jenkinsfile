@@ -35,11 +35,11 @@ pipeline {
       steps {
         script {
           env.PH_FAILURE_STEP = 'Checkout'
-          env.PH_FAILURE_COMMAND = 'git fetch refs/pull/${CHANGE_ID}/merge and checkout merge ref'
         }
         deleteDir()
         script {
           if (env.CHANGE_ID) {
+            env.PH_FAILURE_COMMAND = "git fetch refs/pull/${env.CHANGE_ID}/merge and checkout merge ref"
             withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
               sh '''
                 set -eu
@@ -68,6 +68,7 @@ EOF
               '''
             }
           } else {
+            env.PH_FAILURE_COMMAND = 'checkout scm'
             checkout scm
           }
           env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
@@ -289,29 +290,60 @@ SCRIPT
             unset TF_VAR_budget_alert_email
             echo "INFO: Planning against terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
             PLAN_EXIT=0
+            PLAN_ERR_FILE="$(mktemp)"
+            cleanup_plan_err() {
+              rm -f "${PLAN_ERR_FILE}"
+            }
+            trap cleanup_plan_err EXIT
+
             terraform plan \
               -no-color \
               -input=false \
               -out=tfplan \
               -detailed-exitcode \
-              -refresh=true || PLAN_EXIT=$?
+              -refresh=true 2>"${PLAN_ERR_FILE}" || PLAN_EXIT=$?
 
-            if [ "${PLAN_EXIT:-0}" = "1" ]; then
-              echo "Terraform plan failed; retrying with refresh disabled to isolate config errors from transient state refresh failures."
-              PLAN_EXIT=0
-              terraform plan \
-                -no-color \
-                -input=false \
-                -out=tfplan \
-                -detailed-exitcode \
-                -refresh=false || PLAN_EXIT=$?
-            fi
-            
-            # Exit codes: 0 = no changes, 1 = error, 2 = changes present
-            if [ "${PLAN_EXIT:-0}" = "1" ]; then
-              echo "Terraform plan failed"
-              exit 1
-            elif [ "${PLAN_EXIT:-0}" = "2" ]; then
+            case "${PLAN_EXIT:-0}" in
+              0|2)
+                ;;
+              1)
+                if grep -Eiq '(Error refreshing state|Failed to read remote state|Error loading state|Error acquiring the state lock|Error loading backend|state snapshot|context deadline exceeded|TLS handshake timeout|connection reset by peer|i/o timeout)' "${PLAN_ERR_FILE}"; then
+                  echo "Terraform plan failed with refresh/state-related error; retrying with refresh disabled to isolate config errors."
+                  PLAN_EXIT=0
+                  terraform plan \
+                    -no-color \
+                    -input=false \
+                    -out=tfplan \
+                    -detailed-exitcode \
+                    -refresh=false 2>"${PLAN_ERR_FILE}" || PLAN_EXIT=$?
+                  case "${PLAN_EXIT:-0}" in
+                    0|2)
+                      ;;
+                    1)
+                      echo "Terraform plan failed"
+                      cat "${PLAN_ERR_FILE}" >&2
+                      exit 1
+                      ;;
+                    *)
+                      echo "Terraform plan exited unexpectedly with status ${PLAN_EXIT}" >&2
+                      cat "${PLAN_ERR_FILE}" >&2
+                      exit "${PLAN_EXIT}"
+                      ;;
+                  esac
+                else
+                  echo "Terraform plan failed with non-refresh error; skipping refresh-disabled retry."
+                  cat "${PLAN_ERR_FILE}" >&2
+                  exit 1
+                fi
+                ;;
+              *)
+                echo "Terraform plan exited unexpectedly with status ${PLAN_EXIT}" >&2
+                cat "${PLAN_ERR_FILE}" >&2
+                exit "${PLAN_EXIT}"
+                ;;
+            esac
+
+            if [ "${PLAN_EXIT:-0}" = "2" ]; then
               echo "Changes detected in plan"
             else
               echo "No changes detected"
