@@ -386,17 +386,25 @@ SCRIPT
             use strict;
             use warnings;
 
-            my ($api_base, $token, $job_fragment) = @ARGV;
+            my ($api_base, $job_fragment) = @ARGV;
+            my $token = $ENV{GITHUB_TOKEN} // q{};
+            die q{missing GITHUB_TOKEN} if $token eq q{};
             my @matches = ();
 
             for my $page (1..10) {
               my $url = sprintf("%s/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=%d", $api_base, $page);
-              my $cmd = sprintf(
-                q{curl -fsSL -H "Authorization: token %s" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "%s"},
-                $token,
+              open my $fh, q{-|},
+                q{curl},
+                q{-fsSL},
+                q{-H}, qq{Authorization: token $token},
+                q{-H}, q{Accept: application/vnd.github+json},
+                q{-H}, q{X-GitHub-Api-Version: 2022-11-28},
                 $url
-              );
-              my $raw = qx{$cmd};
+                or die qq{failed to run curl for $url: $!};
+              local $/ = undef;
+              my $raw = <$fh>;
+              close $fh;
+              die qq{curl failed for $url} if $?;
               my $items = eval { decode_json($raw) };
               last if $@ || ref($items) ne "ARRAY" || scalar(@$items) == 0;
 
@@ -414,7 +422,7 @@ SCRIPT
             }
 
             print join("\\n", @matches);
-          ' "$API_BASE" "$GITHUB_TOKEN" "$JOB_FRAGMENT")"
+          ' "$API_BASE" "$JOB_FRAGMENT")"
 
           if [ -z "$MATCHING_ISSUES" ]; then
             echo "No stale PipelineHealer issues matched this job."
