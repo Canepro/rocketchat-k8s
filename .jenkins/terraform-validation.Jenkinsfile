@@ -85,7 +85,7 @@ EOF
         sh '''
           cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
-          # Ensure required tools exist. python3 is needed by terraform data.external scripts.
+          # Ensure extraction tools exist; try to install python3/unzip when missing.
           if ! command -v python3 >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
             if command -v apk >/dev/null 2>&1; then
               apk add --no-cache python3 unzip 2>/dev/null || true
@@ -96,10 +96,6 @@ EOF
             elif command -v tdnf >/dev/null 2>&1; then
               tdnf install -y python3 unzip 2>/dev/null || true
             fi
-          fi
-          if ! command -v python3 >/dev/null 2>&1; then
-            echo "ERROR: python3 is required for terraform plan (automation_schedule_seed external data source)."
-            exit 1
           fi
           # Azure CLI (optional): try user install if python3 exists; no root required.
           WORKDIR="${WORKSPACE:-$(pwd)}"
