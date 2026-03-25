@@ -85,8 +85,8 @@ EOF
         sh '''
           cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
-          # Ensure we can extract zip without assuming python3 exists.
-          if ! command -v python3 >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
+          # Ensure required tools exist. python3 is needed by terraform data.external scripts.
+          if ! command -v python3 >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
             if command -v apk >/dev/null 2>&1; then
               apk add --no-cache python3 unzip 2>/dev/null || true
             elif command -v apt-get >/dev/null 2>&1; then
@@ -96,6 +96,10 @@ EOF
             elif command -v tdnf >/dev/null 2>&1; then
               tdnf install -y python3 unzip 2>/dev/null || true
             fi
+          fi
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "ERROR: python3 is required for terraform plan (automation_schedule_seed external data source)."
+            exit 1
           fi
           # Azure CLI (optional): try user install if python3 exists; no root required.
           WORKDIR="${WORKSPACE:-$(pwd)}"
@@ -257,7 +261,7 @@ SCRIPT
               echo "INFO: Using example tfvars for validation (placeholder values)"
               cp terraform.tfvars.example terraform.tfvars
               if [ -n "${BUDGET_ALERT_EMAIL:-}" ]; then
-                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/\\/\\\\/g; s/\"/\\"/g')"
+                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | awk '{gsub(/\\\\/,\"\\\\\\\\\"); gsub(/\"/,\"\\\\\\\"\"); print}')"
                 BUDGET_ALERT_EMAIL_VALUE="${BUDGET_ALERT_EMAIL_ESCAPED}"
                 echo "INFO: Overriding budget_alert_email from Jenkins credential"
               else
