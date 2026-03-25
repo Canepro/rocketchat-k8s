@@ -172,7 +172,7 @@ resource "time_static" "automation_schedule_anchor" {
 # same-day starts possible when we apply after midnight but before the desired hour,
 # and it naturally skips weekends when the anchor lands on Saturday/Sunday.
 data "external" "automation_schedule_seed" {
-  program = ["python3", "${path.module}/scripts/automation_schedule_seed.py"]
+  program = ["perl", "${path.module}/scripts/automation_schedule_seed.pl"]
 
   query = {
     anchor_rfc3339 = time_static.automation_schedule_anchor.rfc3339
