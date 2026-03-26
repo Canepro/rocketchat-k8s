@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: rocketchat-tls
+  namespace: rocketchat
+spec:
+  secretName: rocketchat-tls
+  issuerRef:
+    name: production-cert-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - k8.canepro.me

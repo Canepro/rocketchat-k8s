@@ -139,10 +139,9 @@ persistence:
 ingress:
   enabled: true  # Enable ingress (create Ingress resource for Traefik)
   ingressClassName: traefik  # Traefik ingress class (must match Traefik IngressClass name)
-  annotations:
-    # cert-manager annotation: Use Let's Encrypt ClusterIssuer for TLS certificates
-    # See ops/manifests/clusterissuer.yaml for ClusterIssuer configuration
-    cert-manager.io/cluster-issuer: production-cert-issuer  # ClusterIssuer name (from clusterissuer.yaml)
+  # TLS is requested explicitly via ops/manifests/rocketchat-tls-certificate.yaml.
+  # Keep ingress annotations empty to avoid duplicate ingress-shim certificate requests.
+  annotations: {}
   path: /  # Ingress path (root path for all Rocket.Chat requests)
   pathType: Prefix  # Path matching type (prefix matching)
   tls:

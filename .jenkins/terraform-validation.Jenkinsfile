@@ -20,6 +20,8 @@ pipeline {
     GITHUB_TOKEN_CREDENTIALS = 'github-token'
     PIPELINEHEALER_BRIDGE_URL_CREDENTIALS = 'pipelinehealer-bridge-url'
     PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS = 'pipelinehealer-bridge-secret'
+    PH_FAILURE_STEP = ''
+    PH_FAILURE_COMMAND = ''
 
     // Non-secret defaults so CI plans match interactive plans (override in job config if needed)
     TF_VAR_jenkins_graceful_disconnect_url = "${env.TF_VAR_jenkins_graceful_disconnect_url ?: 'https://jenkins.canepro.me'}"
@@ -31,9 +33,13 @@ pipeline {
     // Stage 1: Start from a clean workspace before any PR merge checkout occurs.
     stage('Checkout') {
       steps {
+        script {
+          env.PH_FAILURE_STEP = 'Checkout'
+        }
         deleteDir()
         script {
           if (env.CHANGE_ID) {
+            env.PH_FAILURE_COMMAND = "git fetch refs/pull/${env.CHANGE_ID}/merge and checkout merge ref"
             withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
               sh '''
                 set -eu
@@ -62,6 +68,7 @@ EOF
               '''
             }
           } else {
+            env.PH_FAILURE_COMMAND = 'checkout scm'
             checkout scm
           }
           env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
@@ -72,11 +79,15 @@ EOF
     // Stage 2: Install Terraform (extract to workspace with Python so no unzip/root needed)
     stage('Setup') {
       steps {
+        script {
+          env.PH_FAILURE_STEP = 'Setup'
+          env.PH_FAILURE_COMMAND = 'Download Terraform from HashiCorp releases and install into workspace'
+        }
         sh '''
           cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
-          # Ensure we can extract zip without assuming python3 exists.
-          if ! command -v python3 >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
+          # Ensure extraction tools exist; try to install python3/unzip when missing.
+          if ! command -v python3 >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
             if command -v apk >/dev/null 2>&1; then
               apk add --no-cache python3 unzip 2>/dev/null || true
             elif command -v apt-get >/dev/null 2>&1; then
@@ -134,6 +145,10 @@ SCRIPT
     // Stage 3: Verify Azure Workload Identity
     stage('Verify Azure Auth') {
       steps {
+        script {
+          env.PH_FAILURE_STEP = 'Verify Azure Auth'
+          env.PH_FAILURE_COMMAND = 'Validate ARM and workload-identity environment variables and token file'
+        }
         sh '''
           cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
           set -e
@@ -179,6 +194,10 @@ SCRIPT
     stage('Terraform Format') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Terraform Format'
+            env.PH_FAILURE_COMMAND = 'terraform fmt -check -recursive'
+          }
           sh '''
             cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
@@ -193,6 +212,10 @@ SCRIPT
     stage('Terraform Validate') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Terraform Validate'
+            env.PH_FAILURE_COMMAND = 'terraform init (backend + OIDC auth) and terraform validate'
+          }
           sh '''
             cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
@@ -223,6 +246,10 @@ SCRIPT
     stage('Get Variables') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Get Variables'
+            env.PH_FAILURE_COMMAND = 'Generate terraform.tfvars + zz_ci.auto.tfvars for CI'
+          }
           withCredentials([string(credentialsId: 'budget-alert-email', variable: 'BUDGET_ALERT_EMAIL')]) {
             sh '''
               cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
@@ -231,7 +258,7 @@ SCRIPT
               echo "INFO: Using example tfvars for validation (placeholder values)"
               cp terraform.tfvars.example terraform.tfvars
               if [ -n "${BUDGET_ALERT_EMAIL:-}" ]; then
-                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/\\/\\\\/g; s/\"/\\"/g')"
+                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/[\\\\"]/\\\\&/g')"
                 BUDGET_ALERT_EMAIL_VALUE="${BUDGET_ALERT_EMAIL_ESCAPED}"
                 echo "INFO: Overriding budget_alert_email from Jenkins credential"
               else
@@ -250,6 +277,10 @@ SCRIPT
     stage('Terraform Plan') {
       steps {
         dir('terraform') {
+          script {
+            env.PH_FAILURE_STEP = 'Terraform Plan'
+            env.PH_FAILURE_COMMAND = 'terraform plan -detailed-exitcode (-refresh=false fallback)'
+          }
           sh '''
             cat <<'SCRIPT' | sh "${WORKSPACE}/.jenkins/scripts/capture-pipelinehealer-bridge-excerpt.sh" "${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
             export PATH="${WORKSPACE}/.bin:${PATH}"
@@ -258,17 +289,61 @@ SCRIPT
             fi
             unset TF_VAR_budget_alert_email
             echo "INFO: Planning against terraform backend ${TF_BACKEND_STORAGE_ACCOUNT}/${TF_BACKEND_CONTAINER}/${TF_BACKEND_KEY}"
+            PLAN_EXIT=0
+            PLAN_ERR_FILE="$(mktemp)"
+            cleanup_plan_err() {
+              rm -f "${PLAN_ERR_FILE}"
+            }
+            trap cleanup_plan_err EXIT
+
             terraform plan \
               -no-color \
               -input=false \
               -out=tfplan \
-              -detailed-exitcode || PLAN_EXIT=$?
-            
-            # Exit codes: 0 = no changes, 1 = error, 2 = changes present
-            if [ "${PLAN_EXIT:-0}" = "1" ]; then
-              echo "Terraform plan failed"
-              exit 1
-            elif [ "${PLAN_EXIT:-0}" = "2" ]; then
+              -detailed-exitcode \
+              -refresh=true 2>"${PLAN_ERR_FILE}" || PLAN_EXIT=$?
+
+            case "${PLAN_EXIT:-0}" in
+              0|2)
+                ;;
+              1)
+                if grep -Eiq '(Error refreshing state|Failed to read remote state|Error loading state|Error acquiring the state lock|Error loading backend|state snapshot|context deadline exceeded|TLS handshake timeout|connection reset by peer|i/o timeout)' "${PLAN_ERR_FILE}"; then
+                  echo "Terraform plan failed with refresh/state-related error; retrying with refresh disabled to isolate config errors."
+                  PLAN_EXIT=0
+                  terraform plan \
+                    -no-color \
+                    -input=false \
+                    -out=tfplan \
+                    -detailed-exitcode \
+                    -refresh=false 2>"${PLAN_ERR_FILE}" || PLAN_EXIT=$?
+                  case "${PLAN_EXIT:-0}" in
+                    0|2)
+                      ;;
+                    1)
+                      echo "Terraform plan failed"
+                      cat "${PLAN_ERR_FILE}" >&2
+                      exit 1
+                      ;;
+                    *)
+                      echo "Terraform plan exited unexpectedly with status ${PLAN_EXIT}" >&2
+                      cat "${PLAN_ERR_FILE}" >&2
+                      exit "${PLAN_EXIT}"
+                      ;;
+                  esac
+                else
+                  echo "Terraform plan failed with non-refresh error; skipping refresh-disabled retry."
+                  cat "${PLAN_ERR_FILE}" >&2
+                  exit 1
+                fi
+                ;;
+              *)
+                echo "Terraform plan exited unexpectedly with status ${PLAN_EXIT}" >&2
+                cat "${PLAN_ERR_FILE}" >&2
+                exit "${PLAN_EXIT}"
+                ;;
+            esac
+
+            if [ "${PLAN_EXIT:-0}" = "2" ]; then
               echo "Changes detected in plan"
             else
               echo "No changes detected"
@@ -294,71 +369,95 @@ SCRIPT
     success {
       echo '✅ Terraform validation passed'
       script {
-        try {
-          withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
-            def repo = 'Canepro/rocketchat-k8s'
-            def apiBase = "https://api.github.com/repos/${repo}"
-            def jobFragment = "/job/${(env.JOB_NAME ?: '').replace('/', '/job/')}/"
-            def slurper = new groovy.json.JsonSlurperClassic()
+        env.PH_JOB_FRAGMENT = "/job/${(env.JOB_NAME ?: '').replace('/', '/job/')}/"
+      }
+      catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+        withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+          sh '''
+            set -eu
+            API_BASE="https://api.github.com/repos/Canepro/rocketchat-k8s"
+            JOB_FRAGMENT="${PH_JOB_FRAGMENT:-}"
 
-            def openApiConnection = { String method, String url, String body = null ->
-              def conn = (HttpURLConnection) new URL(url).openConnection()
-              conn.requestMethod = method
-              conn.setRequestProperty('Authorization', "token ${GITHUB_TOKEN}")
-              conn.setRequestProperty('Accept', 'application/vnd.github+json')
-              conn.setRequestProperty('X-GitHub-Api-Version', '2022-11-28')
-              if (body != null) {
-                conn.doOutput = true
-                conn.setRequestProperty('Content-Type', 'application/json')
-                conn.outputStream.withWriter('UTF-8') { writer ->
-                  writer << body
+            if [ -z "$JOB_FRAGMENT" ]; then
+              echo "No JOB_FRAGMENT available; skipping stale issue auto-close."
+              exit 0
+            fi
+
+            MATCHING_ISSUES="$(perl -MJSON::PP=decode_json -e '
+              use strict;
+              use warnings;
+
+              my ($api_base, $job_fragment) = @ARGV;
+              my $token = $ENV{GITHUB_TOKEN} // q{};
+              die q{missing GITHUB_TOKEN} if $token eq q{};
+              my @matches = ();
+
+              for my $page (1..10) {
+                my $url = sprintf("%s/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=%d", $api_base, $page);
+                open my $fh, q{-|},
+                  q{curl},
+                  q{-fsSL},
+                  q{-H}, qq{Authorization: token $token},
+                  q{-H}, q{Accept: application/vnd.github+json},
+                  q{-H}, q{X-GitHub-Api-Version: 2022-11-28},
+                  $url
+                  or die qq{failed to run curl for $url: $!};
+                local $/ = undef;
+                my $raw = <$fh>;
+                close $fh;
+                die qq{curl failed for $url} if $?;
+                my $items = eval { decode_json($raw) };
+                last if $@ || ref($items) ne "ARRAY" || scalar(@$items) == 0;
+
+                for my $issue (@$items) {
+                  next if ref($issue) ne "HASH";
+                  next if exists $issue->{pull_request};
+                  my $title = $issue->{title} // q{};
+                  my $body  = $issue->{body}  // q{};
+                  next unless $title =~ /^\\[PipelineHealer\\]/;
+                  next unless index($body, $job_fragment) >= 0;
+                  push @matches, $issue->{number};
                 }
-              }
-              conn
-            }
 
-            def matchingIssues = []
-            for (int page = 1; page <= 10; page++) {
-              def conn = openApiConnection('GET', "${apiBase}/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=${page}")
-              def response = slurper.parseText(conn.inputStream.getText('UTF-8'))
-              if (!(response instanceof List) || response.isEmpty()) {
-                break
+                last if scalar(@$items) < 100;
               }
-              matchingIssues.addAll(response.findAll { issue ->
-                issue.pull_request == null &&
-                  (issue.title ?: '').startsWith('[PipelineHealer]') &&
-                  (issue.body ?: '').contains(jobFragment)
-              })
-              if (response.size() < 100) {
-                break
-              }
-            }
 
-            if (matchingIssues.isEmpty()) {
-              echo 'No stale PipelineHealer issues matched this job.'
-            } else {
-              matchingIssues.each { issue ->
-                def commentConn = openApiConnection(
-                  'POST',
-                  "${apiBase}/issues/${issue.number}/comments",
-                  groovy.json.JsonOutput.toJson([
-                    body: "Closing automatically after successful Jenkins validation run ${env.BUILD_URL} on commit `${env.GIT_COMMIT}`."
-                  ])
-                )
-                commentConn.inputStream.close()
+              print join("\\n", @matches);
+            ' "$API_BASE" "$JOB_FRAGMENT")"
 
-                def closeConn = openApiConnection(
-                  'PATCH',
-                  "${apiBase}/issues/${issue.number}",
-                  groovy.json.JsonOutput.toJson([state: 'closed'])
-                )
-                closeConn.inputStream.close()
-                echo "Closed stale PipelineHealer issue #${issue.number}"
-              }
-            }
-          }
-        } catch (err) {
-          echo "⚠️ Failed to auto-close PipelineHealer issues: ${err}"
+            if [ -z "$MATCHING_ISSUES" ]; then
+              echo "No stale PipelineHealer issues matched this job."
+              exit 0
+            fi
+
+            while IFS= read -r issue_number; do
+              [ -n "$issue_number" ] || continue
+              COMMENT_TEXT="Closing automatically after successful Jenkins validation run ${BUILD_URL} on commit ${GIT_COMMIT}."
+              COMMENT_PAYLOAD="$(perl -MJSON::PP=encode_json -e 'print encode_json({ body => $ARGV[0] })' "$COMMENT_TEXT")"
+
+              curl -fsSL \
+                -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/json" \
+                "${API_BASE}/issues/${issue_number}/comments" \
+                -d "${COMMENT_PAYLOAD}" >/dev/null
+
+              curl -fsSL \
+                -X PATCH \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/json" \
+                "${API_BASE}/issues/${issue_number}" \
+                -d '{"state":"closed"}' >/dev/null
+
+              echo "Closed stale PipelineHealer issue #${issue_number}"
+            done <<EOF
+$MATCHING_ISSUES
+EOF
+          '''
         }
       }
     }
@@ -366,6 +465,7 @@ SCRIPT
       echo '❌ Terraform validation failed'
       script {
         try {
+          env.PH_DURATION_MS = "${currentBuild.duration}"
           withCredentials([
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_URL_CREDENTIALS}", variable: 'PH_BRIDGE_URL'),
             string(credentialsId: "${env.PIPELINEHEALER_BRIDGE_SECRET_CREDENTIALS}", variable: 'PH_BRIDGE_SECRET'),
@@ -391,6 +491,8 @@ SCRIPT
                 if [ -z "${PH_BRANCH_VALUE}" ]; then
                   PH_BRANCH_VALUE="${BRANCH_NAME:-unknown}"
                 fi
+                export PH_FAILURE_STEP="${PH_FAILURE_STEP:-terraform-validation}"
+                export PH_FAILURE_COMMAND="${PH_FAILURE_COMMAND:-terraform command failure}"
                 export PH_BRANCH="${PH_BRANCH_VALUE}"
                 export PH_COMMIT_SHA="${GIT_COMMIT:-}"
                 export PH_FAILURE_STAGE="terraform-validation"
@@ -399,6 +501,7 @@ SCRIPT
                 if [ -f "${WORKSPACE}/.pipelinehealer-log-excerpt.txt" ]; then
                   export PH_LOG_EXCERPT_FILE="${WORKSPACE}/.pipelinehealer-log-excerpt.txt"
                 fi
+                export PH_DURATION_MS="${PH_DURATION_MS:-0}"
                 bash .jenkins/scripts/send-pipelinehealer-bridge.sh >/dev/null || \
                   echo "⚠️ WARNING: Failed to notify PipelineHealer bridge"
               '''
