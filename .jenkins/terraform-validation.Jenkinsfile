@@ -258,7 +258,7 @@ SCRIPT
               echo "INFO: Using example tfvars for validation (placeholder values)"
               cp terraform.tfvars.example terraform.tfvars
               if [ -n "${BUDGET_ALERT_EMAIL:-}" ]; then
-                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | awk '{gsub(/\\\\/,\"\\\\\\\\\"); gsub(/\"/,\"\\\\\\\"\"); print}')"
+                BUDGET_ALERT_EMAIL_ESCAPED="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | sed 's/[\\\\"]/\\\\&/g')"
                 BUDGET_ALERT_EMAIL_VALUE="${BUDGET_ALERT_EMAIL_ESCAPED}"
                 echo "INFO: Overriding budget_alert_email from Jenkins credential"
               else
@@ -371,92 +371,94 @@ SCRIPT
       script {
         env.PH_JOB_FRAGMENT = "/job/${(env.JOB_NAME ?: '').replace('/', '/job/')}/"
       }
-      withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
-        sh '''
-          set -eu
-          API_BASE="https://api.github.com/repos/Canepro/rocketchat-k8s"
-          JOB_FRAGMENT="${PH_JOB_FRAGMENT:-}"
+      catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+        withCredentials([usernamePassword(credentialsId: "${env.GITHUB_TOKEN_CREDENTIALS}", usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+          sh '''
+            set -eu
+            API_BASE="https://api.github.com/repos/Canepro/rocketchat-k8s"
+            JOB_FRAGMENT="${PH_JOB_FRAGMENT:-}"
 
-          if [ -z "$JOB_FRAGMENT" ]; then
-            echo "No JOB_FRAGMENT available; skipping stale issue auto-close."
-            exit 0
-          fi
+            if [ -z "$JOB_FRAGMENT" ]; then
+              echo "No JOB_FRAGMENT available; skipping stale issue auto-close."
+              exit 0
+            fi
 
-          MATCHING_ISSUES="$(perl -MJSON::PP=decode_json -e '
-            use strict;
-            use warnings;
+            MATCHING_ISSUES="$(perl -MJSON::PP=decode_json -e '
+              use strict;
+              use warnings;
 
-            my ($api_base, $job_fragment) = @ARGV;
-            my $token = $ENV{GITHUB_TOKEN} // q{};
-            die q{missing GITHUB_TOKEN} if $token eq q{};
-            my @matches = ();
+              my ($api_base, $job_fragment) = @ARGV;
+              my $token = $ENV{GITHUB_TOKEN} // q{};
+              die q{missing GITHUB_TOKEN} if $token eq q{};
+              my @matches = ();
 
-            for my $page (1..10) {
-              my $url = sprintf("%s/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=%d", $api_base, $page);
-              open my $fh, q{-|},
-                q{curl},
-                q{-fsSL},
-                q{-H}, qq{Authorization: token $token},
-                q{-H}, q{Accept: application/vnd.github+json},
-                q{-H}, q{X-GitHub-Api-Version: 2022-11-28},
-                $url
-                or die qq{failed to run curl for $url: $!};
-              local $/ = undef;
-              my $raw = <$fh>;
-              close $fh;
-              die qq{curl failed for $url} if $?;
-              my $items = eval { decode_json($raw) };
-              last if $@ || ref($items) ne "ARRAY" || scalar(@$items) == 0;
+              for my $page (1..10) {
+                my $url = sprintf("%s/issues?state=open&labels=ci-failure,pipelinehealer&per_page=100&page=%d", $api_base, $page);
+                open my $fh, q{-|},
+                  q{curl},
+                  q{-fsSL},
+                  q{-H}, qq{Authorization: token $token},
+                  q{-H}, q{Accept: application/vnd.github+json},
+                  q{-H}, q{X-GitHub-Api-Version: 2022-11-28},
+                  $url
+                  or die qq{failed to run curl for $url: $!};
+                local $/ = undef;
+                my $raw = <$fh>;
+                close $fh;
+                die qq{curl failed for $url} if $?;
+                my $items = eval { decode_json($raw) };
+                last if $@ || ref($items) ne "ARRAY" || scalar(@$items) == 0;
 
-              for my $issue (@$items) {
-                next if ref($issue) ne "HASH";
-                next if exists $issue->{pull_request};
-                my $title = $issue->{title} // q{};
-                my $body  = $issue->{body}  // q{};
-                next unless $title =~ /^\\[PipelineHealer\\]/;
-                next unless index($body, $job_fragment) >= 0;
-                push @matches, $issue->{number};
+                for my $issue (@$items) {
+                  next if ref($issue) ne "HASH";
+                  next if exists $issue->{pull_request};
+                  my $title = $issue->{title} // q{};
+                  my $body  = $issue->{body}  // q{};
+                  next unless $title =~ /^\\[PipelineHealer\\]/;
+                  next unless index($body, $job_fragment) >= 0;
+                  push @matches, $issue->{number};
+                }
+
+                last if scalar(@$items) < 100;
               }
 
-              last if scalar(@$items) < 100;
-            }
+              print join("\\n", @matches);
+            ' "$API_BASE" "$JOB_FRAGMENT")"
 
-            print join("\\n", @matches);
-          ' "$API_BASE" "$JOB_FRAGMENT")"
+            if [ -z "$MATCHING_ISSUES" ]; then
+              echo "No stale PipelineHealer issues matched this job."
+              exit 0
+            fi
 
-          if [ -z "$MATCHING_ISSUES" ]; then
-            echo "No stale PipelineHealer issues matched this job."
-            exit 0
-          fi
+            while IFS= read -r issue_number; do
+              [ -n "$issue_number" ] || continue
+              COMMENT_TEXT="Closing automatically after successful Jenkins validation run ${BUILD_URL} on commit ${GIT_COMMIT}."
+              COMMENT_PAYLOAD="$(perl -MJSON::PP=encode_json -e 'print encode_json({ body => $ARGV[0] })' "$COMMENT_TEXT")"
 
-          while IFS= read -r issue_number; do
-            [ -n "$issue_number" ] || continue
-            COMMENT_TEXT="Closing automatically after successful Jenkins validation run ${BUILD_URL} on commit ${GIT_COMMIT}."
-            COMMENT_PAYLOAD="$(perl -MJSON::PP=encode_json -e 'print encode_json({ body => $ARGV[0] })' "$COMMENT_TEXT")"
+              curl -fsSL \
+                -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/json" \
+                "${API_BASE}/issues/${issue_number}/comments" \
+                -d "${COMMENT_PAYLOAD}" >/dev/null
 
-            curl -fsSL \
-              -X POST \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              -H "Content-Type: application/json" \
-              "${API_BASE}/issues/${issue_number}/comments" \
-              -d "${COMMENT_PAYLOAD}" >/dev/null
+              curl -fsSL \
+                -X PATCH \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/json" \
+                "${API_BASE}/issues/${issue_number}" \
+                -d '{"state":"closed"}' >/dev/null
 
-            curl -fsSL \
-              -X PATCH \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              -H "Content-Type: application/json" \
-              "${API_BASE}/issues/${issue_number}" \
-              -d '{"state":"closed"}' >/dev/null
-
-            echo "Closed stale PipelineHealer issue #${issue_number}"
-          done <<EOF
+              echo "Closed stale PipelineHealer issue #${issue_number}"
+            done <<EOF
 $MATCHING_ISSUES
 EOF
-        '''
+          '''
+        }
       }
     }
     failure {
