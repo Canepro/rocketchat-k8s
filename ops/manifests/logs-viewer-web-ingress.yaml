@@ -3,8 +3,6 @@ kind: Ingress
 metadata:
   name: logs-viewer-web
   namespace: rocketchat
-  annotations:
-    cert-manager.io/cluster-issuer: production-cert-issuer
 spec:
   ingressClassName: traefik
   rules:

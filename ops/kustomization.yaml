@@ -9,6 +9,8 @@ kind: Kustomization
 resources:
   # Namespaces required by ops components on the target cluster
   - manifests/monitoring-namespace.yaml
+  - manifests/clusterissuer.yaml  # cert-manager ClusterIssuer for Let's Encrypt
+  - manifests/rocketchat-tls-certificate.yaml  # Explicit certificate request for k8.canepro.me
 
   # NATS: Message queue for Rocket.Chat microservices
   - manifests/rocketchat-nats-connection.yaml  # NATS connection string Secret (for microservices)
