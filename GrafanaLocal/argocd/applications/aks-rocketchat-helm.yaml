@@ -1,7 +1,7 @@
 # ArgoCD Application: Rocket.Chat Helm Deployment
 # This ArgoCD Application deploys Rocket.Chat using the official Helm chart.
 # The chart is sourced from Rocket.Chat's Helm repository, and values come from Git (values.yaml).
-# See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 7.13.2
+# See VERSIONS.md for version tracking. Current: Rocket.Chat chart 6.29.0, app 8.2.0
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
