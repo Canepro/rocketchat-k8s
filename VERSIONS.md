@@ -84,7 +84,7 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 | **Traefik Helm Chart** | `34.4.1` | `Check latest` | ⚠️ **Check latest** (ingress controller, test carefully) | `GrafanaLocal/argocd/applications/aks-traefik.yaml` | [Traefik Helm Chart](https://github.com/traefik/traefik-helm-chart) |
 | **MongoDB Operator Helm Chart** | `1.6.1` | `Check latest` | ⚠️ **Check latest** (database operator, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml` | [MongoDB Operator](https://github.com/mongodb/mongodb-kubernetes-operator) |
 | **External Secrets Operator Helm Chart** | `0.10.5` | `Check latest` | ⚠️ **Check latest** (secret management, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-external-secrets.yaml` | [ESO Releases](https://github.com/external-secrets/external-secrets/releases) |
-| **cert-manager** | See ArgoCD App | `Check latest` | ⚠️ **Check latest** (TLS critical, test carefully) | ArgoCD managed | [cert-manager Releases](https://github.com/cert-manager/cert-manager/releases) |
+| **cert-manager** | `1.20.0` | `1.20.0` | ✅ **Up to date** (2026-03-26) | `GrafanaLocal/argocd/applications/aks-cert-manager.yaml` | [cert-manager Releases](https://github.com/cert-manager/cert-manager/releases) |
 
 ---
 

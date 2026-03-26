@@ -1,0 +1,43 @@
+# ArgoCD Application: cert-manager
+# This ArgoCD Application deploys cert-manager to AKS so Certificate and ClusterIssuer
+# resources in the ops bundle can reconcile and provision TLS secrets for Traefik ingresses.
+# See VERSIONS.md for version tracking. Current: cert-manager chart 1.20.0
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aks-cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app: cert-manager
+    cluster: aks-canepro
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.20.0
+    helm:
+      releaseName: cert-manager
+      values: |
+        crds:
+          enabled: true
+          keep: true
+  destination:
+    server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
