@@ -2,7 +2,7 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://github.com/Canepro/rocketchat-k8s/blob/main/vex/rocketchat-vex.json",
   "author": "Canepro",
-  "timestamp": "2026-02-05T00:00:00Z",
+  "timestamp": "2026-03-26T16:00:00Z",
   "version": 1,
   "statements": [
     {
@@ -11,10 +11,10 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0?repository_url=registry.rocket.chat"
         },
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0"
         }
       ],
       "status": "not_affected",
@@ -27,10 +27,10 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0?repository_url=registry.rocket.chat"
         },
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0"
         }
       ],
       "status": "not_affected",
@@ -43,10 +43,10 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0?repository_url=registry.rocket.chat"
         },
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0"
         }
       ],
       "status": "not_affected",
@@ -59,10 +59,10 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0?repository_url=registry.rocket.chat"
         },
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0"
         }
       ],
       "status": "not_affected",
@@ -75,10 +75,10 @@
       },
       "products": [
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1?repository_url=registry.rocket.chat"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0?repository_url=registry.rocket.chat"
         },
         {
-          "@id": "pkg:docker/rocketchat/rocket.chat@8.0.1"
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.0"
         }
       ],
       "status": "not_affected",
