@@ -121,8 +121,8 @@ This document describes the **current** workflows for the version-check job, the
 | Job                  | Type              | Script path                          | Trigger        | Agent      |
 |----------------------|-------------------|---------------------------------------|----------------|------------|
 | **Repo (PR/branch)** | Multibranch       | `.jenkins/terraform-validation.Jenkinsfile` | Webhook + scan | `aks-agent` |
-| **Version-check**    | Pipeline/scheduled| `.jenkins/version-check.Jenkinsfile`  | Schedule (e.g. 14:00 Europe/London weekdays) | `aks-agent` |
-| **Security**        | Pipeline/scheduled| `.jenkins/security-validation.Jenkinsfile` | Schedule (e.g. 15:00 Europe/London weekdays) | `aks-agent` |
+| **Version-check**    | Pipeline/scheduled| `.jenkins/version-check.Jenkinsfile`  | Schedule (e.g. 14:30-14:59 Europe/London weekdays) | `aks-agent` |
+| **Security**        | Pipeline/scheduled| `.jenkins/security-validation.Jenkinsfile` | Schedule (e.g. 15:00-15:29 Europe/London weekdays) | `aks-agent` |
 | **Helm only**       | Optional job      | `.jenkins/helm-validation.Jenkinsfile`    | Manual or separate job | `aks-agent` |
 
 ---

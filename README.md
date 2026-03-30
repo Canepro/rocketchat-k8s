@@ -243,7 +243,7 @@ spec:
 The cluster runs on an automated schedule to minimize costs:
 
 - **Runtime**: Weekdays 14:30-16:15 Europe/London (~1.75 hours/day)
-- **Monthly Hours**: ~55 hours
+- **Monthly Hours**: ~39 hours
 - **Reasoning**: enough startup buffer for Argo resync plus a short working window on a personal PAYG budget
 
 Schedule resources live in `terraform/automation.tf`, and operators change the actual start/stop times through `terraform.tfvars` as documented in [`terraform/README.md`](terraform/README.md).
@@ -253,7 +253,7 @@ Schedule resources live in `terraform/automation.tf`, and operators change the a
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
-| `aks-stale-pod-cleanup` | Weekdays at 14:00 Europe/London (`0 14 * * 1-5`) | Clean up pods after cluster restart |
+| `aks-stale-pod-cleanup` | Weekdays at 15:00 Europe/London (`0 15 * * 1-5`) | Clean up pods after cluster restart |
 
 ## CI/CD Pipeline
 
