@@ -242,7 +242,7 @@ spec:
 
 The cluster runs on an automated schedule to minimize costs:
 
-- **Runtime**: Weekdays 13:30-16:15 Europe/London (~2.75 hours/day)
+- **Runtime**: Weekdays 14:30-16:15 Europe/London (~1.75 hours/day)
 - **Monthly Hours**: ~55 hours
 - **Reasoning**: enough startup buffer for Argo resync plus a short working window on a personal PAYG budget
 
