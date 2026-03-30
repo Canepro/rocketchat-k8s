@@ -91,7 +91,7 @@ The AKS cluster uses **Azure Automation** to automatically start and stop on a s
 - **Start Time**: 13:30 Europe/London on weekdays
 - **Stop Time**: 16:15 Europe/London on weekdays
 - **Weekends**: Cluster stays off
-- **Runtime**: ~2.75 hours/day × 5 weekdays = ~13.75 hours/week = ~55 hours/month
+- **Runtime**: ~1.75 hours/day × 5 weekdays = ~8.75 hours/week = ~39 hours/month
 - **Goal**: keep the personal PAYG cluster available only during the active work window
 
 ## 🔔 CI notifications (avoid daily Jenkins logins)
@@ -609,7 +609,7 @@ kubectl -n monitoring logs job/manual-prune-<timestamp>
 ```
 
 ### Stale Pod Cleanup (Daily after Cluster Restart)
-The `aks-stale-pod-cleanup` CronJob runs on weekdays at 14:00 Europe/London (`0 14 * * 1-5` with `timeZone: Europe/London`), 30 minutes after cluster auto-start, to remove orphaned pods left in terminal states after AKS cluster shutdown/restart cycles.
+The `aks-stale-pod-cleanup` CronJob runs on weekdays at 15:00 Europe/London (`0 15 * * 1-5` with `timeZone: Europe/London`), 30 minutes after cluster auto-start, to remove orphaned pods left in terminal states after AKS cluster shutdown/restart cycles.
 
 **What it cleans:**
 - `Succeeded` pods (Completed jobs from before shutdown)
