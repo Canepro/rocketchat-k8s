@@ -8,6 +8,20 @@ set -euo pipefail
 JENKINS_URL="${JENKINS_URL:-https://jenkins.canepro.me}"
 JENKINS_USER="${JENKINS_USER:-}"
 
+get_jenkins_secret_value() {
+  local primary_key="$1"
+  local legacy_key="$2"
+  local value
+
+  value=$(kubectl get secret jenkins-admin-credentials -n jenkins -o "jsonpath={.data.${primary_key}}" 2>/dev/null | base64 -d || true)
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  kubectl get secret jenkins-admin -n jenkins -o "jsonpath={.data.${legacy_key}}" 2>/dev/null | base64 -d || true
+}
+
 # Jobs to delete (old versions without repository suffixes)
 OLD_JOBS=(
   "version-check"
@@ -24,12 +38,12 @@ trap cleanup EXIT
 # Get Jenkins credentials from Kubernetes secret
 echo "Getting Jenkins admin credentials from Kubernetes secret..."
 if [ -z "${JENKINS_USER}" ]; then
-  JENKINS_USER=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.username}' 2>/dev/null | base64 -d || true)
+  JENKINS_USER=$(get_jenkins_secret_value admin-user username)
 fi
 
 JENKINS_PASSWORD="${JENKINS_PASSWORD:-}"
 if [ -z "${JENKINS_PASSWORD}" ]; then
-  JENKINS_PASSWORD=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)
+  JENKINS_PASSWORD=$(get_jenkins_secret_value admin-password password)
 fi
 
 if [ -z "${JENKINS_USER}" ] || [ -z "${JENKINS_PASSWORD}" ]; then
@@ -115,4 +129,3 @@ echo "  - version-check-rocketchat-k8s"
 echo "  - version-check-central-observability-hub-stack"
 echo "  - security-validation-rocketchat-k8s"
 echo "  - security-validation-central-observability-hub-stack"
-

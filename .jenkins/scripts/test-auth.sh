@@ -4,10 +4,24 @@
 JENKINS_URL="${JENKINS_URL:-https://jenkins.canepro.me}"
 JENKINS_USER="${JENKINS_USER:-admin}"
 
+get_jenkins_secret_value() {
+  local primary_key="$1"
+  local legacy_key="$2"
+  local value
+
+  value=$(kubectl get secret jenkins-admin-credentials -n jenkins -o "jsonpath={.data.${primary_key}}" 2>/dev/null | base64 -d || true)
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  kubectl get secret jenkins-admin -n jenkins -o "jsonpath={.data.${legacy_key}}" 2>/dev/null | base64 -d || true
+}
+
 # Get password
 if [ -z "${JENKINS_PASSWORD:-}" ]; then
   echo "Getting password from Kubernetes secret..."
-  JENKINS_PASSWORD=$(kubectl get secret jenkins-admin -n jenkins -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+  JENKINS_PASSWORD=$(get_jenkins_secret_value admin-password password)
 fi
 
 if [ -z "$JENKINS_PASSWORD" ]; then
@@ -77,4 +91,3 @@ echo "================================"
 echo "If all tests pass, you can use:"
 echo "  CRUMB_FIELD=\"$CRUMB_FIELD\""
 echo "  CRUMB_VALUE=\"$CRUMB_VALUE\""
-
