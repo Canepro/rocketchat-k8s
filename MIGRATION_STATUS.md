@@ -18,7 +18,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - **Migration Status**: ✅ **COMPLETE** - Merged to `main` branch, all ArgoCD apps tracking `main`
 - **AKS cluster**: running (auto-start/stop configured: 13:30-16:15 Europe/London on weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply.
 - **Jenkins CI**: Terraform plan parity clean (no changes detected) after azurerm v4 apply (2026-02-04).
-- **Cost Optimization**: Short work-window schedule reduces monthly runtime to ~55 hours/month on the personal PAYG subscription.
+- **Cost Optimization**: Short work-window schedule reduces monthly runtime to ~39 hours/month on the personal PAYG subscription.
 - **ArgoCD apps (AKS)** - All tracking `main` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
@@ -112,7 +112,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Completed Tasks (2026-01-20)
 
 - [x] **Automated maintenance jobs deployed** (2026-01-20):
-  - `aks-stale-pod-cleanup` CronJob: Weekday cleanup of orphaned pods after cluster restart (`0 14 * * 1-5`, 14:00 Europe/London)
+  - `aks-stale-pod-cleanup` CronJob: Weekday cleanup of orphaned pods after cluster restart (`0 15 * * 1-5`, 15:00 Europe/London)
   - Grafana monitoring dashboard imported (`grafana-dashboard-maintenance-jobs.json`)
   - Alert rules created (`grafana-alerts-maintenance-jobs.yaml`)
   - Documentation: `ops/MAINTENANCE_MONITORING.md`

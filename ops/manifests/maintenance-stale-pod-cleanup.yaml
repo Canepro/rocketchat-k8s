@@ -10,7 +10,7 @@ metadata:
   annotations:
     canepro.me/description: "Cleans up Completed/Failed/Unknown pods left after cluster restarts"
 spec:
-  schedule: "0 14 * * 1-5"  # Weekdays at 14:00 Europe/London (30 min after cluster startup)
+  schedule: "0 15 * * 1-5"  # Weekdays at 15:00 Europe/London (30 min after cluster startup)
   timeZone: "Europe/London"
   concurrencyPolicy: Forbid  # Don't run multiple instances simultaneously
   startingDeadlineSeconds: 600  # Avoid running if the cluster was down for too long
