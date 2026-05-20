@@ -44,10 +44,10 @@ spec:
             name: data-volume
           spec:
             accessModes: ["ReadWriteOnce"]
-            storageClassName: managed-premium
+            storageClassName: managed-csi
             resources:
               requests:
-                storage: 50Gi
+                storage: 16Gi
       template:
         spec:
           containers:

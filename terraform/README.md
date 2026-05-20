@@ -232,17 +232,17 @@ terraform init -reconfigure -backend-config=backend.hcl -migrate-state
 3. Terraform state contains secrets, so restrict access to the storage account
 4. Use Azure CLI / Entra ID authentication for backend access instead of storage keys
 
-## Cost Optimization: Automated Cluster Scheduling
+## Cost Optimization: Manual Start + Scheduled Stop
 
-The AKS cluster uses **Azure Automation** to automatically start and stop the cluster on a schedule, significantly reducing costs.
+The AKS cluster uses **Azure Automation** to keep the test environment off by default without destroying it. Start the cluster manually when Rocket.Chat testing is needed; the scheduled stop remains as a safety net if the cluster is left running.
 
-### Current Recommended Schedule (2026-03-18)
+### Current Recommended Schedule (2026-05-20)
 
-- **Start Time**: 13:30 (1:30 PM) on weekdays
+- **Start Time**: Manual only by default (`enable_auto_start = false`)
 - **Stop Time**: 16:15 (4:15 PM) on weekdays
-- **Weekends**: Cluster stays off
-- **Runtime**: ~2.75 hours/day × 5 weekdays = ~13.75 hours/week = ~55 hours/month
-- **Reasoning**: Leaves ~30 minutes for startup and ~15 minutes for shutdown while keeping the cluster available for a 14:00-16:00 work window
+- **Weekends**: No scheduled start; cluster stays off unless manually started
+- **Runtime**: Pay-per-use; bounded by manual starts plus the weekday safety-stop
+- **Reasoning**: This cluster is used mainly for occasional Rocket.Chat work/testing, so daily auto-start is wasteful on a personal PAYG subscription.
 
 ### Configuration
 
@@ -250,15 +250,16 @@ Schedule is managed via Terraform variables in `terraform.tfvars`:
 
 ```hcl
 enable_auto_shutdown = true
+enable_auto_start    = false
 shutdown_timezone    = "Europe/London"
 shutdown_time        = "16:15"  # 4:15 PM stop
-startup_time         = "13:30"  # 1:30 PM start
+startup_time         = "13:30"  # Only used when enable_auto_start = true
 ```
 
 **Terraform Resources:**
-- `azurerm_automation_account` - Automation account for scheduling
-- `azurerm_automation_schedule` - Start and stop schedules (weekdays only)
-- `azurerm_automation_runbook` - PowerShell runbooks to start/stop AKS
+- `azurerm_automation_account` - Automation account for AKS control
+- `azurerm_automation_schedule` - Stop schedule by default; optional start schedule only when `enable_auto_start = true`
+- `azurerm_automation_runbook` - PowerShell runbooks to start/stop AKS manually or via schedule
 - `azurerm_automation_job_schedule` - Links schedules to runbooks
 
 ### Manual Override

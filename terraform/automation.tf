@@ -1,8 +1,8 @@
-# Terraform Configuration: Azure Automation for AKS Scheduled Start/Stop
-# This file provisions Azure Automation resources for scheduled AKS cluster start/stop (cost optimization).
-# It includes: Automation Account, Runbooks (start/stop), Schedules (weekday evenings/mornings), and Job Schedules.
-# Azure Automation for AKS scheduled start/stop (cost optimization)
-# This stops the cluster during off-peak hours and weekends
+# Terraform Configuration: Azure Automation for AKS Manual Start + Scheduled Stop
+# This file provisions Azure Automation resources for manual start and scheduled AKS stop (cost optimization).
+# It includes: Automation Account, Runbooks (start/stop), optional weekday start schedule, weekday stop schedule, and Job Schedules.
+# Azure Automation for AKS manual start / scheduled stop (cost optimization)
+# This keeps the test cluster off by default and stops it automatically if it was manually started.
 # See variables.tf for schedule configuration (shutdown_time, startup_time, shutdown_timezone).
 
 # Azure Automation Account: Container for Runbooks and Schedules
@@ -128,7 +128,7 @@ resource "azurerm_automation_runbook" "start_aks" {
     param(
         [Parameter(Mandatory=$true)]
         [string]$ResourceGroupName,  # Resource group name (passed from Job Schedule)
-        
+
         [Parameter(Mandatory=$true)]
         [string]$ClusterName  # Cluster name (passed from Job Schedule)
     )
@@ -200,25 +200,23 @@ resource "azurerm_automation_schedule" "stop_weekday_evening" {
   automation_account_name = azurerm_automation_account.aks[0].name                   # Automation Account name (from Automation Account resource above)
   frequency               = "Week"                                                   # Schedule frequency (Week = weekly schedule)
   interval                = 1                                                        # Schedule interval (1 = every week)
-  timezone                = var.shutdown_timezone                                    # Timezone for schedule (from variables.tf, default: "GMT Standard Time")
+  timezone                = var.shutdown_timezone                                    # Timezone for schedule (from variables.tf, default: "Europe/London")
   start_time              = local.shutdown_start                                     # Schedule start time (from local values, default: tomorrow 20:00 UTC)
   week_days               = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] # Weekdays only (excludes weekends)
 }
 
-# Schedule: Start cluster in the morning on weekdays only (stays off weekends)
-# This schedule runs the start runbook every weekday morning at the configured time.
-# Cluster stays off on weekends (no schedule on Saturday/Sunday).
-# Schedule: Start cluster in the morning on weekdays only (stays off weekends)
+# Optional schedule: Start cluster on weekday mornings.
+# Disabled by default for pay-per-use testing; the start runbook remains available for manual execution.
 resource "azurerm_automation_schedule" "start_weekday_morning" {
-  count                   = var.enable_auto_shutdown ? 1 : 0                         # Only create if auto-shutdown is enabled
-  name                    = "start-aks-weekday-morning"                              # Schedule name (for identification in Azure Portal)
-  resource_group_name     = azurerm_resource_group.main.name                         # Resource group (from main.tf)
-  automation_account_name = azurerm_automation_account.aks[0].name                   # Automation Account name (from Automation Account resource above)
-  frequency               = "Week"                                                   # Schedule frequency (Week = weekly schedule)
-  interval                = 1                                                        # Schedule interval (1 = every week)
-  timezone                = var.shutdown_timezone                                    # Timezone for schedule (from variables.tf, default: "GMT Standard Time")
-  start_time              = local.startup_start                                      # Schedule start time (from local values, default: tomorrow 07:00 UTC)
-  week_days               = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] # Weekdays only (excludes weekends)
+  count                   = var.enable_auto_shutdown && var.enable_auto_start ? 1 : 0 # Only create if auto-start is explicitly enabled
+  name                    = "start-aks-weekday-morning"                               # Schedule name (for identification in Azure Portal)
+  resource_group_name     = azurerm_resource_group.main.name                          # Resource group (from main.tf)
+  automation_account_name = azurerm_automation_account.aks[0].name                    # Automation Account name (from Automation Account resource above)
+  frequency               = "Week"                                                    # Schedule frequency (Week = weekly schedule)
+  interval                = 1                                                         # Schedule interval (1 = every week)
+  timezone                = var.shutdown_timezone                                     # Timezone for schedule (from variables.tf, default: "Europe/London")
+  start_time              = local.startup_start                                       # Schedule start time (from local values, default: tomorrow 07:00 UTC)
+  week_days               = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Weekdays only (excludes weekends)
 }
 
 # Link stop runbook to weekday evening schedule: Connect Runbook to Schedule
@@ -248,7 +246,7 @@ resource "azurerm_automation_job_schedule" "stop_weekday" {
 # This Job Schedule links the start runbook to the weekday morning schedule.
 # Link start runbook to weekday morning schedule
 resource "azurerm_automation_job_schedule" "start_weekday" {
-  count                   = var.enable_auto_shutdown ? 1 : 0                          # Only create if auto-shutdown is enabled
+  count                   = var.enable_auto_shutdown && var.enable_auto_start ? 1 : 0 # Only create if auto-start is explicitly enabled
   resource_group_name     = azurerm_resource_group.main.name                          # Resource group (from main.tf)
   automation_account_name = azurerm_automation_account.aks[0].name                    # Automation Account name (from Automation Account resource above)
   schedule_name           = azurerm_automation_schedule.start_weekday_morning[0].name # Schedule name (from schedule resource above)

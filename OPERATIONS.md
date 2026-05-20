@@ -102,7 +102,7 @@ This repo is set up so “routine automation” reports into GitHub:
 - **Job failures**: create/update a GitHub issue titled `CI Failure: <JOB_NAME>` (labels include `ci`, `jenkins`, `failure`, `automated`).
 
 Operational expectation:
-- If the AKS cluster is **stopped**, these scheduled jobs won’t run until the next start window.
+- If the AKS cluster is **stopped**, AKS-side scheduled jobs won’t run until the cluster is manually started.
 - Leave the issue/PR open if you’re not ready; the jobs will append comments/updates rather than spamming duplicates.
 
 ### Jenkins Split-Agent (Controller on OKE, Agent on AKS)
@@ -161,20 +161,19 @@ az aks show --name aks-canepro --resource-group rg-canepro-aks --query "powerSta
 
 ### Updating the Schedule
 
-To change the schedule times:
+The default cost posture is manual start plus scheduled stop. To re-enable weekday auto-start for a temporary work window, set `enable_auto_start = true`; otherwise leave it false and start AKS only when needed.
 
 1. **Update `terraform.tfvars`** (from your operator machine):
    ```bash
    cd ~/rocketchat-k8s/terraform
    nano terraform.tfvars
-   # Update: startup_time = "13:30" (or desired time)
+   # Keep default: enable_auto_start = false
+   # Optional temporary window: enable_auto_start = true
+   # Optional when auto-start is enabled: startup_time = "13:30" (or desired time)
    # Update: shutdown_time = "16:15" (or desired time)
    ```
 
-2. **Temporarily remove `ignore_changes`** in `terraform/automation.tf`:
-   - Comment out `ignore_changes = [start_time]` for the schedule you want to update
-
-3. **Apply the change**:
+2. **Apply the change**:
    ```bash
    terraform plan  # Verify changes
    terraform apply
@@ -608,8 +607,8 @@ kubectl -n monitoring get jobs
 kubectl -n monitoring logs job/manual-prune-<timestamp>
 ```
 
-### Stale Pod Cleanup (Daily after Cluster Restart)
-The `aks-stale-pod-cleanup` CronJob runs on weekdays at 15:00 Europe/London (`0 15 * * 1-5` with `timeZone: Europe/London`), 30 minutes after cluster auto-start, to remove orphaned pods left in terminal states after AKS cluster shutdown/restart cycles.
+### Stale Pod Cleanup (When Cluster Is Running)
+The `aks-stale-pod-cleanup` CronJob runs on weekdays at 15:00 Europe/London (`0 15 * * 1-5` with `timeZone: Europe/London`) when the cluster is running. With scheduled auto-start disabled, it only runs after a manual start that overlaps the CronJob time.
 
 **What it cleans:**
 - `Succeeded` pods (Completed jobs from before shutdown)
