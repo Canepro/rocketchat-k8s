@@ -106,14 +106,14 @@
 
     <div class="hero">
       <div class="headline">
-        <span class="status partial">Decision Ready</span>
+        <span class="status done">Completed</span>
         <h1>MongoDB PVC right-size plan for AKS Rocket.Chat</h1>
-        <p class="lede">The MongoDB data disk is much larger and more expensive than current use requires. The safe next move is a GitOps-backed backup/recreate/restore maintenance window, targeting <strong>16Gi on Standard SSD</strong>.</p>
+        <p class="lede">The MongoDB data disk was moved through a GitOps-backed backup/recreate/restore maintenance window from <strong>50Gi Premium SSD</strong> to <strong>16Gi Standard SSD</strong>.</p>
       </div>
       <div class="meta-grid">
         <div class="meta">
           <div class="label">Current AKS State</div>
-          <div class="value">Stopped after read-only discovery</div>
+          <div class="value">Verified healthy; stopped after maintenance</div>
         </div>
         <div class="meta">
           <div class="label">Recommended Target</div>
@@ -121,7 +121,7 @@
         </div>
         <div class="meta">
           <div class="label">Risk Level</div>
-          <div class="value">Gated maintenance required</div>
+          <div class="value">Completed with backup</div>
         </div>
       </div>
     </div>
@@ -130,7 +130,7 @@
       <a href="#verdict">Verdict</a>
       <a href="#evidence">Evidence</a>
       <a href="#ownership">Ownership</a>
-      <a href="#plan">Plan</a>
+      <a href="#plan">Runbook</a>
       <a href="#gates">Gates</a>
       <a href="#files">Files</a>
     </nav>
@@ -138,7 +138,7 @@
     <div class="grid">
       <section id="verdict" class="span-7">
         <h2>Verdict</h2>
-        <p>The disk reduction is worth doing, but it is not an in-place PVC edit. Kubernetes can expand most PVCs, but shrinking and changing storage class requires a backup/recreate/restore workflow.</p>
+        <p>The disk reduction has been completed. The key lesson still stands: this was not an in-place PVC edit. Kubernetes can expand most PVCs, but shrinking and changing storage class requires a backup/recreate/restore workflow.</p>
         <div class="cards">
           <div class="card"><strong>Do</strong><p>Move MongoDB data from <span class="mono">50Gi managed-premium</span> to <span class="mono">16Gi managed-csi</span>.</p></div>
           <div class="card"><strong>Do Not</strong><p>Delete Azure managed disks directly from the AKS managed resource group.</p></div>
@@ -147,12 +147,12 @@
       </section>
 
       <section class="span-5">
-        <h2>Next Action</h2>
-        <p>Run the maintenance window only after confirming the backup location and accepting a short Rocket.Chat outage.</p>
+        <h2>Outcome</h2>
+        <p>The live maintenance window completed and the cluster was returned to the intended low-cost posture.</p>
         <div class="checklist">
-          <div class="check"><span class="dot good">✓</span><div><b>Discovery done.</b> Cluster was started, checked, and stopped again.</div></div>
-          <div class="check"><span class="dot good">✓</span><div><b>Runbook created.</b> The repeatable workflow is in the repo.</div></div>
-          <div class="check"><span class="dot warn">!</span><div><b>Maintenance not run.</b> MongoDB manifest and PVC were not changed yet.</div></div>
+          <div class="check"><span class="dot good">✓</span><div><b>Backup verified.</b> Fresh archive was copied outside Git before PVC deletion.</div></div>
+          <div class="check"><span class="dot good">✓</span><div><b>Data restored.</b> <span class="mono">mongorestore</span> restored 34,796 documents with 0 failures.</div></div>
+          <div class="check"><span class="dot good">✓</span><div><b>GitOps healthy.</b> OKE ArgoCD apps were Synced and Healthy after restore.</div></div>
         </div>
       </section>
 
@@ -162,7 +162,8 @@
           <thead><tr><th>Item</th><th>Observed Value</th><th>Meaning</th></tr></thead>
           <tbody>
             <tr><td>MongoDB PVC</td><td><span class="mono">data-volume-mongodb-0</span></td><td>Active MongoDB data volume.</td></tr>
-            <tr><td>Current disk request</td><td><span class="mono">50Gi</span> on <span class="mono">managed-premium</span></td><td>Premium disk baseline cost is high for this test workload.</td></tr>
+            <tr><td>Previous disk request</td><td><span class="mono">50Gi</span> on <span class="mono">managed-premium</span></td><td>Premium disk baseline cost was high for this test workload.</td></tr>
+            <tr><td>Current disk request</td><td><span class="mono">16Gi</span> on <span class="mono">managed-csi</span></td><td>Azure disk <span class="mono">pvc-29d939fb-af49-44e8-a043-9e7a4d4e752f</span> is <span class="mono">StandardSSD_LRS</span>.</td></tr>
             <tr><td>Filesystem use</td><td>About <span class="mono">352MiB</span> used on <span class="mono">/data</span></td><td>Large over-provisioning gap.</td></tr>
             <tr><td>MongoDB logical data</td><td><span class="mono">rocketchat</span> about 18MiB; <span class="mono">local</span> about 60MiB</td><td>16Gi leaves very wide restore and test headroom.</td></tr>
             <tr><td>Target storage class</td><td><span class="mono">managed-csi</span> exists and is <span class="mono">StandardSSD_LRS</span></td><td>Good target for lower-cost persistent AKS disk.</td></tr>
@@ -178,8 +179,9 @@ kubectl --context aks-canepro -n rocketchat describe pvc data-volume-mongodb-0
 kubectl --context aks-canepro get storageclass -o wide
 kubectl --context aks-canepro -n rocketchat exec mongodb-0 -c mongod -- sh -lc 'df -h /data; du -sh /data'
 kubectl --context aks-canepro -n rocketchat exec mongodb-0 -c mongod -- mongosh ... db.stats(...)
-az aks stop --resource-group rg-canepro-aks --name aks-canepro
-az aks show ... => powerState Stopped, provisioningState Succeeded</pre>
+mongorestore --drop --nsInclude='rocketchat.*' => 34,796 restored, 0 failures
+curl https://k8.canepro.me/api/info => success true, version 8.2
+az disk list ... => 16Gi StandardSSD_LRS MongoDB disk; old 50Gi Premium disk gone</pre>
           </div>
         </details>
       </section>
@@ -198,7 +200,7 @@ az aks show ... => powerState Stopped, provisioningState Succeeded</pre>
       </section>
 
       <section id="plan">
-        <h2>Maintenance Plan</h2>
+        <h2>Runbook Shape</h2>
         <div class="checklist">
           <div class="check"><span class="dot">1</span><div><b>Start AKS manually.</b> Confirm nodes are Ready and OKE ArgoCD can reach the AKS apps.</div></div>
           <div class="check"><span class="dot">2</span><div><b>Create fresh MongoDB archive.</b> Copy it outside Git-tracked paths before touching the PVC.</div></div>
@@ -214,10 +216,10 @@ az aks show ... => powerState Stopped, provisioningState Succeeded</pre>
         <table>
           <thead><tr><th>Gate</th><th>Status</th><th>Why It Matters</th></tr></thead>
           <tbody>
-            <tr><td>Fresh backup exists outside old PVC</td><td><span class="status risk">Required</span></td><td>This is the rollback path.</td></tr>
+            <tr><td>Fresh backup exists outside old PVC</td><td><span class="status done">Verified</span></td><td>Local archive path: <span class="mono">/Users/canepro/tmp/rocketchat-aks-mongo-backups/rocketchat-mongo-20260520T174557Z.archive.gz</span>.</td></tr>
             <tr><td>ArgoCD app reachable from OKE</td><td><span class="status done">Verified</span></td><td>Confirms the deployment controller can reconcile AKS.</td></tr>
             <tr><td>Storage class exists</td><td><span class="status done">Verified</span></td><td><span class="mono">managed-csi</span> is available and StandardSSD-backed.</td></tr>
-            <tr><td>Outage accepted</td><td><span class="status risk">Required</span></td><td>Rocket.Chat writes must stop during dump/recreate/restore.</td></tr>
+            <tr><td>Outage accepted</td><td><span class="status done">Handled</span></td><td>Rocket.Chat deployments were temporarily scaled down; Helm self-heal was handled during the window.</td></tr>
           </tbody>
         </table>
       </section>
@@ -228,7 +230,7 @@ az aks show ... => powerState Stopped, provisioningState Succeeded</pre>
           <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
           <tbody>
             <tr><td class="mono">/Users/canepro/src/rocketchat-k8s/runbooks/mongodb-pvc-rightsize.md</td><td>Durable maintenance runbook.</td></tr>
-            <tr><td class="mono">/Users/canepro/src/rocketchat-k8s/ops/manifests/mongodb-community.yaml</td><td>Future GitOps manifest edit point.</td></tr>
+            <tr><td class="mono">/Users/canepro/src/rocketchat-k8s/ops/manifests/mongodb-community.yaml</td><td>GitOps manifest now targeting 16Gi managed-csi.</td></tr>
             <tr><td class="mono">/Users/canepro/src/rocketchat-k8s/reports/2026-05-20-mongodb-pvc-rightsize-decision.html</td><td>This browser report.</td></tr>
           </tbody>
         </table>

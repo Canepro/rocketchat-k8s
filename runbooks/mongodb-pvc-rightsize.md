@@ -13,13 +13,13 @@ Do not delete Azure disks directly from the managed resource group. Change GitOp
 
 ## Current cost target
 
-The expensive stopped-cluster disk is usually:
+Before the 2026-05-20 maintenance, the expensive stopped-cluster disk was:
 
 - PVC: `data-volume-mongodb-0`
 - Namespace: `rocketchat`
 - Azure disk tag: `kubernetes.io-created-for-pvc-name=data-volume-mongodb-0`
-- Current manifest request: `50Gi`
-- Current storage class: `managed-premium`
+- Previous manifest request: `50Gi`
+- Previous storage class: `managed-premium`
 
 For occasional Rocket.Chat testing, prefer a smaller Standard SSD target once actual MongoDB data size is confirmed. A normal first target is `16Gi` with a Standard SSD-backed AKS storage class. Keep at least 2x the current MongoDB data size plus restore headroom.
 
@@ -37,6 +37,22 @@ Read-only AKS check after manual start:
 - `mongodump` and `mongorestore` are present in the MongoDB container.
 
 Recommendation from this check: use `16Gi` on `managed-csi` for a conservative first reduction. `8Gi` would probably work for the current data volume, but `16Gi` leaves more restore and test headroom for little operational complexity.
+
+## 2026-05-20 maintenance result
+
+Completed live against the personal PAYG AKS cluster:
+
+- GitOps commit pushed to `main`: `cf7ba409671592e4d8f1581eddd9a819af4adf34`.
+- Backup created outside Git: `/Users/canepro/tmp/rocketchat-aks-mongo-backups/rocketchat-mongo-20260520T174557Z.archive.gz` (`2.1M`, local file mode `600`).
+- `ops/manifests/mongodb-community.yaml` changed MongoDB data PVC from `50Gi managed-premium` to `16Gi managed-csi`.
+- OKE ArgoCD reconciled `aks-rocketchat-ops` to the new commit.
+- Old MongoDB custom resource, StatefulSet, pod, and `data-volume-mongodb-0` PVC were deleted after backup verification.
+- Replacement PVC was created as `16Gi` on `managed-csi`, backed by Azure disk `pvc-29d939fb-af49-44e8-a043-9e7a4d4e752f` (`StandardSSD_LRS`).
+- `mongorestore --drop --nsInclude="rocketchat.*"` restored `34,796` documents with `0` failures.
+- Rocket.Chat pods returned Ready and `https://k8.canepro.me/api/info` returned success.
+- OKE ArgoCD apps `aks-rocketchat-ops`, `aks-rocketchat-helm`, and `aks-rocketchat-secrets` were `Synced` and `Healthy`.
+
+Live maintenance wrinkle: the Helm ArgoCD app may self-heal Rocket.Chat deployments back to one replica during the window. If the restore requires a quiet write period, temporarily pause automated sync on `aks-rocketchat-helm`, scale the Rocket.Chat deployments to zero, restore, then confirm automated sync is back to `{"prune":true,"selfHeal":true}`.
 
 ## Read-only discovery
 
@@ -72,6 +88,17 @@ kubectl --context aks-canepro -n rocketchat get pod,pvc,pv
 kubectl --context aks-canepro -n rocketchat describe pvc data-volume-mongodb-0
 ```
 
+If local DNS cannot resolve the AKS API FQDN after a start, but `dig` can resolve it, use a temporary server override:
+
+```bash
+api_fqdn=aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io
+api_ip=$(dig +short "$api_fqdn" | tail -1)
+kubectl --context aks-canepro \
+  --server="https://${api_ip}:443" \
+  --tls-server-name="$api_fqdn" \
+  -n rocketchat get pod,pvc
+```
+
 Measure logical MongoDB size:
 
 ```bash
@@ -96,16 +123,19 @@ Create a local-only backup directory outside Git-tracked paths:
 mkdir -p ~/tmp/rocketchat-aks-mongo-backups
 ```
 
-Create a fresh archive:
+Create a fresh archive without printing MongoDB credentials:
 
 ```bash
-kubectl --context aks-canepro -n rocketchat exec mongodb-0 -c mongod -- \
-  mongodump --archive=/tmp/rocketchat-mongo.archive --gzip
+backup="$HOME/tmp/rocketchat-aks-mongo-backups/rocketchat-mongo-$(date -u +%Y%m%dT%H%M%SZ).archive.gz"
+admin_pw=$(kubectl --context aks-canepro -n rocketchat \
+  get secret mongodb-admin-password -o jsonpath='{.data.password}' | base64 --decode)
 
-kubectl --context aks-canepro -n rocketchat cp \
-  mongodb-0:/tmp/rocketchat-mongo.archive \
-  ~/tmp/rocketchat-aks-mongo-backups/rocketchat-mongo-$(date -u +%Y%m%dT%H%M%SZ).archive.gz \
-  -c mongod
+kubectl --context aks-canepro -n rocketchat exec mongodb-0 -c mongod -- \
+  sh -c 'mongodump --username admin --password "$1" --authenticationDatabase admin --archive --gzip' \
+  sh "$admin_pw" > "$backup"
+
+chmod 600 "$backup"
+test -s "$backup"
 ```
 
 Keep backups out of Git. Do not commit archives, secrets, connection strings, or Terraform state.
@@ -160,7 +190,7 @@ Use the repo's normal PR/merge flow so ArgoCD on OKE is the deployment path. Avo
      -c mongod
 
    kubectl --context aks-canepro -n rocketchat exec mongodb-0 -c mongod -- \
-     mongorestore --archive=/tmp/restore.archive.gz --gzip --drop
+     mongorestore --archive=/tmp/restore.archive.gz --gzip --drop --nsInclude='rocketchat.*'
    ```
 
 9. Scale Rocket.Chat back up and verify.
