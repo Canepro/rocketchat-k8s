@@ -18,7 +18,7 @@ controller:
     userKey: username  # Secret key for admin username
     passwordKey: password  # Secret key for admin password
   
-  # Resource limits: Appropriate for Standard_D4as_v5 (4 vCPU, 16GB RAM)
+  # Resource limits: Appropriate for the personal AKS pool (currently Standard_B4ms, 4 vCPU, 16GB RAM)
   resources:
     requests:
       cpu: "500m"  # CPU request (minimum CPU allocation)
@@ -181,8 +181,8 @@ controller:
       # Azure Workload Identity annotations (for Key Vault access, Azure Storage, Azure CLI)
       # Uses the ESO (External Secrets Operator) User-Assigned Managed Identity
       # This identity already has "Key Vault Secrets User" role and will be granted Storage Account access
-      azure.workload.identity/client-id: "fe3d3d95-fb61-4a42-8d82-ec0852486531"  # ESO UAMI client ID
-      azure.workload.identity/tenant-id: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"  # Azure tenant ID
+      azure.workload.identity/client-id: "8035be61-f232-4c44-8ca5-13378b33c2d9"  # ESO UAMI client ID
+      azure.workload.identity/tenant-id: "040f4d47-c5be-488d-a48b-4b43fe04cac4"  # Azure tenant ID
   
   # Additional plugins: Install plugins for CI validation
   # Best practice: Essential plugins only, use :latest for auto-updates

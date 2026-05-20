@@ -2,7 +2,9 @@
 
 This guide covers the current Jenkins split-agent design: the controller runs on OKE and the static validation agent runs on AKS.
 
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-05-20
+
+> Current state: Jenkins controller runs on OKE. The AKS side is the static `aks-agent` deployment managed by the `aks-rocketchat-ops` app, not a separate `aks-jenkins` ArgoCD application.
 
 > **📖 New to Jenkins?** Start with **"Jenkins Strategy (CI vs CD)"** below to understand why this repo keeps Jenkins validation-only and lets ArgoCD deploy.
 
@@ -136,15 +138,16 @@ kubectl get application -n argocd app-of-apps
 **Option B: Manual Apply (One-time per app)**
 
 ```bash
-# Apply Jenkins ArgoCD application directly
-kubectl apply -f GrafanaLocal/argocd/applications/aks-jenkins.yaml
+# Jenkins controller is not deployed from this AKS repo anymore.
+# Apply/sync the ops app if you need to refresh the AKS static agent manifests.
+kubectl apply -f GrafanaLocal/argocd/applications/aks-rocketchat-ops.yaml
 
 # Verify ArgoCD picked it up
-kubectl get application -n argocd aks-jenkins
+kubectl get application -n argocd aks-rocketchat-ops
 
 # Expected output:
-# NAME          SYNC STATUS   HEALTH STATUS
-# aks-jenkins   Synced        Healthy
+# NAME                    SYNC STATUS   HEALTH STATUS
+# aks-rocketchat-ops      Synced        Healthy
 ```
 
 **Note**: With App of Apps, you only need to apply `app-of-apps.yaml` once. After that, committing new app manifests to `GrafanaLocal/argocd/applications/` automatically creates them in ArgoCD.
@@ -462,7 +465,7 @@ controller:
   serviceAccount:
     annotations:
       azure.workload.identity/client-id: "UAMI_CLIENT_ID"  # ESO identity client ID
-      azure.workload.identity/tenant-id: "c3d431f1-3e02-4c62-a825-79cd8f9e2053"
+      azure.workload.identity/tenant-id: "040f4d47-c5be-488d-a48b-4b43fe04cac4"
 ```
 
 ---
@@ -611,9 +614,8 @@ kubectl rollout restart statefulset jenkins -n jenkins
 
 2. **Update version files**:
    ```bash
-   # Update GrafanaLocal/argocd/applications/aks-jenkins.yaml
-   # Change: targetRevision: 5.8.110
-   # To:     targetRevision: 5.x.x  (new version)
+   # Update the OKE Jenkins controller source of truth, if the controller chart changes.
+   # This repo only carries AKS static-agent manifests and historical Jenkins values.
    
    # Update jenkins-values.yaml
    # Change: tag: "2.528.3-lts-jdk21"
@@ -625,14 +627,14 @@ kubectl rollout restart statefulset jenkins -n jenkins
 
 3. **Commit and push**:
    ```bash
-   git add GrafanaLocal/argocd/applications/aks-jenkins.yaml jenkins-values.yaml VERSIONS.md
+   git add jenkins-values.yaml VERSIONS.md
    git commit -m "chore: Upgrade Jenkins to 2.xxx.x + chart 5.x.x"
    git push
    ```
 
 4. **Monitor ArgoCD sync**:
    ```bash
-   kubectl get application -n argocd aks-jenkins -w
+   kubectl get application -n argocd aks-rocketchat-ops -w
    ```
 
 5. **Verify upgrade**:

@@ -50,15 +50,21 @@ variable "dns_prefix" {
 
 # Azure Automation Configuration (for scheduled AKS start/stop)
 variable "enable_auto_shutdown" {
-  description = "Enable scheduled AKS stop/start (stops cluster evenings/weekends for cost savings)" # Enable/disable automated start/stop
+  description = "Enable Azure Automation runbooks and the scheduled AKS safety-stop" # Enable/disable stop automation
   type        = bool
   default     = true # Default: enabled (can be overridden in terraform.tfvars)
 }
 
+variable "enable_auto_start" {
+  description = "Enable the scheduled weekday AKS auto-start. Keep false for manual-start/pay-per-use operation."
+  type        = bool
+  default     = false
+}
+
 variable "shutdown_timezone" {
-  description = "Timezone for auto-shutdown schedules (e.g., 'GMT Standard Time' for UK)" # Timezone for schedules (IANA or Windows timezone)
+  description = "IANA timezone for auto-stop schedules (e.g., 'Europe/London' for UK)" # Timezone for schedules
   type        = string
-  default     = "GMT Standard Time" # Default: GMT Standard Time (UK) (can be overridden in terraform.tfvars)
+  default     = "Europe/London" # Default: UK timezone (can be overridden in terraform.tfvars)
 }
 
 variable "shutdown_time" {

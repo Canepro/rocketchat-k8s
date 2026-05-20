@@ -13,21 +13,22 @@ The AKS migration has been **successfully completed** and merged to the `main` b
 
 This file tracks **where we are vs** the original migration plan (`.cursor/plans/rocketchat_migration_to_azure_aks_-_complete_with_observability_1ffff811.plan.md`).
 
-## Current State (as of 2026‑03‑18)
+## Current State (as of 2026-05-20)
 
 - **Migration Status**: ✅ **COMPLETE** - Merged to `main` branch, all ArgoCD apps tracking `main`
-- **AKS cluster**: running (auto-start/stop configured: 13:30-16:15 Europe/London on weekdays, stays off weekends), Terraform plan clean after azurerm v4 apply.
+- **AKS cluster**: present in the personal PAYG subscription and normally stopped until needed for Rocket.Chat work/testing. Azure Automation keeps a weekday safety-stop at 16:15 Europe/London; scheduled auto-start is disabled by default.
+- **AKS shape**: Kubernetes `1.34.3`, node pool `system2`, 2 nodes, `Standard_B4ms`, max pods 110, 128GB OS disk.
 - **Jenkins CI**: Terraform plan parity clean (no changes detected) after azurerm v4 apply (2026-02-04).
-- **Cost Optimization**: Short work-window schedule reduces monthly runtime to ~39 hours/month on the personal PAYG subscription.
+- **Cost Optimization**: Manual start plus scheduled safety-stop avoids daily compute spend for a rarely used test cluster.
 - **ArgoCD apps (AKS)** - All tracking `main` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
   - `aks-rocketchat-mongodb-operator`: MongoDB Community Operator (Helm) deployed.
   - `aks-rocketchat-external-secrets`: ESO Helm chart.
   - `aks-rocketchat-secrets`: ClusterSecretStore + ExternalSecrets.
-  - `aks-jenkins`: Jenkins CI/CD deployed and running.
+  - Jenkins is split: controller on OKE, static `aks-agent` on AKS via the ops app.
 - **MongoDB**:
-  - **Operator-managed MongoDB** is **Running** (`mongodb-0`, 2/2 containers).
+  - **Operator-managed MongoDB** is a single-member replica set (`mongodb-0`) for cost-controlled testing.
   - **Legacy Bitnami MongoDB** has been **removed** (StatefulSet, services, configmaps, secrets deleted 2026-01-16).
 - **Rocket.Chat**:
   - `rocketchat-rocketchat` is **Running**.
@@ -98,7 +99,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 ### Phase 9–11: Data migration + cutover + monitoring
 - **DNS Cutover**: ✅ **Complete** (2026-01-16)
-  - Domain `k8.canepro.me` pointing to AKS LoadBalancer IP (`85.210.181.37`)
+  - Domain `k8.canepro.me` pointing to AKS LoadBalancer IP (`20.90.231.159`)
   - Let's Encrypt TLS certificate issued and valid
   - HTTPS accessible and working
 - **Pending / not recorded** in repo yet:
@@ -129,11 +130,11 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - [x] **DNS cutover completed** (`k8.canepro.me` → AKS LoadBalancer)
 - [x] **TLS certificate issued** (Let's Encrypt, `READY: True`)
 - [x] **Network Security Group configured** (subnet-level HTTP/HTTPS rules via Terraform)
-- [x] **Node pool upgraded** (`Standard_B2s` → `Standard_D4as_v5`) - Memory: 90-95% → 9-26%
-- [x] **Azure Automation configured** (current schedule: 13:30 start, 16:15 stop Europe/London on weekdays) - updated post-cutover for personal PAYG cost control
+- [x] **Node pool right-sized** for personal PAYG (`Standard_B4ms`, 2 nodes) - lower cost than the earlier D-series setting while retaining 16GB/node memory.
+- [x] **Azure Automation configured** (manual start, 16:15 stop Europe/London on weekdays) - updated for occasional Rocket.Chat testing rather than daily uptime.
 - [x] **Jenkins infrastructure ready** (2026-01-19):
-  - ArgoCD application manifest created (`aks-jenkins.yaml`)
-  - Helm values configured (`jenkins-values.yaml`) - Latest LTS 2.528.3 + JDK 21
+  - Current model: Jenkins controller on OKE, AKS static `aks-agent` deployed by `aks-rocketchat-ops`.
+  - Historical AKS controller values remain in `jenkins-values.yaml` for reference.
   - External Secrets configured (`externalsecret-jenkins.yaml`)
   - Terraform variables added for Jenkins credentials
   - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
@@ -143,11 +144,10 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 
 ## Completed Upgrades (2026-01-16)
 
-### Node Size Upgrade ✅ **Complete**
-- **Previous**: `Standard_B2s` (2 vCPU, 4GB RAM) - Memory usage: 90-95%
-- **Current**: `Standard_D4as_v5` (4 vCPU, 16GB RAM) - Memory usage: 9-26%
-- **Upgrade Duration**: 14m19s (rolling update, no downtime)
-- **Result**: Memory headroom increased from ~140MB free to ~12GB+ free per node
+### Node Size Update ✅ **Current**
+- **Previous early migration target**: `Standard_D4as_v5` (4 vCPU, 16GB RAM)
+- **Current personal PAYG target**: `Standard_B4ms` (4 vCPU, 16GB RAM)
+- **Result**: Keeps the memory footprint needed by Rocket.Chat/MongoDB testing while reducing standing cost.
 - **Terraform Config**: Updated with `temporary_name_for_rotation = "tempnodepool"`
 - **Status**: ✅ Complete - All pods healthy, cluster stable
 
@@ -175,7 +175,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 ## Cutover to Main Branch ✅ COMPLETE (2026-01-20)
 
 ### Completion Summary
-- ✅ **DNS cutover complete**: `k8.canepro.me` → AKS LoadBalancer (`85.210.181.37`)
+- ✅ **DNS cutover complete**: `k8.canepro.me` → AKS LoadBalancer (`20.90.231.159`)
 - ✅ **TLS certificate issued**: Let's Encrypt certificate valid and working
 - ✅ **All ArgoCD apps syncing**: All AKS applications now tracking `main` branch
 - ✅ **Production traffic**: All users accessing AKS cluster
@@ -217,7 +217,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
      - ✅ `GrafanaLocal/argocd/applications/aks-rocketchat-ops.yaml`
      - ✅ `GrafanaLocal/argocd/applications/aks-rocketchat-secrets.yaml`
      - ✅ `GrafanaLocal/argocd/applications/aks-traefik.yaml`
-     - ✅ `GrafanaLocal/argocd/applications/aks-jenkins.yaml`
+     - Jenkins now runs as an OKE controller with AKS static agent manifests under `ops/`.
    - Committed and pushed (commit `25e3603`)
    - Applied to cluster via `kubectl apply`
 
