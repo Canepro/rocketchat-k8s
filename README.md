@@ -257,7 +257,7 @@ Schedule resources live in `terraform/automation.tf`, and operators change the a
 
 ### Weekly Codex Maintenance
 
-The weekly Codex automation starts AKS only when the cluster has not already run during the current week, captures Kubernetes/Rocket.Chat health evidence, checks the OKE-hosted Grafana/Prometheus/Loki/Tempo surfaces, reviews open GitHub issues and PRs, and drafts a report.
+The weekly Codex automation starts AKS only when the cluster has not already run during the current week, captures Kubernetes/Rocket.Chat health evidence, checks the OKE-hosted Grafana/Prometheus/Loki/Tempo surfaces, reviews open GitHub issues and PRs, drafts a report, sends Selene the completed run update, and writes a searchable second-brain activity note.
 
 The deterministic runner is:
 

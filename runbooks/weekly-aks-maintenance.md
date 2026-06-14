@@ -82,6 +82,16 @@ The Codex automation should do the following:
    - Update candidates and risk.
    - Shutdown decision.
    - Evidence paths.
+7. Send Selene a post-run update after the weekly checks and report are complete:
+   - Use the approved Selene handoff or notification lane available to the run.
+   - Include report path, evidence directory, cluster power-state decision, actions taken, skipped or gated actions, GitHub issue/PR actions, Terraform and Argo CD actions, OKE observability findings, and any follow-up risk Selene should watch.
+   - Record the returned handoff or message id in the report and final response. If delivery fails, record the exact blocker and do not claim Selene received it.
+8. Write a searchable second-brain activity note for the completed run:
+   - Use the second-brain MCP or CLI write path with actor `automation` or `mira`.
+   - Title the note with the run date and `Rocket.Chat AKS weekly maintenance`.
+   - Include reusable facts, actions taken, gated actions, report path, evidence paths, Selene handoff id, commit ids or PR ids, and next checks.
+   - Do not write raw logs, raw transcripts, secret values, kubeconfig contents, OAuth state, tokens, or private credentials.
+   - If second-brain writeback fails, record the blocker in the report and final response.
 
 ## Stop Conditions
 

@@ -167,7 +167,7 @@ The weekly maintenance automation uses the repo runner plus Codex/Grafana MCP ch
 python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
 ```
 
-The runner only starts or stops AKS when `--execute` is passed. It writes local evidence under `reports/weekly-aks-maintenance/`, which is ignored by Git. Codex turns that evidence, Grafana MCP checks, and the GitHub issue/PR queue into a dark-first HTML report.
+The runner only starts or stops AKS when `--execute` is passed. It writes local evidence under `reports/weekly-aks-maintenance/`, which is ignored by Git. Codex turns that evidence, Grafana MCP checks, and the GitHub issue/PR queue into a dark-first HTML report, then sends Selene the completed run update and writes a searchable second-brain activity note.
 
 See `runbooks/weekly-aks-maintenance.md` for the stop conditions. In short: public GitHub issue/PR updates, repo-backed GitOps changes, checked Terraform applies, and Argo CD refresh/sync actions are allowed on Vincent's personal repos when evidence supports them and Azure or OKE reconciles the expected change. Secret-value handling, out-of-band live mutation, unchecked or destructive Terraform plans, Azure cost actions outside the checked plan, ingress changes, RBAC changes, direct Helm upgrades, Argo CD prune/force/delete/rollback actions, and auto-shutdown changes still need explicit approval.
 
