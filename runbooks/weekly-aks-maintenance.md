@@ -46,7 +46,9 @@ Generated weekly evidence is intentionally ignored by Git. Promote only curated 
 - Do not print or copy secret values. GitHub, Azure, Jenkins, and observability credentials stay in their configured stores.
 - Public GitHub changes are allowed on Vincent's personal repositories when the automation has clear evidence: update labels, comment, close handled issues, update PR metadata, and merge green mergeable PRs when the change matches the repository policy and checks are passing.
 - Repo-backed GitOps changes are allowed on Vincent's personal repos when they are the right delivery path and the approved Azure-side or OKE-side reconciler will apply them from Git.
-- Hard gates still require Vincent's explicit current-run approval: secrets, direct live cluster mutation outside the runner's weekly AKS start, out-of-band GitOps or Argo CD mutation, Terraform apply, direct Helm upgrades outside GitOps, Azure cost or billing actions, ingress changes, and RBAC changes.
+- Terraform apply is allowed when `terraform fmt -check`, `terraform validate`, and a reviewed plan all pass, the plan matches the intended maintenance change, and the run does not print secret values.
+- Argo CD refresh and sync actions are allowed for known applications when they reconcile the expected Git revision and health/sync status is checked before and after the action.
+- Hard gates still require Vincent's explicit current-run approval: secrets, direct live cluster mutation outside the runner's weekly AKS start, out-of-band GitOps mutation, direct Helm upgrades outside GitOps, Azure cost or billing actions not already represented in a checked Terraform plan, ingress changes, RBAC changes, Argo CD prune/force/delete/rollback actions, and destructive resource deletion.
 
 ## Weekly Checks
 
@@ -69,6 +71,8 @@ The Codex automation should do the following:
    - Parse `VERSIONS.md` for `Can upgrade`, `Check latest`, and `Deprecated`.
    - Treat existing Jenkins version-check PRs as the source of truth for prepared code updates.
    - Apply safe updates through repo-backed GitOps changes when evidence and checks support them and Azure or OKE will reconcile from Git. Draft risky runtime or hard-gated updates instead of applying them directly.
+   - Run Terraform apply only after fmt, validate, and plan evidence is clean and the expected diff is documented in the report.
+   - Use Argo CD refresh or sync when reconciliation is stale or required after a Git-backed change, then capture before/after health and sync status.
 6. Draft a dark-first HTML report using the `codex-html-report` skill. Include:
    - Cluster power-state decision and whether AKS was started.
    - Kubernetes health summary.
@@ -85,15 +89,16 @@ Stop and ask Vincent before:
 
 - reading or moving secret values
 - creating or rotating credentials
-- applying Terraform
+- applying Terraform without clean fmt, validate, and plan evidence
+- applying Terraform when the plan has unexpected deletes, replacements, cost or billing changes outside the expected diff, ingress changes, RBAC or identity changes, or secret-value handling
 - running Helm upgrades directly outside GitOps
-- forcing an Argo CD sync/prune
+- running Argo CD prune, force, delete, rollback, or sync against an unverified app or revision
 - making out-of-band GitOps changes that are not represented as repo commits or PRs
 - live Kubernetes mutation outside the runner's weekly AKS start/check path
 - changing ingress resources or routing policy
 - changing RBAC, identities, role assignments, or service-account authority
 - disabling auto-shutdown
-- changing spend-affecting Azure settings beyond the weekly AKS start
+- changing Azure cost or billing settings outside the checked Terraform plan or weekly AKS start
 
 ## Current Context
 
