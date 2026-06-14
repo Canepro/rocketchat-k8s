@@ -71,5 +71,8 @@ terraform/bootstrap/tfplan.*
 .jenkins/artifacts/
 *.zip
 
+# Generated weekly AKS maintenance evidence
+reports/weekly-aks-maintenance/
+
 # Python bytecode (e.g. terraform/scripts helpers run by external data source)
 **/__pycache__/

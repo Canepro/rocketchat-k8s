@@ -255,6 +255,18 @@ Schedule resources live in `terraform/automation.tf`, and operators change the a
 | `k3s-image-prune` | Sunday 03:00 UTC | Remove unused container images |
 | `aks-stale-pod-cleanup` | Weekdays at 15:00 Europe/London (`0 15 * * 1-5`) | Clean up pods after cluster restart |
 
+### Weekly Codex Maintenance
+
+The weekly Codex automation starts AKS only when the cluster has not already run during the current week, captures Kubernetes/Rocket.Chat health evidence, checks the OKE-hosted Grafana/Prometheus/Loki/Tempo surfaces, reviews open GitHub issues and PRs, and drafts a report.
+
+The deterministic runner is:
+
+```bash
+python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
+```
+
+See [runbooks/weekly-aks-maintenance.md](runbooks/weekly-aks-maintenance.md) for guardrails, stop conditions, and report expectations.
+
 ## CI/CD Pipeline
 
 ### Jenkins (Validation)
