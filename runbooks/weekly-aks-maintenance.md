@@ -45,7 +45,8 @@ Generated weekly evidence is intentionally ignored by Git. Promote only curated 
 - The runner uses a temporary kubeconfig. It does not overwrite the operator kubeconfig.
 - Do not print or copy secret values. GitHub, Azure, Jenkins, and observability credentials stay in their configured stores.
 - Public GitHub changes are allowed on Vincent's personal repositories when the automation has clear evidence: update labels, comment, close handled issues, update PR metadata, and merge green mergeable PRs when the change matches the repository policy and checks are passing.
-- Hard gates still require Vincent's explicit current-run approval: secrets, live cluster mutation outside the runner's weekly AKS start, GitOps/Argo CD mutation, Terraform apply, Helm upgrades, Azure cost or billing actions, ingress changes, and RBAC changes.
+- Repo-backed GitOps changes are allowed on Vincent's personal repos when they are the right delivery path and the approved Azure-side or OKE-side reconciler will apply them from Git.
+- Hard gates still require Vincent's explicit current-run approval: secrets, direct live cluster mutation outside the runner's weekly AKS start, out-of-band GitOps or Argo CD mutation, Terraform apply, direct Helm upgrades outside GitOps, Azure cost or billing actions, ingress changes, and RBAC changes.
 
 ## Weekly Checks
 
@@ -67,7 +68,7 @@ The Codex automation should do the following:
 5. Check update candidates:
    - Parse `VERSIONS.md` for `Can upgrade`, `Check latest`, and `Deprecated`.
    - Treat existing Jenkins version-check PRs as the source of truth for prepared code updates.
-   - For risky updates, draft the action and evidence instead of applying directly.
+   - Apply safe updates through repo-backed GitOps changes when evidence and checks support them and Azure or OKE will reconcile from Git. Draft risky runtime or hard-gated updates instead of applying them directly.
 6. Draft a dark-first HTML report using the `codex-html-report` skill. Include:
    - Cluster power-state decision and whether AKS was started.
    - Kubernetes health summary.
@@ -85,8 +86,9 @@ Stop and ask Vincent before:
 - reading or moving secret values
 - creating or rotating credentials
 - applying Terraform
-- running Helm upgrades
+- running Helm upgrades directly outside GitOps
 - forcing an Argo CD sync/prune
+- making out-of-band GitOps changes that are not represented as repo commits or PRs
 - live Kubernetes mutation outside the runner's weekly AKS start/check path
 - changing ingress resources or routing policy
 - changing RBAC, identities, role assignments, or service-account authority
