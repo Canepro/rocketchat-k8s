@@ -169,7 +169,7 @@ python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
 
 The runner only starts or stops AKS when `--execute` is passed. It writes local evidence under `reports/weekly-aks-maintenance/`, which is ignored by Git. Codex turns that evidence, Grafana MCP checks, and the GitHub issue/PR queue into a dark-first HTML report.
 
-See `runbooks/weekly-aks-maintenance.md` for the stop conditions. In short: no secret-value handling, Terraform apply, Helm upgrade, Argo CD sync/prune, GitHub merge/close/comment, or auto-shutdown change without explicit approval.
+See `runbooks/weekly-aks-maintenance.md` for the stop conditions. In short: public GitHub issue/PR updates are allowed on Vincent's personal repos when evidence supports them; secret-value handling, live GitOps mutation, Azure cost actions, ingress changes, RBAC changes, Terraform apply, Helm upgrades, Argo CD sync/prune, and auto-shutdown changes still need explicit approval.
 
 ### Updating the Schedule
 

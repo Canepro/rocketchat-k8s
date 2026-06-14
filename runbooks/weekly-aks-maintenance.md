@@ -44,7 +44,8 @@ Generated weekly evidence is intentionally ignored by Git. Promote only curated 
 - Use `--shutdown-mode stop-if-started` only when the weekly run should stop AKS immediately after checks.
 - The runner uses a temporary kubeconfig. It does not overwrite the operator kubeconfig.
 - Do not print or copy secret values. GitHub, Azure, Jenkins, and observability credentials stay in their configured stores.
-- Do not merge PRs, close issues, comment publicly, change secrets, apply Terraform, run Helm upgrades, or sync/prune Argo CD apps unless the current task explicitly authorizes that mutation.
+- Public GitHub changes are allowed on Vincent's personal repositories when the automation has clear evidence: update labels, comment, close handled issues, update PR metadata, and merge green mergeable PRs when the change matches the repository policy and checks are passing.
+- Hard gates still require Vincent's explicit current-run approval: secrets, live cluster mutation outside the runner's weekly AKS start, GitOps/Argo CD mutation, Terraform apply, Helm upgrades, Azure cost or billing actions, ingress changes, and RBAC changes.
 
 ## Weekly Checks
 
@@ -61,8 +62,8 @@ The Codex automation should do the following:
 4. Inspect GitHub open issues and PRs:
    - Current known issue: `#113` tracks enabling TLS for operator-managed MongoDB.
    - Current known PR pattern: automated version update PRs should be refreshed before deciding merge readiness.
-   - Green, mergeable PRs should be reported as ready for human review or merge unless Vincent has explicitly approved auto-merge in the current run.
-   - Issues should be linked to live evidence when possible. Do not close or publicly comment unless explicitly authorized.
+   - Green, mergeable PRs in Vincent's personal repos may be merged when checks are passing, the diff matches the stated automation policy, and no hard gate is crossed.
+   - Issues should be linked to live evidence when possible. Public comments, labels, and closures are allowed on Vincent's personal repos when the evidence supports them.
 5. Check update candidates:
    - Parse `VERSIONS.md` for `Can upgrade`, `Check latest`, and `Deprecated`.
    - Treat existing Jenkins version-check PRs as the source of truth for prepared code updates.
@@ -86,8 +87,9 @@ Stop and ask Vincent before:
 - applying Terraform
 - running Helm upgrades
 - forcing an Argo CD sync/prune
-- deleting Kubernetes resources outside stale terminal pods
-- merging, closing, or publicly commenting on GitHub issues or PRs
+- live Kubernetes mutation outside the runner's weekly AKS start/check path
+- changing ingress resources or routing policy
+- changing RBAC, identities, role assignments, or service-account authority
 - disabling auto-shutdown
 - changing spend-affecting Azure settings beyond the weekly AKS start
 
