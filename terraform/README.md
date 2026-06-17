@@ -276,7 +276,7 @@ az aks start --resource-group rg-canepro-aks --name aks-canepro
 az aks stop --resource-group rg-canepro-aks --name aks-canepro
 ```
 
-**Note:** Schedules use `lifecycle { ignore_changes = [start_time] }` to prevent Terraform from updating schedule times on every run. To update schedules, temporarily remove `ignore_changes`, update variables, apply, then restore `ignore_changes`.
+**Note:** Schedule start times are stabilized through `time_static.automation_schedule_anchor` plus the `automation_schedule_seed.pl` external helper in `terraform/automation.tf`. Update the schedule variables, review the resulting plan, and apply the intended change instead of looking for a `lifecycle ignore_changes` block on the schedule resources.
 
 ### Historical schedule comparison
 
