@@ -35,7 +35,7 @@ The runner writes evidence under:
 reports/weekly-aks-maintenance/<timestamp>/
 ```
 
-Generated weekly evidence is intentionally ignored by Git. Promote only curated durable reports or docs.
+Generated weekly evidence is intentionally ignored by Git. Promote only curated durable reports or docs. The browser-readable weekly closeout report under `reports/YYYY-MM-DD-weekly-aks-maintenance.html` is a durable artifact and should be committed when it is the authoritative closeout for that run; raw JSON and timestamped evidence directories stay local unless a specific review needs them in Git.
 
 ## Guardrails
 
@@ -84,11 +84,16 @@ The Codex automation should do the following:
    - Rocket.Chat HTTP result, final status code, and attempt count.
    - OKE Grafana/Prometheus/Loki/Tempo findings.
    - AKS Jenkins static agent deployment and pod readiness.
+   - Cross-cluster Jenkins topology: the OKE controller and the Azure AKS static agent are separate proof surfaces. Do not treat controller health as proof that `aks-agent` work can run.
    - OKE Jenkins public HTTP/login status, Argo sync/health, pod readiness, service route evidence, startup-log plugin scan, managed-job source rendering, and last-build status or `auth_required`.
    - GitHub issue/PR queue and recommended action.
    - Update candidates and risk.
+   - Terraform and Argo CD actions taken, skipped, or blocked.
    - Shutdown decision.
    - Evidence paths.
+   - Selene handoff id or exact delivery blocker.
+   - Second-brain note path or exact writeback blocker.
+   - Source commit ids for any repo changes made during the run.
 7. Send Selene a post-run update after the weekly checks and report are complete:
    - Use the approved Selene handoff or notification lane available to the run.
    - Include report path, evidence directory, cluster power-state decision, actions taken, skipped or gated actions, GitHub issue/PR actions, Terraform and Argo CD actions, OKE observability findings, and any follow-up risk Selene should watch.
@@ -99,6 +104,12 @@ The Codex automation should do the following:
    - Include reusable facts, actions taken, gated actions, report path, evidence paths, Selene handoff id, commit ids or PR ids, and next checks.
    - Do not write raw logs, raw transcripts, secret values, kubeconfig contents, OAuth state, tokens, or private credentials.
    - If second-brain writeback fails, record the blocker in the report and final response.
+9. Run a closeout audit before the final user response:
+   - Inspect the final runner `evidence.json`; if AKS is online, `aks_jenkins_agent.deployment.healthy` must be present and the static-agent pod readiness and findings must be reported.
+   - If AKS is online, verify the live static agent separately with `kubectl --context aks-canepro -n jenkins get deployment jenkins-static-agent -o wide` and `kubectl --context aks-canepro -n jenkins get pods -l app=jenkins-static-agent -o wide`.
+   - Validate the HTML report parses and includes the final evidence path, Selene handoff id or blocker, second-brain note path or blocker, source commit ids, shutdown decision, and residual risks.
+   - Check `git status --short --branch` for this repo and any repo touched during the run. Commit and push scoped source/docs/report changes when allowed; leave unrelated dirty or older untracked files untouched and name them in the final response.
+   - Do not close the run while the report says a handoff or second-brain record is required but the artifact lacks the id/path or explicit blocker.
 
 ## Stop Conditions
 
