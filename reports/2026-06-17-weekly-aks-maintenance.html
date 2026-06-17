@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rocket.Chat AKS weekly maintenance - 2026-06-17</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090b0f;
+      --panel: #141821;
+      --panel-2: #1b202b;
+      --panel-3: #232a36;
+      --ink: #f1efe7;
+      --muted: #aeb6c4;
+      --soft: #818a99;
+      --line: rgba(255,255,255,.11);
+      --line-2: rgba(255,255,255,.2);
+      --accent: #dfb35f;
+      --accent-2: #f4cf83;
+      --good: #8ad08f;
+      --warn: #e6b85d;
+      --bad: #e48978;
+      --info: #8eb7e3;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: ui-serif, "Iowan Old Style", Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.58;
+      background:
+        radial-gradient(900px 300px at 20% -80px, rgba(223,179,95,.15), transparent 70%),
+        linear-gradient(180deg, #10131a 0, var(--bg) 430px);
+    }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    code {
+      font-family: var(--mono);
+      color: #f7dfaa;
+      background: rgba(255,255,255,.055);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .08rem .32rem;
+      font-size: .91em;
+    }
+    .shell { width: min(1180px, calc(100% - 36px)); margin: 0 auto; padding: 28px 0 72px; }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: .92rem; margin-bottom: 22px; }
+    .brand { display: flex; gap: 10px; align-items: center; color: var(--ink); font-weight: 700; }
+    .mark { display: grid; place-items: center; width: 31px; height: 31px; border: 1px solid rgba(223,179,95,.55); border-radius: 10px; color: var(--accent-2); background: rgba(223,179,95,.12); font-family: var(--serif); }
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 42px;
+      background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015)), var(--panel);
+      box-shadow: 0 34px 80px rgba(0,0,0,.35);
+    }
+    .kicker { color: var(--accent); text-transform: uppercase; letter-spacing: .16em; font-size: .76rem; font-weight: 800; margin: 0 0 14px; }
+    h1 { font-family: var(--serif); font-weight: 640; line-height: 1.08; font-size: clamp(2rem, 4vw, 3.4rem); margin: 0; max-width: 850px; }
+    .lede { max-width: 850px; color: var(--muted); font-size: 1.08rem; margin: 18px 0 0; }
+    .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+    .fact { border: 1px solid var(--line); border-radius: 13px; padding: 16px; background: var(--panel-2); }
+    .label { color: var(--soft); text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 800; }
+    .value { margin-top: 8px; font-weight: 760; font-size: 1.02rem; }
+    nav { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(9,11,15,.88); backdrop-filter: blur(14px); }
+    nav a { color: var(--muted); padding: 7px 10px; border: 1px solid transparent; border-radius: 999px; font-size: .9rem; }
+    nav a:hover { color: var(--ink); border-color: var(--line-2); text-decoration: none; background: rgba(255,255,255,.045); }
+    section { margin-top: 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(20,24,33,.92); padding: 24px; }
+    h2 { font-family: var(--serif); font-size: 1.45rem; margin-bottom: 12px; }
+    h3 { font-size: 1.02rem; margin: 18px 0 8px; }
+    p { margin: 0 0 12px; }
+    ul { margin: 0; padding-left: 1.1rem; }
+    li { margin: 6px 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .card { border: 1px solid var(--line); background: var(--panel-2); border-radius: 13px; padding: 15px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; border: 1px solid currentColor; padding: 4px 10px; font-weight: 750; font-size: .84rem; }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+    .done { color: var(--good); background: rgba(138,208,143,.11); }
+    .partial { color: var(--warn); background: rgba(230,184,93,.12); }
+    .risk { color: var(--bad); background: rgba(228,137,120,.12); }
+    .info { color: var(--info); background: rgba(142,183,227,.12); }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+    th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); background: var(--panel-3); font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; }
+    tr:last-child td { border-bottom: 0; }
+    .timeline { list-style: none; padding: 0; margin: 0; }
+    .timeline li { display: grid; grid-template-columns: 170px 1fr; gap: 14px; border-top: 1px solid var(--line); padding: 12px 0; }
+    .timeline li:first-child { border-top: 0; }
+    .time { color: var(--accent-2); font-family: var(--mono); font-size: .9rem; }
+    details { border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,.16); padding: 12px 14px; margin-top: 10px; }
+    summary { cursor: pointer; font-weight: 760; color: var(--accent-2); }
+    pre { overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 10px 0 0; padding: 14px; border-radius: 11px; background: #07090c; border: 1px solid var(--line); color: #d9e0ea; font-family: var(--mono); font-size: .88rem; }
+    .muted { color: var(--muted); }
+    .warning { color: var(--warn); }
+    .footer { margin-top: 22px; color: var(--soft); font-size: .9rem; }
+    @media (max-width: 850px) {
+      .facts, .grid { grid-template-columns: 1fr; }
+      .hero { padding: 28px; }
+      .timeline li { grid-template-columns: 1fr; gap: 4px; }
+    }
+    @media print {
+      nav { position: static; }
+      body { background: #fff; color: #111; }
+      section, .hero, .fact, .card { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <div class="brand"><span class="mark">M</span><span>Mira ops proof</span></div>
+      <div>Generated <time datetime="2026-06-17T12:04:01Z">2026-06-17 12:04:01 UTC</time></div>
+    </div>
+
+    <header class="hero">
+      <p class="kicker">Rocket.Chat AKS maintenance</p>
+      <h1>Jenkins recovered, AKS left on auto-shutdown, residual GitOps drift tracked</h1>
+      <p class="lede">This run started AKS through the weekly runner path, fixed the OKE Jenkins controller through GitOps, confirmed the Azure AKS Jenkins static agent separately, and refreshed the weekly maintenance automation so this failure class is checked before future PR decisions.</p>
+      <div class="facts">
+        <div class="fact"><div class="label">Top status</div><div class="value"><span class="status partial">Partial</span></div></div>
+        <div class="fact"><div class="label">AKS decision</div><div class="value">Left to normal auto-shutdown</div></div>
+        <div class="fact"><div class="label">Rocket.Chat</div><div class="value">HTTP 200, metrics fresh</div></div>
+        <div class="fact"><div class="label">Jenkins split</div><div class="value">Controller OKE, agent AKS</div></div>
+      </div>
+    </header>
+
+    <nav aria-label="Report sections">
+      <a href="#summary">Summary</a>
+      <a href="#power">Power state</a>
+      <a href="#health">Health</a>
+      <a href="#grafana">Grafana MCP</a>
+      <a href="#github">GitHub</a>
+      <a href="#changes">Changes</a>
+      <a href="#gates">Gates</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#handoff">Handoff</a>
+      <a href="#risks">Risks</a>
+    </nav>
+
+    <section id="summary">
+      <h2>Outcome</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>What is fixed</h3>
+          <ul>
+            <li>Jenkins controller in OKE is back to <code>Healthy</code> and <code>Synced</code> under Argo CD.</li>
+            <li>Jenkins <code>jenkins-0</code> is <code>Running</code>, ready <code>2/2</code>, restart count <code>0</code>, revision <code>jenkins-648fdff66</code>.</li>
+            <li>Rocket.Chat scheduled Jenkins jobs completed: <code>version-check-rocketchat-k8s #128</code> and <code>security-validation-rocketchat-k8s #130</code> both <code>SUCCESS</code>.</li>
+            <li>The weekly AKS maintenance runner now checks OKE Jenkins before treating PR evidence as usable.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>What remains partial</h3>
+          <ul>
+            <li><code>aks-cert-manager</code> is <code>Healthy</code> but <code>OutOfSync</code> in Argo CD. It was not force-synced because the app includes cluster-scoped cert-manager resources and prune-capable policy.</li>
+            <li>The OKE collector reports one open GrafanaLocal PR and ten open issues requiring triage. Most are pre-existing security, dependency, or PipelineHealer items.</li>
+            <li>Direct Tempo trace search was not available through the loaded Grafana MCP surface. Tempo was checked through datasource presence, dashboard provisioning, and OpenTelemetry span-ingest freshness.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="power">
+      <h2>Cluster power-state decision</h2>
+      <table>
+        <thead><tr><th>Check</th><th>Evidence</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Initial weekly runner</td>
+            <td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260617T112327Z/evidence.json</code></td>
+            <td>AKS was <code>Stopped</code> before the first execute runner and was started by the runner.</td>
+          </tr>
+          <tr>
+            <td>Final weekly runner</td>
+            <td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260617T122331Z/evidence.json</code></td>
+            <td>AKS was <code>Running</code>, Kubernetes version <code>1.34.3</code>, provisioning state <code>Succeeded</code>, and the Azure AKS <code>jenkins-static-agent</code> check was clean.</td>
+          </tr>
+          <tr>
+            <td>Shutdown mode</td>
+            <td><code>--shutdown-mode leave-auto</code></td>
+            <td>Left to the normal auto-shutdown path. Auto-shutdown was not disabled.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="health">
+      <h2>Kubernetes and Rocket.Chat health</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>AKS workload proof</h3>
+          <ul>
+            <li>Kubernetes API reachable in final runner evidence.</li>
+            <li>AKS pod phases: <code>Running=48</code>, <code>Succeeded=1</code>.</li>
+            <li>All listed Rocket.Chat, MongoDB, NATS, Traefik, monitoring, external-secrets, and cert-manager workloads were healthy in the final runner.</li>
+            <li>The Azure-side Jenkins static agent deployment was healthy: <code>jenkins-static-agent</code> ready <code>1/1</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Rocket.Chat proof</h3>
+          <ul>
+            <li><code>https://k8.canepro.me/api/info</code> returned HTTP <code>200</code> in the final runner.</li>
+            <li>Prometheus MCP reported <code>rocketchat_info</code> about 26 seconds fresh at query time.</li>
+            <li><code>rocketchat_users_total</code> was present with value <code>14</code>.</li>
+            <li>Microservice metrics were present: <code>moleculer_registry_nodes_online_total</code> had <code>5</code> series.</li>
+            <li>MongoDB exporter reported <code>mongodb_up=1</code> for the Rocket.Chat MongoDB service.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="grafana">
+      <h2>OKE Grafana, Prometheus, Loki, Tempo checks</h2>
+      <table>
+        <thead><tr><th>Surface</th><th>What was checked</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Datasources</td>
+            <td>Grafana MCP listed <code>prometheus</code>, <code>loki</code>, and <code>tempo</code>.</td>
+            <td><span class="status done">Present</span></td>
+          </tr>
+          <tr>
+            <td>Dashboards</td>
+            <td><code>rocketchat-metrics</code>, <code>microservice-metrics</code>, <code>rocketchat-mongodb-single-node</code>, <code>aks-maintenance-jobs</code>, and <code>OpenTelemetry &amp; Tempo</code> summaries loaded.</td>
+            <td><span class="status done">Present</span></td>
+          </tr>
+          <tr>
+            <td>Prometheus</td>
+            <td>Rocket.Chat metrics fresh, MongoDB up, monitoring target count present, OpenTelemetry span ingest about 2 seconds fresh.</td>
+            <td><span class="status done">Fresh</span></td>
+          </tr>
+          <tr>
+            <td>Loki</td>
+            <td>Rocket.Chat, monitoring, and Jenkins streams had data in the 10:30Z to 12:10Z window. Jenkins log included <code>Jenkins is fully up and running</code> at 11:45:57Z.</td>
+            <td><span class="status done">Fresh</span></td>
+          </tr>
+          <tr>
+            <td>CronJobs</td>
+            <td>Prometheus listed <code>aks-stale-pod-cleanup</code> and <code>k3s-image-prune</code>; last successful CronJob age was about 165,788 seconds.</td>
+            <td><span class="status partial">Watch</span></td>
+          </tr>
+          <tr>
+            <td>Tempo</td>
+            <td>Tempo datasource and dashboard were present. Direct trace search was not exposed by the loaded MCP toolset, so trace freshness is inferred from OpenTelemetry span metrics.</td>
+            <td><span class="status info">Limited</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <details>
+        <summary>Grafana MCP query highlights</summary>
+        <pre>Datasources: prometheus, loki, tempo
+Dashboards: rocketchat-metrics, microservice-metrics, rocketchat-mongodb-single-node, aks-maintenance-jobs
+Prometheus:
+  time() - max(timestamp(rocketchat_info{namespace="rocketchat"})) = 25.79s
+  rocketchat_users_total{namespace="rocketchat"} = 14
+  count(moleculer_registry_nodes_online_total{namespace="rocketchat"}) = 5
+  mongodb_up{namespace="rocketchat"} = 1
+  time() - max(timestamp(otelcol_receiver_accepted_spans_total)) = 2.35s
+Loki:
+  {namespace="rocketchat"} = 12 streams, 24 chunks, 522 index entries
+  {namespace="monitoring"} = 14 streams, 285 chunks
+  {namespace="jenkins"} = 41 streams, 45 chunks
+  Jenkins fully-up marker at 2026-06-17T11:45:57Z</pre>
+      </details>
+    </section>
+
+    <section id="github">
+      <h2>GitHub issue and PR queue</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Rocket.Chat repo</h3>
+          <ul>
+            <li>Merged PR <code>#134</code>: <code>Add OKE Jenkins checks to weekly AKS maintenance</code>.</li>
+            <li>Closed PR <code>#133</code>: version-update PR was green but invalid because the diff changed only tracking docs while claiming an Azure provider update not reflected in <code>terraform/main.tf</code>.</li>
+            <li>Open issue remains: <code>#113</code> <code>Enable TLS for operator-managed MongoDB on AKS</code>.</li>
+            <li>Open PRs after cleanup: none.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>GrafanaLocal repo</h3>
+          <ul>
+            <li>Merged PR <code>#94</code>: pinned Jenkins plugin set and fixed Terraform validation CI dependency build.</li>
+            <li>Merged PR <code>#95</code>: pinned Jenkins JUnit transitive dependencies.</li>
+            <li>Merged PR <code>#96</code>: added Jenkins health to OKE maintenance checks.</li>
+            <li>Merged PR <code>#97</code>: ignored transient Jenkins build agents in OKE stable-pod health checks.</li>
+            <li>Open PR <code>#69</code> remains <code>UNSTABLE</code> and not merge-ready.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="changes">
+      <h2>Changes delivered</h2>
+      <table>
+        <thead><tr><th>Repo</th><th>Commit or PR</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>rocketchat-k8s</code></td>
+            <td><code>#134</code>, merge commit <code>e405828794eac4063453e76c3214007816fdcffd</code></td>
+            <td>Weekly AKS runner now checks OKE Jenkins login, Argo app health, pod readiness, managed jobs, and startup log signatures. Runbook updated with Jenkins and HTTP retry expectations.</td>
+          </tr>
+          <tr>
+            <td><code>central-observability-hub-stack</code></td>
+            <td><code>#94</code>, merge commit <code>abb5dc702f31d0c549111fb68f94ef6d19ba23cb</code></td>
+            <td>Pinned Jenkins plugin installation behavior and fixed Jenkins CI image package prerequisites for OCI CLI builds.</td>
+          </tr>
+          <tr>
+            <td><code>central-observability-hub-stack</code></td>
+            <td><code>#95</code>, merge commit <code>8cbf3421f9e13e7f87e71483fb237f1dfa30bbf3</code></td>
+            <td>Pinned <code>checks-api</code> and <code>echarts-api</code> so <code>junit</code>, <code>matrix-project</code>, and <code>ws-cleanup</code> load cleanly from the Jenkins PVC.</td>
+          </tr>
+          <tr>
+            <td><code>central-observability-hub-stack</code></td>
+            <td><code>#96</code>, merge commit <code>4bcf8db07a440f4bfe7a004ab13701d486e4ab50</code></td>
+            <td>OKE weekly collector gained Jenkins controller health evidence and default <code>oke-cluster</code> guard.</td>
+          </tr>
+          <tr>
+            <td><code>central-observability-hub-stack</code></td>
+            <td><code>#97</code>, merge commit <code>151f12c92f92197126619f7aeb49628a7ced43f9</code></td>
+            <td>OKE collector excludes ephemeral Jenkins build-agent pods from stable pod health while keeping <code>jenkins-0</code> covered.</td>
+          </tr>
+          <tr>
+            <td><code>rocketchat-k8s</code></td>
+            <td>Local follow-up after this report</td>
+            <td>The weekly AKS runner and runbook now encode the Azure AKS <code>jenkins-static-agent</code> check separately from the OKE Jenkins controller check.</td>
+          </tr>
+          <tr>
+            <td><code>central-observability-hub-stack</code></td>
+            <td>Local follow-up after this report</td>
+            <td>The OKE weekly runbook now states that OKE maintenance verifies the Jenkins controller only; the static <code>aks-agent</code> belongs to Azure AKS maintenance.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="gates">
+      <h2>Terraform and Argo CD actions</h2>
+      <table>
+        <thead><tr><th>Action class</th><th>Decision</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Terraform apply</td>
+            <td><span class="status info">Skipped</span></td>
+            <td>No Terraform change was needed for the Jenkins recovery or maintenance automation update. No plan or apply was run in the final pass.</td>
+          </tr>
+          <tr>
+            <td>Direct Helm upgrade</td>
+            <td><span class="status info">Skipped</span></td>
+            <td>Jenkins was fixed through the GitOps values path, not by an out-of-band Helm upgrade.</td>
+          </tr>
+          <tr>
+            <td>Argo CD Jenkins</td>
+            <td><span class="status done">Used</span></td>
+            <td>The known <code>jenkins</code> app reconciled the verified Git revision and ended <code>Healthy</code>, <code>Synced</code>, operation <code>Succeeded</code>.</td>
+          </tr>
+          <tr>
+            <td>Argo CD prune, force, delete, rollback</td>
+            <td><span class="status info">Skipped</span></td>
+            <td>No prune, force, delete, or rollback action was used. The <code>aks-cert-manager</code> drift was left as a residual because force-sync would cross a higher-risk cluster-scoped boundary.</td>
+          </tr>
+          <tr>
+            <td>Live Kubernetes recovery</td>
+            <td><span class="status partial">Approved and bounded</span></td>
+            <td>A controlled OKE Jenkins controller recovery was used before the durable GitOps fix. It did not involve secret printing, RBAC change, ingress change, destructive deletion, or AKS power policy change.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="evidence">
+      <h2>Evidence paths and verification status</h2>
+      <table>
+        <thead><tr><th>Evidence</th><th>Path or ID</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Final AKS runner evidence</td>
+            <td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260617T122331Z/evidence.json</code></td>
+            <td><span class="status done">Passed with warning</span></td>
+          </tr>
+          <tr>
+            <td>First runner evidence showing AKS start</td>
+            <td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260617T112327Z/evidence.json</code></td>
+            <td><span class="status done">Captured</span></td>
+          </tr>
+          <tr>
+            <td>Final OKE collector smoke</td>
+            <td><code>/tmp/grafanalocal-weekly-oke-final-smoke-3/2026-06-17-weekly-oke-observability-check.json</code></td>
+            <td><span class="status partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td>Official Grafana OKE maintenance report</td>
+            <td><code>/Users/canepro/src/GrafanaLocal/reports/2026-06-17-weekly-oke-observability.html</code></td>
+            <td><span class="status partial">Partial</span></td>
+          </tr>
+          <tr>
+            <td>Rocket.Chat runner smoke</td>
+            <td><code>/tmp/weekly-aks-maintenance-smoke-7/20260617T113210Z/evidence.json</code></td>
+            <td><span class="status done">Passed</span></td>
+          </tr>
+          <tr>
+            <td>Jenkins public route</td>
+            <td><code>https://jenkins-oke.canepro.me/login</code></td>
+            <td><span class="status done">HTTP 200</span></td>
+          </tr>
+          <tr>
+            <td>Rocket.Chat public route</td>
+            <td><code>https://k8.canepro.me/api/info</code></td>
+            <td><span class="status done">HTTP 200</span></td>
+          </tr>
+          <tr>
+            <td>Selene handoff</td>
+            <td><code id="selene-handoff-id">handoff-20260617T123222Z-f8f395ec</code></td>
+            <td><span class="status done">Follow-up sent</span></td>
+          </tr>
+          <tr>
+            <td>Rocket.Chat second-brain note</td>
+            <td><code id="second-brain-note">/Users/canepro/src/second_brain/vault/memory/2026-06-17-2026-06-17-rocket-chat-aks-weekly-maintenance.md</code></td>
+            <td><span class="status done">Written</span></td>
+          </tr>
+          <tr>
+            <td>GrafanaLocal second-brain note</td>
+            <td><code>/Users/canepro/src/second_brain/vault/memory/2026-06-17-grafanalocal-oke-weekly-maintenance-2026-06-17.md</code></td>
+            <td><span class="status done">Written</span></td>
+          </tr>
+          <tr>
+            <td>Second-brain doctor</td>
+            <td><code>PYTHONPATH=src python3 -c 'from second_brain.cli import main; raise SystemExit(main(["doctor", "--json"]))'</code></td>
+            <td><span class="status partial">Failed refresh-drift: 5 expected imported notes missing</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="handoff">
+      <h2>Selene handoff and second-brain writeback</h2>
+      <p>The Selene operational update was delivered through the host bridge and the second-brain note was written through the local CLI write path.</p>
+      <table>
+        <thead><tr><th>Item</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Initial Selene handoff/message id</td><td><code>handoff-20260617T120614Z-0b8eae30</code></td></tr>
+          <tr><td>Follow-up Selene handoff/message id</td><td><code>handoff-20260617T123222Z-f8f395ec</code></td></tr>
+          <tr><td>Rocket.Chat source commit</td><td><code>398d15b</code></td></tr>
+          <tr><td>GrafanaLocal source commit</td><td><code>7da9aa6</code></td></tr>
+          <tr><td>Rocket.Chat second-brain note path</td><td><code>/Users/canepro/src/second_brain/vault/memory/2026-06-17-2026-06-17-rocket-chat-aks-weekly-maintenance.md</code></td></tr>
+          <tr><td>GrafanaLocal second-brain note path</td><td><code>/Users/canepro/src/second_brain/vault/memory/2026-06-17-grafanalocal-oke-weekly-maintenance-2026-06-17.md</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="risks">
+      <h2>Residual risks and next checks</h2>
+      <ul>
+        <li><strong>Follow up <code>aks-cert-manager</code> OutOfSync:</strong> issue <code>#88</code> already tracks this in <code>central-observability-hub-stack</code>. Do not prune or force-sync without reviewing cluster-scoped cert-manager ownership.</li>
+        <li><strong>Review GrafanaLocal PR <code>#69</code>:</strong> it remains <code>UNSTABLE</code> and should not be merged until its stale CI and version-tracking diff are reconciled.</li>
+        <li><strong>Clean up PipelineHealer issues:</strong> GrafanaLocal issues <code>#91</code>, <code>#92</code>, and <code>#93</code> are recent duplicates or near-duplicates and need triage outside this AKS pass.</li>
+        <li><strong>Keep Jenkins topology explicit:</strong> OKE owns the Jenkins controller. Azure AKS owns the static <code>aks-agent</code>. Future checks must verify both and avoid assuming all Jenkins pods are in one cluster.</li>
+        <li><strong>Version candidates remain draft-only:</strong> Alpine, NATS, Rocket.Chat Helm, Traefik Helm, MongoDB Operator, External Secrets, Terraform, Azure Provider, and AKS version candidates were noted but not applied.</li>
+        <li><strong>Second-brain post-run health needs cleanup:</strong> the activity note was written, but <code>doctor</code> failed on <code>refresh-drift</code> because five expected imported notes are missing.</li>
+      </ul>
+    </section>
+
+    <section id="appendix">
+      <h2>Timeline</h2>
+      <ol class="timeline">
+        <li><span class="time">11:23Z</span><span>Weekly AKS execute runner started AKS from <code>Stopped</code> and left shutdown mode as <code>leave-auto</code>.</span></li>
+        <li><span class="time">11:40Z</span><span>Jenkins controller emitted first post-recovery <code>Jenkins is fully up and running</code> marker.</span></li>
+        <li><span class="time">11:45Z</span><span>Jenkins controller emitted final post-GitOps <code>Jenkins is fully up and running</code> marker.</span></li>
+        <li><span class="time">12:20Z</span><span>Final AKS runner captured Rocket.Chat HTTP <code>200</code>, Kubernetes reachable, OKE Jenkins healthy, and Azure AKS <code>jenkins-static-agent</code> ready <code>1/1</code>.</span></li>
+        <li><span class="time">11:58Z</span><span>Final OKE collector smoke ended <code>partial</code> only because <code>aks-cert-manager</code> was <code>Healthy</code> but <code>OutOfSync</code> and GitHub queue items remain.</span></li>
+        <li><span class="time">12:04Z</span><span>This report was created.</span></li>
+      </ol>
+      <p class="footer">Author: Mira. Source revisions: <code>rocketchat-k8s@e405828794eac4063453e76c3214007816fdcffd</code>, <code>central-observability-hub-stack@151f12c92f92197126619f7aeb49628a7ced43f9</code>. No secret values are included.</p>
+    </section>
+  </main>
+</body>
+</html>
