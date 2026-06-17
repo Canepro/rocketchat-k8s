@@ -20,6 +20,8 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
 - **AKS shape**: Kubernetes `1.34.3`, node pool `system2`, 2 nodes, `Standard_B4ms`, max pods 110, 128GB OS disk.
 - **Jenkins CI**: Terraform plan parity clean (no changes detected) after azurerm v4 apply (2026-02-04).
 - **Cost Optimization**: Manual start plus scheduled safety-stop avoids daily compute spend for a rarely used test cluster.
+- **Budget source of truth**: `terraform/budget.tf` now manages the personal PAYG budget `aks-canepro-monthly-budget`. Legacy alert mail for budget name `AKS_Budget` points at the pre-migration subscription context and should be cleaned up there.
+- **Residual stopped-cluster spend**: Stopping AKS does not remove all cost. Standard Load Balancer, public IPs, and persistent disks in the managed resource group still bill until they are deleted or redesigned.
 - **ArgoCD apps (AKS)** - All tracking `main` branch:
   - `aks-rocketchat-ops`: syncing / infrastructure + observability.
   - `aks-rocketchat-helm`: Rocket.Chat Helm deploy.
@@ -140,7 +142,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
   - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
   - Deployment guide created (`JENKINS_DEPLOYMENT.md`)
   - DNS A record configured (`jenkins.canepro.me`)
-  - **Status**: Historical pre-cutover note; Jenkins was staged before the old 16:00 Europe/London weekday startup window and is now superseded by the current 13:30 Europe/London schedule.
+  - **Status**: Historical pre-cutover note; Jenkins was staged before the old weekday auto-start windows and is now superseded by the current manual-start-default posture with a 16:15 Europe/London safety-stop.
 
 ## Completed Upgrades (2026-01-16)
 

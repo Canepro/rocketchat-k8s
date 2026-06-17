@@ -236,13 +236,15 @@ terraform init -reconfigure -backend-config=backend.hcl -migrate-state
 
 The AKS cluster uses **Azure Automation** to keep the test environment off by default without destroying it. Start the cluster manually when Rocket.Chat testing is needed; the scheduled stop remains as a safety net if the cluster is left running.
 
-### Current Recommended Schedule (2026-05-20)
+### Current Recommended Posture (2026-05-20)
 
 - **Start Time**: Manual only by default (`enable_auto_start = false`)
 - **Stop Time**: 16:15 (4:15 PM) on weekdays
 - **Weekends**: No scheduled start; cluster stays off unless manually started
 - **Runtime**: Pay-per-use; bounded by manual starts plus the weekday safety-stop
 - **Reasoning**: This cluster is used mainly for occasional Rocket.Chat work/testing, so daily auto-start is wasteful on a personal PAYG subscription.
+- **Budget source of truth**: `budget.tf` creates the current subscription budget `aks-canepro-monthly-budget`. If an email alert still references `AKS_Budget`, that alert is from the pre-migration subscription-side budget or action group and should be removed there instead of changing the PAYG Terraform budget.
+- **Residual spend while stopped**: `az aks stop` removes node compute, but Standard Load Balancer, public IPs, and persistent disks in the managed resource group still incur charges.
 
 ### Configuration
 
@@ -274,14 +276,14 @@ az aks start --resource-group rg-canepro-aks --name aks-canepro
 az aks stop --resource-group rg-canepro-aks --name aks-canepro
 ```
 
-**Note:** Schedules use `lifecycle { ignore_changes = [start_time] }` to prevent Terraform from updating schedule times on every run. To update schedules, temporarily remove `ignore_changes`, update variables, apply, then restore `ignore_changes`.
+**Note:** Schedule start times are stabilized through `time_static.automation_schedule_anchor` plus the `automation_schedule_seed.pl` external helper in `terraform/automation.tf`. Update the schedule variables, review the resulting plan, and apply the intended change instead of looking for a `lifecycle ignore_changes` block on the schedule resources.
 
-### Cost Savings
+### Historical schedule comparison
 
 - **Previous schedule** (08:30-23:00): ~72.5 hours/week = ~290 hours/month
 - **Later evening schedule** (16:00-23:00): ~35 hours/week = ~140 hours/month
-- **Current recommended schedule** (13:30-16:15): ~13.75 hours/week = ~55 hours/month
-- **Savings vs 16:00-23:00**: ~61% reduction in runtime hours
+- **Temporary auto-start window** (13:30-16:15): ~13.75 hours/week = ~55 hours/month
+- **Current default**: manual start only, with a 16:15 weekday safety-stop
 
 ## Jenkins + Terraform (CI Validation)
 
