@@ -62,6 +62,9 @@ The Codex automation should do the following:
    - Prometheus: check for Rocket.Chat metrics after startup and check maintenance CronJob freshness.
    - Loki: check recent logs from `monitoring` and `rocketchat` namespaces. If `rocketchat` is absent after startup, call that out.
    - Tempo: check whether trace data is visible when a synthetic trace job ran.
+   - Rocket.Chat HTTP: when the runner starts AKS, treat an initial `/api/info` failure as startup lag until the bounded retry window expires. Record final HTTP status code and attempt count.
+   - Jenkins: verify the OKE controller separately from AKS workload health. Public `/login` should not return a 5xx status, the `jenkins` Argo app should be both `Synced` and `Healthy`, the controller pod should be Ready with service endpoints, and startup logs should not contain plugin dependency failures such as `Failed Loading plugin`, `Update required`, `Failed to load`, or the null `SCM.getKey()` pipeline signature.
+   - Jenkins managed jobs: confirm `version-check-rocketchat-k8s` and `security-validation-rocketchat-k8s` render from the managed-jobs configmap with `*/main` and the expected Jenkinsfile paths. Check last-build metadata when Jenkins allows anonymous-safe JSON; otherwise record `auth_required` rather than reading credentials.
 4. Inspect GitHub open issues and PRs:
    - Current known issue: `#113` tracks enabling TLS for operator-managed MongoDB.
    - Current known PR pattern: automated version update PRs should be refreshed before deciding merge readiness.
@@ -77,8 +80,9 @@ The Codex automation should do the following:
 6. Draft a dark-first HTML report using the `codex-html-report` skill. Include:
    - Cluster power-state decision and whether AKS was started.
    - Kubernetes health summary.
-   - Rocket.Chat HTTP result.
+   - Rocket.Chat HTTP result, final status code, and attempt count.
    - OKE Grafana/Prometheus/Loki/Tempo findings.
+   - OKE Jenkins public HTTP/login status, Argo sync/health, pod readiness, service route evidence, startup-log plugin scan, managed-job source rendering, and last-build status or `auth_required`.
    - GitHub issue/PR queue and recommended action.
    - Update candidates and risk.
    - Shutdown decision.
