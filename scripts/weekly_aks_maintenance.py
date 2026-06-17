@@ -34,6 +34,8 @@ DEFAULT_OKE_JENKINS_APP = "jenkins"
 DEFAULT_OKE_JENKINS_NAMESPACE = "jenkins"
 DEFAULT_OKE_ARGOCD_NAMESPACE = "argocd"
 DEFAULT_OKE_MANAGED_JOBS_CONFIGMAP = "jenkins-jenkins-config-managed-jobs"
+DEFAULT_AKS_JENKINS_AGENT_NAMESPACE = "jenkins"
+DEFAULT_AKS_JENKINS_AGENT_DEPLOYMENT = "jenkins-static-agent"
 
 SECRET_PATTERNS = (
     re.compile(r"(?i)(authorization:\s*(?:bearer|basic)\s+)[^\s]+"),
@@ -177,6 +179,58 @@ def summarize_workloads(payload: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return summaries
+
+
+def summarize_deployment(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict) or not payload.get("metadata"):
+        return {}
+    meta = payload.get("metadata", {})
+    spec = payload.get("spec", {})
+    status = payload.get("status", {})
+    desired = int(spec.get("replicas") or 0)
+    ready = int(status.get("readyReplicas") or 0)
+    available = int(status.get("availableReplicas") or 0)
+    updated = int(status.get("updatedReplicas") or 0)
+    return {
+        "namespace": meta.get("namespace", ""),
+        "name": meta.get("name", ""),
+        "desired": desired,
+        "ready": ready,
+        "available": available,
+        "updated": updated,
+        "healthy": ready >= desired and available >= desired and updated >= desired,
+    }
+
+
+def deployment_label_selector(payload: dict[str, Any], fallback: str) -> str:
+    match_labels = (((payload.get("spec") or {}).get("selector") or {}).get("matchLabels") or {}) if isinstance(payload, dict) else {}
+    if not match_labels:
+        return fallback
+    return ",".join(f"{key}={value}" for key, value in sorted(match_labels.items()))
+
+
+def summarize_ready_pods(payload: dict[str, Any]) -> dict[str, Any]:
+    items = payload.get("items", []) if isinstance(payload, dict) else []
+    pods: list[dict[str, Any]] = []
+    for pod in items:
+        meta = pod.get("metadata", {})
+        status = pod.get("status", {})
+        container_statuses = status.get("containerStatuses") or []
+        ready = bool(container_statuses) and all(container.get("ready") for container in container_statuses)
+        pods.append(
+            {
+                "namespace": meta.get("namespace", ""),
+                "name": meta.get("name", ""),
+                "phase": status.get("phase", "Unknown"),
+                "ready": ready,
+                "restart_count": sum(int(container.get("restartCount", 0) or 0) for container in container_statuses),
+            }
+        )
+    return {
+        "total": len(pods),
+        "ready": sum(1 for pod in pods if pod.get("phase") == "Running" and pod.get("ready")),
+        "pods": pods,
+    }
 
 
 def summarize_argo_application(payload: dict[str, Any]) -> dict[str, Any]:
@@ -342,6 +396,33 @@ def build_oke_jenkins_findings(oke: dict[str, Any]) -> list[str]:
     return findings
 
 
+def build_aks_jenkins_agent_findings(agent: dict[str, Any]) -> list[str]:
+    findings: list[str] = []
+    if agent.get("skipped_reason"):
+        findings.append(f"AKS Jenkins static agent check skipped: {agent['skipped_reason']}.")
+        return findings
+
+    deployment = agent.get("deployment") or {}
+    if not deployment:
+        findings.append("AKS Jenkins static agent deployment was not found.")
+    elif not deployment.get("healthy"):
+        findings.append(
+            "AKS Jenkins static agent deployment ready "
+            f"{deployment.get('ready')}/{deployment.get('desired')}."
+        )
+
+    pods = agent.get("pods") or {}
+    if not pods or pods.get("total", 0) == 0:
+        findings.append("AKS Jenkins static agent has no matching pods.")
+    elif pods.get("ready") != pods.get("total"):
+        findings.append(f"AKS Jenkins static agent pods ready {pods.get('ready')}/{pods.get('total')}.")
+
+    for pod in pods.get("pods", []):
+        if pod.get("restart_count", 0) > 0:
+            findings.append(f"AKS Jenkins static agent pod {pod.get('name')} has {pod.get('restart_count')} restarts.")
+    return findings
+
+
 def http_check_succeeded(result: dict[str, Any]) -> bool:
     status_code = str(result.get("stdout", "")).strip()
     return result.get("exit_code") == 0 and status_code.startswith("2")
@@ -389,6 +470,7 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
         "",
         f"- Kubernetes reachable: `{report['kubernetes'].get('reachable', False)}`",
         f"- Rocket.Chat HTTP check: `{report['http'].get('status', 'skipped')}`",
+        f"- AKS Jenkins static agent pods ready: `{(report.get('aks_jenkins_agent') or {}).get('pods', {}).get('ready', 'skipped')}/{(report.get('aks_jenkins_agent') or {}).get('pods', {}).get('total', 'skipped')}`",
         f"- OKE Jenkins public login: `{report['oke_jenkins'].get('public_login_status_code', 'skipped')}`",
         f"- OKE Jenkins Argo health: `{(report['oke_jenkins'].get('argo_application') or {}).get('health_status', 'skipped')}`",
         f"- Open PRs: `{len(report['github'].get('pull_requests', []))}`",
@@ -406,6 +488,8 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
         lines.append("- Check candidate updates against release notes before applying changes.")
     if report["oke_jenkins"].get("findings"):
         lines.extend(f"- OKE Jenkins: {finding}" for finding in report["oke_jenkins"]["findings"])
+    if (report.get("aks_jenkins_agent") or {}).get("findings"):
+        lines.extend(f"- AKS Jenkins static agent: {finding}" for finding in report["aks_jenkins_agent"]["findings"])
     if not lines[-1].startswith("- "):
         lines.append("- No deterministic follow-up was produced by the runner.")
 
@@ -426,6 +510,12 @@ def write_html_index(report_dir: Path, report: dict[str, Any]) -> Path:
         ("Power after", str(report["aks"].get("power_state_after", "unknown"))),
         ("Kubernetes reachable", str(report["kubernetes"].get("reachable", False))),
         ("Rocket.Chat HTTP", str(report["http"].get("status", "skipped"))),
+        (
+            "AKS Jenkins static agent",
+            f"{(report.get('aks_jenkins_agent') or {}).get('pods', {}).get('ready', 'skipped')}/"
+            f"{(report.get('aks_jenkins_agent') or {}).get('pods', {}).get('total', 'skipped')} pods ready",
+        ),
+        ("AKS Jenkins static agent findings", str(len((report.get("aks_jenkins_agent") or {}).get("findings", [])))),
         ("OKE Jenkins public login", str(report["oke_jenkins"].get("public_login_status_code", "skipped"))),
         ("OKE Jenkins Argo health", str((report["oke_jenkins"].get("argo_application") or {}).get("health_status", "skipped"))),
         ("OKE Jenkins findings", str(len(report["oke_jenkins"].get("findings", [])))),
@@ -508,6 +598,14 @@ def main() -> int:
     parser.add_argument("--oke-jenkins-namespace", default=os.getenv("OKE_JENKINS_NAMESPACE", DEFAULT_OKE_JENKINS_NAMESPACE))
     parser.add_argument("--oke-argocd-namespace", default=os.getenv("OKE_ARGOCD_NAMESPACE", DEFAULT_OKE_ARGOCD_NAMESPACE))
     parser.add_argument(
+        "--aks-jenkins-agent-namespace",
+        default=os.getenv("AKS_JENKINS_AGENT_NAMESPACE", DEFAULT_AKS_JENKINS_AGENT_NAMESPACE),
+    )
+    parser.add_argument(
+        "--aks-jenkins-agent-deployment",
+        default=os.getenv("AKS_JENKINS_AGENT_DEPLOYMENT", DEFAULT_AKS_JENKINS_AGENT_DEPLOYMENT),
+    )
+    parser.add_argument(
         "--oke-managed-jobs-configmap",
         default=os.getenv("OKE_MANAGED_JOBS_CONFIGMAP", DEFAULT_OKE_MANAGED_JOBS_CONFIGMAP),
     )
@@ -544,6 +642,7 @@ def main() -> int:
         "commands": {},
         "aks": {},
         "kubernetes": {},
+        "aks_jenkins_agent": {},
         "oke_jenkins": {},
         "http": {},
         "github": {},
@@ -710,6 +809,51 @@ def main() -> int:
                 report["commands"]["kubectl_rocketchat_endpointslices"] = endpoints
                 report["kubernetes"]["pods"] = summarize_pods(load_json(pods, {}))
                 report["kubernetes"]["workloads"] = summarize_workloads(load_json(workloads, {}))
+                agent_deployment = run(
+                    [
+                        "kubectl",
+                        "get",
+                        "deployment",
+                        args.aks_jenkins_agent_deployment,
+                        "-n",
+                        args.aks_jenkins_agent_namespace,
+                        "-o",
+                        "json",
+                    ],
+                    env=env,
+                    timeout=90,
+                )
+                agent_deployment_payload = load_json(agent_deployment, {})
+                agent_selector = deployment_label_selector(
+                    agent_deployment_payload,
+                    f"app={args.aks_jenkins_agent_deployment}",
+                )
+                agent_pods = run(
+                    [
+                        "kubectl",
+                        "get",
+                        "pods",
+                        "-n",
+                        args.aks_jenkins_agent_namespace,
+                        "-l",
+                        agent_selector,
+                        "-o",
+                        "json",
+                    ],
+                    env=env,
+                    timeout=90,
+                )
+                report["commands"]["kubectl_aks_jenkins_agent_deployment"] = agent_deployment
+                report["commands"]["kubectl_aks_jenkins_agent_pods"] = agent_pods
+                report["aks_jenkins_agent"] = {
+                    "namespace": args.aks_jenkins_agent_namespace,
+                    "deployment_name": args.aks_jenkins_agent_deployment,
+                    "pod_selector": agent_selector,
+                    "deployment_available": agent_deployment["exit_code"] == 0,
+                    "deployment": summarize_deployment(agent_deployment_payload),
+                    "pods": summarize_ready_pods(load_json(agent_pods, {})),
+                }
+                report["aks_jenkins_agent"]["findings"] = build_aks_jenkins_agent_findings(report["aks_jenkins_agent"])
 
                 observability_script = ROOT / "ops" / "scripts" / "verify-observability.sh"
                 if observability_script.exists():
@@ -719,6 +863,12 @@ def main() -> int:
     elif report["aks"].get("power_state_after"):
         report["kubernetes"]["reachable"] = False
         report["kubernetes"]["skipped_reason"] = "AKS is not running or required tools are unavailable."
+        report["aks_jenkins_agent"] = {
+            "namespace": args.aks_jenkins_agent_namespace,
+            "deployment_name": args.aks_jenkins_agent_deployment,
+            "skipped_reason": report["kubernetes"]["skipped_reason"],
+        }
+        report["aks_jenkins_agent"]["findings"] = build_aks_jenkins_agent_findings(report["aks_jenkins_agent"])
 
     if report["tools"]["curl"]:
         url = args.rocketchat_url.rstrip("/") + "/api/info"
