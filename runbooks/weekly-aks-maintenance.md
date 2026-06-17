@@ -73,6 +73,7 @@ The Codex automation should do the following:
    - Apply safe updates through repo-backed GitOps changes when evidence and checks support them and Azure or OKE will reconcile from Git. Draft risky runtime or hard-gated updates instead of applying them directly.
    - Run Terraform apply only after fmt, validate, and plan evidence is clean and the expected diff is documented in the report.
    - Use Argo CD refresh or sync when reconciliation is stale or required after a Git-backed change, then capture before/after health and sync status.
+   - When AKS is stopped, still review managed resource group residual cost. Standard Load Balancer, public IPs, and disks can keep billing even with node compute off.
 6. Draft a dark-first HTML report using the `codex-html-report` skill. Include:
    - Cluster power-state decision and whether AKS was started.
    - Kubernetes health summary.

@@ -243,6 +243,8 @@ The AKS cluster uses **Azure Automation** to keep the test environment off by de
 - **Weekends**: No scheduled start; cluster stays off unless manually started
 - **Runtime**: Pay-per-use; bounded by manual starts plus the weekday safety-stop
 - **Reasoning**: This cluster is used mainly for occasional Rocket.Chat work/testing, so daily auto-start is wasteful on a personal PAYG subscription.
+- **Budget source of truth**: `budget.tf` creates the current subscription budget `aks-canepro-monthly-budget`. If an email alert still references `AKS_Budget`, that alert is from the pre-migration subscription-side budget or action group and should be removed there instead of changing the PAYG Terraform budget.
+- **Residual spend while stopped**: `az aks stop` removes node compute, but Standard Load Balancer, public IPs, and persistent disks in the managed resource group still incur charges.
 
 ### Configuration
 

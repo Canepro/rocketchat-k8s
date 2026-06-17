@@ -246,6 +246,10 @@ The cluster runs on an automated schedule to minimize costs:
 - **Monthly Hours**: ~39 hours
 - **Reasoning**: enough startup buffer for Argo resync plus a short working window on a personal PAYG budget
 
+The current budget source of truth is the Terraform-managed personal PAYG subscription budget in [`terraform/budget.tf`](terraform/budget.tf). If Azure sends an alert for budget name `AKS_Budget`, treat it as legacy pre-migration noise until the old subscription-side budget or action group is removed. The current PAYG budget name is `aks-canepro-monthly-budget`.
+
+Stopping AKS removes compute spend, but it does not remove all spend. Standard Load Balancer, public IPs, and persistent disks in the managed resource group can still accrue charges while the cluster is stopped.
+
 Schedule resources live in `terraform/automation.tf`, and operators change the actual start/stop times through `terraform.tfvars` as documented in [`terraform/README.md`](terraform/README.md).
 
 ### Maintenance Jobs
