@@ -28,12 +28,19 @@ DEFAULT_CLUSTER = "aks-canepro"
 DEFAULT_RESOURCE_GROUP = "rg-canepro-aks"
 DEFAULT_ROCKETCHAT_URL = "https://k8.canepro.me"
 DEFAULT_TIMEZONE = "Europe/London"
+DEFAULT_OKE_KUBE_CONTEXT = "oke-cluster"
+DEFAULT_OKE_JENKINS_URL = "https://jenkins-oke.canepro.me"
+DEFAULT_OKE_JENKINS_APP = "jenkins"
+DEFAULT_OKE_JENKINS_NAMESPACE = "jenkins"
+DEFAULT_OKE_ARGOCD_NAMESPACE = "argocd"
+DEFAULT_OKE_MANAGED_JOBS_CONFIGMAP = "jenkins-jenkins-config-managed-jobs"
 
 SECRET_PATTERNS = (
     re.compile(r"(?i)(authorization:\s*(?:bearer|basic)\s+)[^\s]+"),
     re.compile(r"(?i)((?:token|password|secret|apikey|api_key)[=:]\s*)[^\s]+"),
     re.compile(r"gh[opsu]_[A-Za-z0-9_]+"),
 )
+JSON_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 def utc_now() -> dt.datetime:
@@ -97,8 +104,9 @@ def run(
 def load_json(result: dict[str, Any], default: Any) -> Any:
     if result["exit_code"] != 0 or not result["stdout"]:
         return default
+    text = JSON_CONTROL_CHARS.sub("", result["stdout"])
     try:
-        return json.loads(result["stdout"])
+        return json.loads(text)
     except json.JSONDecodeError:
         return default
 
@@ -171,6 +179,174 @@ def summarize_workloads(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return summaries
 
 
+def summarize_argo_application(payload: dict[str, Any]) -> dict[str, Any]:
+    status = payload.get("status", {}) if isinstance(payload, dict) else {}
+    if not status and not payload.get("metadata"):
+        return {}
+    sync = status.get("sync") or {}
+    health = status.get("health") or {}
+    operation_state = status.get("operationState") or {}
+    history = status.get("history") or []
+    latest_history = history[-1] if history else {}
+    return {
+        "name": (payload.get("metadata") or {}).get("name"),
+        "sync_status": sync.get("status"),
+        "health_status": health.get("status"),
+        "operation_phase": operation_state.get("phase"),
+        "operation_message": operation_state.get("message"),
+        "revision": sync.get("revision") or latest_history.get("revision"),
+        "reconciled_at": status.get("reconciledAt"),
+    }
+
+
+def summarize_jenkins_pod_status(text: str) -> dict[str, Any]:
+    pods: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        name, phase, created_at, revision, containers = (line.split("\t") + ["", "", "", "", ""])[:5]
+        container_states = []
+        ready = True
+        restart_count = 0
+        for raw_container in containers.split(";"):
+            if not raw_container:
+                continue
+            container_name, _, state = raw_container.partition("=")
+            ready_text, _, restart_text = state.partition(":")
+            container_ready = ready_text == "true"
+            ready = ready and container_ready
+            try:
+                restart_count += int(restart_text or "0")
+            except ValueError:
+                pass
+            container_states.append({"name": container_name, "ready": container_ready})
+        pods.append(
+            {
+                "name": name,
+                "phase": phase,
+                "created_at": created_at,
+                "revision": revision,
+                "ready": ready and bool(container_states),
+                "restart_count": restart_count,
+                "containers": container_states,
+            }
+        )
+    return {
+        "total": len(pods),
+        "ready": sum(1 for pod in pods if pod.get("ready")),
+        "pods": pods,
+    }
+
+
+def summarize_jenkins_managed_jobs(payload: dict[str, Any]) -> dict[str, Any]:
+    data = payload.get("data", {}) if isinstance(payload, dict) else {}
+    text = "\n".join(str(value) for value in data.values())
+    expected = {
+        "version-check-rocketchat-k8s": ".jenkins/version-check.Jenkinsfile",
+        "security-validation-rocketchat-k8s": ".jenkins/security-validation.Jenkinsfile",
+    }
+    jobs: dict[str, Any] = {}
+    for job, script_path in expected.items():
+        start = text.find(job)
+        end = text.find("pipelineJob(", start + 1) if start >= 0 else -1
+        snippet = text[start : end if end > start else start + 2500] if start >= 0 else ""
+        jobs[job] = {
+            "present": start >= 0,
+            "branch_main": "branch('*/main')" in snippet or 'branch("*/main")' in snippet,
+            "script_path_present": script_path in snippet,
+            "cron_present": "cron(" in snippet,
+        }
+    return {
+        "configmap_present": bool(data),
+        "jobs": jobs,
+    }
+
+
+def summarize_jenkins_logs(text: str) -> dict[str, Any]:
+    return {
+        "fully_up": "Jenkins is fully up and running" in text,
+        "scm_getkey_null": "SCM.getKey()" in text or 'because "scm" is null' in text,
+        "failed_plugin_health": sorted(set(re.findall(r"failed plugins: \[([^\]]+)\]", text)))[:10],
+        "failed_loading_plugins": sorted(set(re.findall(r"Failed Loading plugin ([^\n\r]+)", text)))[:25],
+        "failed_to_load": len(re.findall(r"Failed to load", text)),
+        "severe_count": len(re.findall(r"\bSEVERE\b", text)),
+        "plugin_wrapper_count": len(re.findall(r"hudson\.PluginWrapper", text)),
+        "requires_jenkins": sorted(set(re.findall(r"requires Jenkins ([^\n\r]+)", text)))[:25],
+        "update_required": sorted(set(re.findall(r"Update required: ([^\n\r]+)", text)))[:25],
+    }
+
+
+def summarize_jenkins_job_api(job: str, result: dict[str, Any]) -> dict[str, Any]:
+    payload = load_json(result, {})
+    stdout = result.get("stdout", "")
+    stdout_lower = stdout.lower()
+    json_parse_ok = bool(payload)
+    auth_required = (
+        result.get("exit_code") != 0
+        and stdout == ""
+        and ("403" in result.get("stderr", "") or "401" in result.get("stderr", ""))
+    ) or ("<html" in stdout_lower and ("login" in stdout_lower or "sign in" in stdout_lower))
+    return {
+        "job": job,
+        "query_exit_code": result.get("exit_code"),
+        "json_parse_ok": json_parse_ok,
+        "auth_required": auth_required,
+        "result": payload.get("result"),
+        "building": payload.get("building"),
+        "timestamp": payload.get("timestamp"),
+        "duration": payload.get("duration"),
+        "url_present": bool(payload.get("url")),
+    }
+
+
+def build_oke_jenkins_findings(oke: dict[str, Any]) -> list[str]:
+    findings: list[str] = []
+    http_code = str(oke.get("public_login_status_code", "")).strip()
+    if http_code and http_code != "200":
+        findings.append(f"OKE Jenkins public login returned HTTP {http_code}.")
+
+    app = oke.get("argo_application") or {}
+    if oke.get("argo_application_available") is False:
+        findings.append("Argo app jenkins check failed.")
+    elif app:
+        if app.get("sync_status") != "Synced":
+            findings.append(f"Argo app jenkins sync status is {app.get('sync_status')}.")
+        if app.get("health_status") != "Healthy":
+            findings.append(f"Argo app jenkins health status is {app.get('health_status')}.")
+
+    pods = oke.get("pods") or {}
+    if pods and pods.get("ready") != pods.get("total"):
+        findings.append(f"Jenkins controller pods ready {pods.get('ready')}/{pods.get('total')}.")
+
+    logs = oke.get("startup_log_signatures") or {}
+    if logs.get("scm_getkey_null"):
+        findings.append("Jenkins logs contain the null SCM.getKey() pipeline failure signature.")
+    if logs.get("failed_plugin_health") or logs.get("failed_loading_plugins") or logs.get("update_required"):
+        findings.append("Jenkins logs contain failed plugin or dependency update signatures.")
+
+    managed_jobs = oke.get("managed_jobs") or {}
+    for job, state in (managed_jobs.get("jobs") or {}).items():
+        if not state.get("present"):
+            findings.append(f"Managed job {job} is missing from the Jenkins managed-jobs configmap.")
+        elif not state.get("branch_main") or not state.get("script_path_present"):
+            findings.append(f"Managed job {job} does not render the expected main branch and Jenkinsfile path.")
+
+    for job in oke.get("last_builds", []):
+        if job.get("auth_required"):
+            continue
+        if job.get("query_exit_code") != 0 or not job.get("json_parse_ok"):
+            findings.append(f"Managed job {job.get('job')} last-build API check failed.")
+        elif job.get("result") not in ("SUCCESS", None) and not job.get("building"):
+            findings.append(f"Managed job {job.get('job')} last result is {job.get('result')}.")
+
+    return findings
+
+
+def http_check_succeeded(result: dict[str, Any]) -> bool:
+    status_code = str(result.get("stdout", "")).strip()
+    return result.get("exit_code") == 0 and status_code.startswith("2")
+
+
 def parse_version_candidates() -> list[dict[str, str]]:
     versions = ROOT / "VERSIONS.md"
     if not versions.exists():
@@ -213,6 +389,8 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
         "",
         f"- Kubernetes reachable: `{report['kubernetes'].get('reachable', False)}`",
         f"- Rocket.Chat HTTP check: `{report['http'].get('status', 'skipped')}`",
+        f"- OKE Jenkins public login: `{report['oke_jenkins'].get('public_login_status_code', 'skipped')}`",
+        f"- OKE Jenkins Argo health: `{(report['oke_jenkins'].get('argo_application') or {}).get('health_status', 'skipped')}`",
         f"- Open PRs: `{len(report['github'].get('pull_requests', []))}`",
         f"- Open issues: `{len(report['github'].get('issues', []))}`",
         f"- Version candidates in VERSIONS.md: `{len(report['updates'].get('version_candidates', []))}`",
@@ -226,6 +404,8 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
         lines.append("- Review open issues against live cluster evidence from this run.")
     if report["updates"].get("version_candidates"):
         lines.append("- Check candidate updates against release notes before applying changes.")
+    if report["oke_jenkins"].get("findings"):
+        lines.extend(f"- OKE Jenkins: {finding}" for finding in report["oke_jenkins"]["findings"])
     if not lines[-1].startswith("- "):
         lines.append("- No deterministic follow-up was produced by the runner.")
 
@@ -246,6 +426,9 @@ def write_html_index(report_dir: Path, report: dict[str, Any]) -> Path:
         ("Power after", str(report["aks"].get("power_state_after", "unknown"))),
         ("Kubernetes reachable", str(report["kubernetes"].get("reachable", False))),
         ("Rocket.Chat HTTP", str(report["http"].get("status", "skipped"))),
+        ("OKE Jenkins public login", str(report["oke_jenkins"].get("public_login_status_code", "skipped"))),
+        ("OKE Jenkins Argo health", str((report["oke_jenkins"].get("argo_application") or {}).get("health_status", "skipped"))),
+        ("OKE Jenkins findings", str(len(report["oke_jenkins"].get("findings", [])))),
         ("Open issues", str(len(report["github"].get("issues", [])))),
         ("Open PRs", str(len(report["github"].get("pull_requests", [])))),
     ):
@@ -319,6 +502,15 @@ def main() -> int:
     parser.add_argument("--rocketchat-url", default=os.getenv("ROCKETCHAT_URL", DEFAULT_ROCKETCHAT_URL))
     parser.add_argument("--timezone", default=os.getenv("AKS_MAINTENANCE_TIMEZONE", DEFAULT_TIMEZONE))
     parser.add_argument("--report-dir", default=os.getenv("AKS_MAINTENANCE_REPORT_DIR", str(ROOT / "reports" / "weekly-aks-maintenance")))
+    parser.add_argument("--oke-kube-context", "--oke-context", default=os.getenv("OKE_KUBE_CONTEXT", DEFAULT_OKE_KUBE_CONTEXT))
+    parser.add_argument("--oke-jenkins-url", "--jenkins-url", default=os.getenv("OKE_JENKINS_URL", DEFAULT_OKE_JENKINS_URL))
+    parser.add_argument("--oke-jenkins-app", default=os.getenv("OKE_JENKINS_APP", DEFAULT_OKE_JENKINS_APP))
+    parser.add_argument("--oke-jenkins-namespace", default=os.getenv("OKE_JENKINS_NAMESPACE", DEFAULT_OKE_JENKINS_NAMESPACE))
+    parser.add_argument("--oke-argocd-namespace", default=os.getenv("OKE_ARGOCD_NAMESPACE", DEFAULT_OKE_ARGOCD_NAMESPACE))
+    parser.add_argument(
+        "--oke-managed-jobs-configmap",
+        default=os.getenv("OKE_MANAGED_JOBS_CONFIGMAP", DEFAULT_OKE_MANAGED_JOBS_CONFIGMAP),
+    )
     parser.add_argument("--execute", action="store_true", help="Allow live AKS start/stop actions.")
     parser.add_argument(
         "--shutdown-mode",
@@ -328,6 +520,8 @@ def main() -> int:
     )
     parser.add_argument("--wait-timeout", type=int, default=int(os.getenv("AKS_MAINTENANCE_WAIT_TIMEOUT", "900")))
     parser.add_argument("--settle-seconds", type=int, default=int(os.getenv("AKS_MAINTENANCE_SETTLE_SECONDS", "90")))
+    parser.add_argument("--http-retry-window", type=int, default=int(os.getenv("AKS_MAINTENANCE_HTTP_RETRY_WINDOW", "300")))
+    parser.add_argument("--http-retry-interval", type=int, default=int(os.getenv("AKS_MAINTENANCE_HTTP_RETRY_INTERVAL", "20")))
     args = parser.parse_args()
 
     stamp = utc_now().strftime("%Y%m%dT%H%M%SZ")
@@ -350,6 +544,7 @@ def main() -> int:
         "commands": {},
         "aks": {},
         "kubernetes": {},
+        "oke_jenkins": {},
         "http": {},
         "github": {},
         "updates": {"version_candidates": parse_version_candidates()},
@@ -527,13 +722,168 @@ def main() -> int:
 
     if report["tools"]["curl"]:
         url = args.rocketchat_url.rstrip("/") + "/api/info"
-        http = run(["curl", "-fsS", "--max-time", "20", url], timeout=30)
-        report["commands"]["curl_rocketchat_api_info"] = http
-        report["http"]["status"] = "ok" if http["exit_code"] == 0 else "failed"
+        retry_window = max(0, args.http_retry_window if report["aks"].get("started_by_this_run") else 0)
+        retry_interval = max(1, args.http_retry_interval)
+        deadline = time.time() + retry_window
+        attempts: list[dict[str, Any]] = []
+        while True:
+            http = run(["curl", "-skS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", url], timeout=30)
+            attempts.append(http)
+            report["commands"][f"curl_rocketchat_api_info_attempt_{len(attempts)}"] = http
+            if http_check_succeeded(http) or time.time() >= deadline:
+                break
+            time.sleep(retry_interval)
+
+        final_http = attempts[-1]
+        report["http"]["status"] = "ok" if http_check_succeeded(final_http) else "failed"
+        report["http"]["status_code"] = final_http.get("stdout", "").strip() or "unknown"
+        report["http"]["attempts"] = len(attempts)
+        report["http"]["retry_window_seconds"] = retry_window
         report["http"]["url"] = url
     else:
         report["http"]["status"] = "skipped"
         report["http"]["reason"] = "curl is not available"
+
+    report["oke_jenkins"] = {
+        "context": args.oke_kube_context,
+        "namespace": args.oke_jenkins_namespace,
+        "argocd_namespace": args.oke_argocd_namespace,
+        "app": args.oke_jenkins_app,
+        "url": args.oke_jenkins_url.rstrip("/"),
+        "findings": [],
+    }
+    if report["tools"]["curl"]:
+        jenkins_login = run(
+            ["curl", "-sk", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "20", args.oke_jenkins_url.rstrip("/") + "/login"],
+            timeout=30,
+        )
+        report["commands"]["curl_oke_jenkins_login"] = jenkins_login
+        report["oke_jenkins"]["public_login_status_code"] = jenkins_login.get("stdout", "").strip() or "unknown"
+    else:
+        report["oke_jenkins"]["public_login_status_code"] = "skipped"
+
+    if report["tools"]["kubectl"] and args.oke_kube_context:
+        context_check = run(
+            ["kubectl", "--request-timeout=20s", "config", "get-contexts", args.oke_kube_context, "-o", "name"],
+            timeout=30,
+        )
+        report["commands"]["kubectl_oke_context_check"] = context_check
+        if context_check["exit_code"] == 0 and context_check.get("stdout", "").strip() == args.oke_kube_context:
+            argo_app = run(
+                [
+                    "kubectl",
+                    "--request-timeout=20s",
+                    "--context",
+                    args.oke_kube_context,
+                    "-n",
+                    args.oke_argocd_namespace,
+                    "get",
+                    "application",
+                    args.oke_jenkins_app,
+                    "-o",
+                    "json",
+                ],
+                timeout=45,
+            )
+            pod_status = run(
+                [
+                    "kubectl",
+                    "--request-timeout=20s",
+                    "--context",
+                    args.oke_kube_context,
+                    "-n",
+                    args.oke_jenkins_namespace,
+                    "get",
+                    "pod",
+                    "jenkins-0",
+                    "-o",
+                    "jsonpath={.metadata.name}{'\\t'}{.status.phase}{'\\t'}{.metadata.creationTimestamp}{'\\t'}{.metadata.labels.controller-revision-hash}{'\\t'}{range .status.containerStatuses[*]}{.name}={.ready}:{.restartCount};{end}{'\\n'}",
+                ],
+                timeout=45,
+            )
+            service_routes = run(
+                [
+                    "kubectl",
+                    "--request-timeout=20s",
+                    "--context",
+                    args.oke_kube_context,
+                    "-n",
+                    args.oke_jenkins_namespace,
+                    "get",
+                    "svc,endpointslice,ingress",
+                    "-o",
+                    "wide",
+                ],
+                timeout=45,
+            )
+            managed_jobs = run(
+                [
+                    "kubectl",
+                    "--request-timeout=20s",
+                    "--context",
+                    args.oke_kube_context,
+                    "-n",
+                    args.oke_jenkins_namespace,
+                    "get",
+                    "configmap",
+                    args.oke_managed_jobs_configmap,
+                    "-o",
+                    "json",
+                ],
+                timeout=45,
+            )
+            logs = run(
+                [
+                    "kubectl",
+                    "--request-timeout=20s",
+                    "--context",
+                    args.oke_kube_context,
+                    "-n",
+                    args.oke_jenkins_namespace,
+                    "logs",
+                    "statefulset/jenkins",
+                    "-c",
+                    "jenkins",
+                    "--since=2h",
+                    "--tail=500",
+                ],
+                timeout=60,
+            )
+            report["commands"]["kubectl_oke_jenkins_argo_app"] = argo_app
+            report["commands"]["kubectl_oke_jenkins_pod_status"] = pod_status
+            report["commands"]["kubectl_oke_jenkins_service_routes"] = service_routes
+            report["commands"]["kubectl_oke_jenkins_managed_jobs"] = managed_jobs
+            report["commands"]["kubectl_oke_jenkins_logs"] = logs
+            report["oke_jenkins"]["argo_application_available"] = argo_app["exit_code"] == 0
+            report["oke_jenkins"]["argo_application"] = summarize_argo_application(load_json(argo_app, {}))
+            report["oke_jenkins"]["pods"] = summarize_jenkins_pod_status(pod_status.get("stdout", ""))
+            report["oke_jenkins"]["service_routes_available"] = service_routes["exit_code"] == 0
+            report["oke_jenkins"]["managed_jobs"] = summarize_jenkins_managed_jobs(load_json(managed_jobs, {}))
+            report["oke_jenkins"]["startup_log_signatures"] = summarize_jenkins_logs(logs.get("stdout", ""))
+        else:
+            report["oke_jenkins"]["skipped_reason"] = f"kubectl context {args.oke_kube_context!r} is unavailable"
+    else:
+        report["oke_jenkins"]["skipped_reason"] = "kubectl is unavailable or OKE context is not configured"
+
+    if report["tools"]["curl"]:
+        last_builds = []
+        for job in ("version-check-rocketchat-k8s", "security-validation-rocketchat-k8s"):
+            job_result = run(
+                [
+                    "curl",
+                    "-fskS",
+                    "-H",
+                    "Accept: application/json",
+                    "--max-time",
+                    "20",
+                    f"{args.oke_jenkins_url.rstrip('/')}/job/{job}/lastBuild/api/json?tree=result,building,timestamp,duration,url",
+                ],
+                timeout=30,
+            )
+            report["commands"][f"curl_oke_jenkins_{job}_last_build"] = job_result
+            last_builds.append(summarize_jenkins_job_api(job, job_result))
+        report["oke_jenkins"]["last_builds"] = last_builds
+    report["oke_jenkins"]["findings"] = build_oke_jenkins_findings(report["oke_jenkins"])
 
     if report["tools"]["gh"]:
         issues = run(
