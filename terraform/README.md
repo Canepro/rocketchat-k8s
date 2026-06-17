@@ -236,7 +236,7 @@ terraform init -reconfigure -backend-config=backend.hcl -migrate-state
 
 The AKS cluster uses **Azure Automation** to keep the test environment off by default without destroying it. Start the cluster manually when Rocket.Chat testing is needed; the scheduled stop remains as a safety net if the cluster is left running.
 
-### Current Recommended Schedule (2026-05-20)
+### Current Recommended Posture (2026-05-20)
 
 - **Start Time**: Manual only by default (`enable_auto_start = false`)
 - **Stop Time**: 16:15 (4:15 PM) on weekdays
@@ -278,12 +278,12 @@ az aks stop --resource-group rg-canepro-aks --name aks-canepro
 
 **Note:** Schedules use `lifecycle { ignore_changes = [start_time] }` to prevent Terraform from updating schedule times on every run. To update schedules, temporarily remove `ignore_changes`, update variables, apply, then restore `ignore_changes`.
 
-### Cost Savings
+### Historical schedule comparison
 
 - **Previous schedule** (08:30-23:00): ~72.5 hours/week = ~290 hours/month
 - **Later evening schedule** (16:00-23:00): ~35 hours/week = ~140 hours/month
-- **Current recommended schedule** (13:30-16:15): ~13.75 hours/week = ~55 hours/month
-- **Savings vs 16:00-23:00**: ~61% reduction in runtime hours
+- **Temporary auto-start window** (13:30-16:15): ~13.75 hours/week = ~55 hours/month
+- **Current default**: manual start only, with a 16:15 weekday safety-stop
 
 ## Jenkins + Terraform (CI Validation)
 

@@ -240,11 +240,12 @@ spec:
 
 ### Cost Optimization
 
-The cluster runs on an automated schedule to minimize costs:
+The default cost posture is manual start plus a weekday safety-stop:
 
-- **Runtime**: Weekdays 14:30-16:15 Europe/London (~1.75 hours/day)
-- **Monthly Hours**: ~39 hours
-- **Reasoning**: enough startup buffer for Argo resync plus a short working window on a personal PAYG budget
+- **Start**: Manual by default
+- **Stop**: 16:15 Europe/London on weekdays
+- **Auto-start**: Disabled by default
+- **Reasoning**: enough control for occasional Rocket.Chat work/testing without paying for a standing weekday start window
 
 The current budget source of truth is the Terraform-managed personal PAYG subscription budget in [`terraform/budget.tf`](terraform/budget.tf). If Azure sends an alert for budget name `AKS_Budget`, treat it as legacy pre-migration noise until the old subscription-side budget or action group is removed. The current PAYG budget name is `aks-canepro-monthly-budget`.
 

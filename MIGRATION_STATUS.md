@@ -142,7 +142,7 @@ This file tracks **where we are vs** the original migration plan (`.cursor/plans
   - 3 secrets created in Azure Key Vault (admin username/password, GitHub token)
   - Deployment guide created (`JENKINS_DEPLOYMENT.md`)
   - DNS A record configured (`jenkins.canepro.me`)
-  - **Status**: Historical pre-cutover note; Jenkins was staged before the old 16:00 Europe/London weekday startup window and is now superseded by the current 13:30 Europe/London schedule.
+  - **Status**: Historical pre-cutover note; Jenkins was staged before the old weekday auto-start windows and is now superseded by the current manual-start-default posture with a 16:15 Europe/London safety-stop.
 
 ## Completed Upgrades (2026-01-16)
 
