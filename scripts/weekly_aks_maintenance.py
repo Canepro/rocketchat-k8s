@@ -482,6 +482,7 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
     ]
     if report["github"].get("pull_requests"):
         lines.append("- Review open PRs with green checks before any merge decision.")
+        lines.append("- If an `aks-agent` Jenkins check was pending while AKS was stopped, refresh it after this run verifies the AKS static agent is Ready before treating the PR as blocked.")
     if report["github"].get("issues"):
         lines.append("- Review open issues against live cluster evidence from this run.")
     if report["updates"].get("version_candidates"):

@@ -103,12 +103,14 @@ This repo is set up so “routine automation” reports into GitHub:
 
 Operational expectation:
 - If the AKS cluster is **stopped**, AKS-side scheduled jobs won’t run until the cluster is manually started.
+- PR checks that target the AKS-hosted `aks-agent` can sit **Pending** while AKS is stopped. During weekly maintenance, start AKS through the runner, verify `jenkins-static-agent` is Ready, then refresh the PR check before deciding whether a PR is mergeable or blocked.
 - Leave the issue/PR open if you’re not ready; the jobs will append comments/updates rather than spamming duplicates.
 
 ### Jenkins Split-Agent (Controller on OKE, Agent on AKS)
 
 When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS):
 
+- **PR check interpretation:** The OKE controller can be healthy while PR checks are still waiting for AKS capacity. A pending `aks-agent` check during an off cluster window means "agent offline" until proven otherwise; it becomes a blocker only after AKS is running, the static agent is healthy, and Jenkins still cannot schedule or complete the build.
 - **Phase 4 – Automated graceful disconnect:** The Azure Automation **stop runbook** (`Stop-AKS-Cluster`) can disable the Jenkins `aks-agent` node before stopping AKS. Set `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` in `terraform.tfvars` (e.g. `https://jenkins.canepro.me` and `admin`; production URL now that domain cutover is complete), then create an Automation Variable **`JenkinsAksAgentDisconnectToken`** in the same Automation Account (see below). The runbook will call the Jenkins API to disable the node, wait 60 seconds, then stop AKS. No token in Terraform/tfvars.
 - **Manual procedure:** If not using Phase 4, follow the **hub-docs** runbook (`JENKINS-SPLIT-AGENT-RUNBOOK.md`): before stopping AKS, check for running builds on `aks-agent`, put the node offline (UI, API, or CLI), wait 30–60 seconds, then run the AKS stop. On startup, the agent reconnects; bring the node back online in Jenkins if it was left offline.
 
