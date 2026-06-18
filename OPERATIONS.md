@@ -103,7 +103,7 @@ This repo is set up so “routine automation” reports into GitHub:
 
 Operational expectation:
 - If the AKS cluster is **stopped**, AKS-side scheduled jobs won’t run until the cluster is manually started.
-- PR checks that target the AKS-hosted `aks-agent` can sit **Pending** while AKS is stopped. During weekly maintenance, start AKS through the runner, verify `jenkins-static-agent` is Ready, then refresh the PR check before deciding whether a PR is mergeable or blocked.
+- PR checks that target the AKS-hosted `aks-agent` can sit **Pending** while AKS is stopped. During weekly maintenance, start AKS through the runner, verify `jenkins-static-agent` is Ready, then refresh the PR check before deciding whether a PR is mergeable or blocked. If AKS is stopped but the runner skips start because this week's activity log already has start/stop activity, rerun with `--execute --force-start-when-stopped --shutdown-mode leave-auto` for a deliberate PR CI unblock window.
 - Leave the issue/PR open if you’re not ready; the jobs will append comments/updates rather than spamming duplicates.
 
 ### Jenkins Split-Agent (Controller on OKE, Agent on AKS)
@@ -169,7 +169,7 @@ The weekly maintenance automation uses the repo runner plus Codex/Grafana MCP ch
 python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
 ```
 
-The runner only starts or stops AKS when `--execute` is passed. It writes local evidence under `reports/weekly-aks-maintenance/`, which is ignored by Git. Codex turns that evidence, Grafana MCP checks, and the GitHub issue/PR queue into a dark-first HTML report, then sends Selene the completed run update and writes a searchable second-brain activity note.
+The runner only starts or stops AKS when `--execute` is passed. By default it will not start a stopped cluster again if Azure activity logs already show AKS start/stop activity this week; use `--force-start-when-stopped` only for an intentional PR CI unblock window after confirming the cost window is acceptable. It writes local evidence under `reports/weekly-aks-maintenance/`, which is ignored by Git. Codex turns that evidence, Grafana MCP checks, and the GitHub issue/PR queue into a dark-first HTML report, then sends Selene the completed run update and writes a searchable second-brain activity note.
 
 See `runbooks/weekly-aks-maintenance.md` for the stop conditions. In short: public GitHub issue/PR updates, repo-backed GitOps changes, checked Terraform applies, and Argo CD refresh/sync actions are allowed on Vincent's personal repos when evidence supports them and Azure or OKE reconciles the expected change. Secret-value handling, out-of-band live mutation, unchecked or destructive Terraform plans, Azure cost actions outside the checked plan, ingress changes, RBAC changes, direct Helm upgrades, Argo CD prune/force/delete/rollback actions, and auto-shutdown changes still need explicit approval.
 

@@ -461,6 +461,7 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
         f"- Cluster: `{report['config']['resource_group']}/{report['config']['cluster']}`",
         f"- Mode: `{'execute' if report['config']['execute'] else 'dry-run'}`",
         f"- Shutdown mode: `{report['config']['shutdown_mode']}`",
+        f"- Force start when stopped: `{report['config'].get('force_start_when_stopped', False)}`",
         f"- Started by this run: `{report['aks'].get('started_by_this_run', False)}`",
         f"- Cluster ran this week: `{report['aks'].get('ran_this_week', 'unknown')}`",
         f"- Power state before: `{report['aks'].get('power_state_before', 'unknown')}`",
@@ -483,6 +484,8 @@ def write_summary(report_dir: Path, report: dict[str, Any]) -> Path:
     if report["github"].get("pull_requests"):
         lines.append("- Review open PRs with green checks before any merge decision.")
         lines.append("- If an `aks-agent` Jenkins check was pending while AKS was stopped, refresh it after this run verifies the AKS static agent is Ready before treating the PR as blocked.")
+    if report["aks"].get("start_skipped_reason"):
+        lines.append(f"- AKS start skipped: {report['aks']['start_skipped_reason']}")
     if report["github"].get("issues"):
         lines.append("- Review open issues against live cluster evidence from this run.")
     if report["updates"].get("version_candidates"):
@@ -621,6 +624,15 @@ def main() -> int:
     parser.add_argument("--settle-seconds", type=int, default=int(os.getenv("AKS_MAINTENANCE_SETTLE_SECONDS", "90")))
     parser.add_argument("--http-retry-window", type=int, default=int(os.getenv("AKS_MAINTENANCE_HTTP_RETRY_WINDOW", "300")))
     parser.add_argument("--http-retry-interval", type=int, default=int(os.getenv("AKS_MAINTENANCE_HTTP_RETRY_INTERVAL", "20")))
+    parser.add_argument(
+        "--force-start-when-stopped",
+        action="store_true",
+        help=(
+            "With --execute, start AKS when it is stopped even if this week's "
+            "activity log already shows start/stop activity. Use for deliberate "
+            "PR CI unblock windows after confirming the cost window is acceptable."
+        ),
+    )
     args = parser.parse_args()
 
     stamp = utc_now().strftime("%Y%m%dT%H%M%SZ")
@@ -638,6 +650,7 @@ def main() -> int:
             "timezone": args.timezone,
             "execute": args.execute,
             "shutdown_mode": args.shutdown_mode,
+            "force_start_when_stopped": args.force_start_when_stopped,
         },
         "tools": {},
         "commands": {},
@@ -711,8 +724,14 @@ def main() -> int:
         report["aks"]["activity_event_count"] = len(activity_events) if isinstance(activity_events, list) else 0
         report["aks"]["ran_this_week"] = ran_this_week
         report["aks"]["started_by_this_run"] = False
+        report["aks"]["force_start_when_stopped"] = args.force_start_when_stopped
 
-        if not ran_this_week and power_before.lower() == "stopped":
+        should_start_stopped_cluster = power_before.lower() == "stopped" and (
+            not ran_this_week or args.force_start_when_stopped
+        )
+        if should_start_stopped_cluster:
+            if ran_this_week and args.force_start_when_stopped:
+                report["aks"]["start_gate"] = "forced_after_weekly_activity"
             if args.execute:
                 start = run(
                     ["az", "aks", "start", "--resource-group", args.resource_group, "--name", args.cluster, "--output", "json"],
@@ -746,6 +765,11 @@ def main() -> int:
                     time.sleep(args.settle_seconds)
             else:
                 report["aks"]["would_start"] = True
+        elif power_before.lower() == "stopped" and ran_this_week:
+            report["aks"]["start_skipped_reason"] = (
+                "AKS is stopped, but this week's activity log already contains start/stop activity; "
+                "rerun with --execute --force-start-when-stopped for a deliberate PR CI unblock window."
+            )
 
         show_after = run(
             [
