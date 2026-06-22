@@ -40,9 +40,11 @@ Generated weekly evidence is intentionally ignored by Git. Promote only curated 
 ## Guardrails
 
 - `--execute` is required before the runner can start or stop AKS.
+- If AKS is stopped but the activity log already shows a start/stop this week, the runner will not start it again by default. For a deliberate PR CI unblock window, rerun with `--execute --force-start-when-stopped --shutdown-mode leave-auto` after confirming the cost window is acceptable.
 - Default shutdown mode is `leave-auto`, because Jenkins jobs may still run inside the existing weekday window.
 - Use `--shutdown-mode stop-if-started` only when the weekly run should stop AKS immediately after checks.
 - The runner uses a temporary kubeconfig. It does not overwrite the operator kubeconfig.
+- Jenkins PR checks that require `aks-agent` may remain `Pending` while AKS is stopped. Treat that as expected capacity state, not a failed PR. Start AKS through the weekly runner, verify the AKS static agent, then refresh PR checks before any merge decision.
 - Do not print or copy secret values. GitHub, Azure, Jenkins, and observability credentials stay in their configured stores.
 - Public GitHub changes are allowed on Vincent's personal repositories when the automation has clear evidence: update labels, comment, close handled issues, update PR metadata, and merge green mergeable PRs when the change matches the repository policy and checks are passing.
 - Repo-backed GitOps changes are allowed on Vincent's personal repos when they are the right delivery path and the approved Azure-side or OKE-side reconciler will apply them from Git.
@@ -64,11 +66,13 @@ The Codex automation should do the following:
    - Tempo: check whether trace data is visible when a synthetic trace job ran.
    - Rocket.Chat HTTP: when the runner starts AKS, treat an initial `/api/info` failure as startup lag until the bounded retry window expires. Record final HTTP status code and attempt count.
    - Jenkins: verify the Azure AKS static agent separately from the OKE controller. The static `jenkins-static-agent` deployment runs in AKS namespace `jenkins`; it should have Ready pods before Jenkins jobs that target `aks-agent` are treated as healthy.
+   - Jenkins PR checks: if a PR check is `Pending` before AKS starts and targets `aks-agent`, do not classify the PR as blocked. After the runner starts AKS, confirm `jenkins-static-agent` is Ready, then refresh the PR check. If the runner skips start because AKS already had start/stop activity this week, use `--force-start-when-stopped` for the deliberate PR-unblock window instead of leaving the PR stuck on offline CI capacity. Only block or skip the merge if the refreshed check fails, remains pending after the agent is healthy and Jenkins has had time to schedule it, or the diff no longer matches policy.
    - OKE Jenkins controller: verify the controller separately from AKS workload health. Public `/login` should not return a 5xx status, the `jenkins` Argo app should be both `Synced` and `Healthy`, the controller pod should be Ready with service endpoints, and startup logs should not contain plugin dependency failures such as `Failed Loading plugin`, `Update required`, `Failed to load`, or the null `SCM.getKey()` pipeline signature.
    - Jenkins managed jobs: confirm `version-check-rocketchat-k8s` and `security-validation-rocketchat-k8s` render from the managed-jobs configmap with `*/main` and the expected Jenkinsfile paths. Check last-build metadata when Jenkins allows anonymous-safe JSON; otherwise record `auth_required` rather than reading credentials.
 4. Inspect GitHub open issues and PRs:
    - Current known issue: `#113` tracks enabling TLS for operator-managed MongoDB.
    - Current known PR pattern: automated version update PRs should be refreshed before deciding merge readiness.
+   - For PRs whose only blocker is an `aks-agent` Jenkins check while AKS is stopped, start AKS through the runner and refresh checks after the static agent is Ready. If the normal weekly activity gate suppresses a second start, rerun with `--force-start-when-stopped` for the explicit unblock window. Do not leave a PR open merely because CI capacity was offline before the maintenance window.
    - Green, mergeable PRs in Vincent's personal repos may be merged when checks are passing, the diff matches the stated automation policy, and no hard gate is crossed.
    - Issues should be linked to live evidence when possible. Public comments, labels, and closures are allowed on Vincent's personal repos when the evidence supports them.
 5. Check update candidates:
