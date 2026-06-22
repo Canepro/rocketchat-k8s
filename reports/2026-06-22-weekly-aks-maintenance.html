@@ -783,11 +783,11 @@
       <h1 id="report-title">Rocket.Chat AKS weekly maintenance</h1>
       <p class="lede">AKS started from Stopped through the approved weekly runner, Rocket.Chat recovered to HTTP 200 after startup, all Rocket.Chat workloads were Ready on live recheck, and the cluster was left to the normal auto-shutdown path.</p>
       <div class="hero-meta">
-        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Generated <strong>2026-06-22 13:20 Europe/London</strong></span>
+        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Generated <strong>2026-06-22 13:55 Europe/London</strong></span>
         <span class="dot-sep" aria-hidden="true"></span>
         <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg> Author <strong>Mira automation</strong></span>
         <span class="dot-sep" aria-hidden="true"></span>
-        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M8.4 6.6c5 0 7 .8 7 4.4"/></svg> Source <strong><code class="hash">3542f69</code></strong></span>
+        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M8.4 6.6c5 0 7 .8 7 4.4"/></svg> Source <strong><code class="hash">report branch</code></strong></span>
       </div>
     </section>
 
@@ -795,7 +795,7 @@
       <div class="fact"><div class="label">Status</div><div class="value"><span class="status partial">Ready with blockers</span></div></div>
       <div class="fact"><div class="label">Power decision</div><div class="value">Started AKS, left auto-shutdown</div></div>
       <div class="fact"><div class="label">Rocket.Chat</div><div class="value">HTTP 200, pods Ready</div></div>
-      <div class="fact"><div class="label">Next step</div><div class="value">Fix Jenkins PR failures</div></div>
+      <div class="fact"><div class="label">Next step</div><div class="value">Wait for refreshed PR checks</div></div>
     </section>
 
     <nav aria-label="Report sections">
@@ -810,9 +810,9 @@
       </section>
 
       <section class="section span-5 reveal" id="next-action">
-        <span class="eyebrow">Recommended next action</span><h2>Investigate Jenkins PR checks</h2>
-        <p>PR <code>#136</code> now has a refreshed Jenkins <code>ERROR</code> after the AKS static agent was confirmed Ready. PR <code>#137</code> remains Jenkins <code>PENDING</code> after the static agent was healthy, so it should be treated as a Jenkins scheduling or job-state blocker, not merely offline AKS capacity.</p>
-        <div class="callout warn"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span><p><span class="co-title">No merge action taken.</span>Both open PRs are mergeable at the Git layer, but neither has a passing Jenkins context.</p></div>
+        <span class="eyebrow">Recommended next action</span><h2>Watch refreshed Jenkins checks</h2>
+        <p>Jenkins PR logs showed the same stale Terraform backend lock across the open PR queue. The Azure blob lease on <code>tfstate/aks.terraform.tfstate</code> was broken after confirming the old lock holder pod was gone. PRs <code>#136</code>, <code>#137</code>, and <code>#139</code> received scoped rerun commits; PR <code>#140</code> is refreshed by this report update.</p>
+        <div class="callout warn"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span><p><span class="co-title">No merge action taken yet.</span>The queue has been re-triggered after the stale lock cleanup; merge decisions remain gated on the refreshed Jenkins and CodeRabbit checks.</p></div>
       </section>
 
       <section class="section reveal" id="metrics">
@@ -821,7 +821,7 @@
           <div class="stat"><div class="k">AKS power before</div><div class="n">Stopped</div><div class="sub flat">Started by runner</div></div>
           <div class="stat"><div class="k">Rocket.Chat HTTP</div><div class="n">200</div><div class="sub up">Attempt 3 of 3</div></div>
           <div class="stat"><div class="k">Static agent</div><div class="n">1<small>/1</small></div><div class="sub up">Ready, 0 restarts</div></div>
-          <div class="stat"><div class="k">GitHub queue</div><div class="n">2<small> PR</small></div><div class="sub down">2 open issues</div></div>
+          <div class="stat"><div class="k">GitHub queue</div><div class="n">4<small> PR</small></div><div class="sub flat">2 open issues</div></div>
         </div>
       </section>
 
@@ -831,6 +831,7 @@
           <tr><td>AKS start</td><td><span class="status done">Allowed</span></td><td>Runner start path, <code>az_aks_start</code> exit 0.</td><td>Executed.</td></tr>
           <tr><td>Shutdown</td><td><span class="status done">Leave auto</span></td><td><code>shutdown_decision</code> says existing auto-shutdown schedule.</td><td>No manual stop.</td></tr>
           <tr><td>Terraform apply</td><td><span class="status neutral">Skipped</span></td><td><code>fmt -check</code> passed; <code>validate</code> blocked by missing cached provider packages.</td><td>No plan or apply.</td></tr>
+          <tr><td>Terraform state lock</td><td><span class="status done">Cleared</span></td><td>Azure blob lease was infinite and matched stale lock <code>488c2048-cc04-b219-c78d-e6cabf7dc66b</code> from old pod <code>jenkins-static-agent-cf54c8fc4-g5dn8</code>.</td><td>Lease broken; no Terraform apply.</td></tr>
           <tr><td>Argo CD sync</td><td><span class="status neutral">Skipped</span></td><td>Known apps mostly Synced/Healthy; <code>aks-cert-manager</code> remains Healthy/OutOfSync.</td><td>No sync, prune, force, delete, or rollback.</td></tr>
           <tr><td>Secrets</td><td><span class="status done">No values touched</span></td><td>No secret get/export/set, no credential creation, no raw kubeconfig copied into report.</td><td>Redacted proof only.</td></tr>
         </tbody></table></div>
@@ -845,14 +846,17 @@
           <tr><td>OKE Jenkins controller</td><td><span class="status done">Passed</span></td><td>Public login HTTP <code>200</code>, Argo app Synced/Healthy, pod Ready.</td></tr>
           <tr><td>Grafana datasources</td><td><span class="status done">Passed</span></td><td>Prometheus, Loki, and Tempo datasource UIDs present.</td></tr>
           <tr><td>Terraform</td><td><span class="status partial">Partial</span></td><td><code>fmt -check -recursive</code> passed; <code>validate</code> failed because provider packages are missing from local cache.</td></tr>
+          <tr><td>Jenkins PR logs</td><td><span class="status done">Triaged</span></td><td>PR <code>#136</code>, <code>#137</code>, <code>#139</code>, and <code>#140</code> all reached <code>aks-agent</code>; failures were caused by the stale Terraform state lease, not offline AKS capacity.</td></tr>
         </tbody></table></div>
       </section>
 
       <section class="section span-6 reveal" id="github">
         <span class="eyebrow">GitHub</span><h2>Issues and PRs</h2>
         <div class="table-wrap"><table><thead><tr><th>Item</th><th>State</th><th>Action</th></tr></thead><tbody>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/136">PR #136</a> <code>chore: patch Rocket.Chat to 8.2.6</code></td><td><span class="status danger">Jenkins ERROR</span></td><td>Left open. Requires Jenkins log investigation.</td></tr>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/137">PR #137</a> <code>Document AKS-hosted Jenkins agent CI timing</code></td><td><span class="status warn">Jenkins PENDING</span></td><td>Left open. Pending remained after static-agent Ready.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/136">PR #136</a> <code>chore: patch Rocket.Chat to 8.2.6</code></td><td><span class="status warn">Jenkins rerun pending</span></td><td>Stale lock cleared; pushed rerun commit <code>7767f51</code>.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/137">PR #137</a> <code>Document AKS-hosted Jenkins agent CI timing</code></td><td><span class="status warn">Jenkins rerun pending</span></td><td>Stale lock cleared; pushed rerun commit <code>9cad925</code>.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/139">PR #139</a> <code>Version Updates: 0 high, 1 medium</code></td><td><span class="status warn">Checks pending</span></td><td>Stale lock cleared; pushed rerun commit <code>7db0775</code>. Diff is docs/version tracking only.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/140">PR #140</a> <code>Add 2026-06-22 AKS maintenance report</code></td><td><span class="status warn">Checks pending</span></td><td>This report update refreshes the branch and records repo queue handling.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/138">Issue #138</a> PipelineHealer review required</td><td><span class="status warn">Open</span></td><td>Left open because confidence is 30% and no deterministic fix is proposed.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/113">Issue #113</a> MongoDB TLS</td><td><span class="status neutral">Open</span></td><td>Still valid. TLS enablement remains a separate maintenance window item.</td></tr>
         </tbody></table></div>
@@ -875,6 +879,8 @@
           <div class="event"><div class="time"><time datetime="2026-06-22T12:08:08Z">12:08 UTC</time><span>AKS start finished</span></div><div class="event-body"><strong>Cluster reached Running.</strong><p><code>az aks start</code> exited 0 and the power poll returned <code>Running</code>.</p></div></div>
           <div class="event"><div class="time"><time datetime="2026-06-22T12:10:26Z">12:10 UTC</time><span>HTTP recovered</span></div><div class="event-body"><strong>Rocket.Chat returned 200.</strong><p>The first two checks returned <code>503</code>; the third returned <code>200</code>.</p></div></div>
           <div class="event"><div class="time"><time datetime="2026-06-22T12:12:31Z">12:12 UTC</time><span>Grafana sample</span></div><div class="event-body"><strong>Metrics and logs were fresh.</strong><p>Prometheus and Loki returned AKS, Rocket.Chat, monitoring, and OTel proof for the post-start window.</p></div></div>
+          <div class="event"><div class="time"><time datetime="2026-06-22T12:50:00Z">12:50 UTC</time><span>Repo queue triage</span></div><div class="event-body"><strong>Stale Terraform state lease found and cleared.</strong><p>Jenkins PR logs showed <code>Error acquiring the state lock</code> for the same lock ID across PRs. The Azure blob lease was broken after confirming the old AKS agent pod was absent.</p></div></div>
+          <div class="event"><div class="time"><time datetime="2026-06-22T12:52:00Z">12:52 UTC</time><span>PR checks refreshed</span></div><div class="event-body"><strong>Repo-owned PR branches were re-triggered.</strong><p>Rerun commits were pushed to PRs <code>#136</code>, <code>#137</code>, and <code>#139</code>; this report update refreshes PR <code>#140</code>.</p></div></div>
         </div>
       </section>
 
@@ -889,8 +895,7 @@
       <section class="section reveal" id="risks">
         <span class="eyebrow">Risks</span><h2>Residual uncertainty</h2>
         <div class="table-wrap"><table><thead><tr><th>Risk</th><th>Severity</th><th>Owner</th><th>Mitigation / next step</th></tr></thead><tbody>
-          <tr><td>PR #136 Jenkins context is ERROR after AKS static-agent readiness.</td><td><span class="status danger">High</span></td><td>Mira / repo maintainer</td><td>Read Jenkins PR job logs or bridge evidence and patch the failure.</td></tr>
-          <tr><td>PR #137 Jenkins context remains PENDING after agent readiness.</td><td><span class="status warn">Medium</span></td><td>Mira / Jenkins lane</td><td>Confirm whether Jenkins needs a manual rebuild, queue cleanup, or webhook refresh.</td></tr>
+          <tr><td>Refreshed Jenkins checks may still fail for a real PR-specific reason after the stale lock cleanup.</td><td><span class="status warn">Medium</span></td><td>Mira / repo maintainer</td><td>Watch the rerun checks and merge only green, policy-matching PRs.</td></tr>
           <tr><td><code>aks-cert-manager</code> is Healthy but OutOfSync.</td><td><span class="status warn">Medium</span></td><td>GitOps maintainer</td><td>Investigate drift in a separate Argo maintenance pass. No sync was performed here.</td></tr>
           <tr><td>Terraform validate cannot run with the current local provider cache.</td><td><span class="status warn">Medium</span></td><td>Terraform lane</td><td>Run a clean <code>terraform init</code> or Cloud Shell validation before any plan/apply.</td></tr>
           <tr><td>MongoDB TLS remains disabled by design.</td><td><span class="status neutral">Known follow-up</span></td><td>Repo maintainer</td><td>Track issue <code>#113</code>; do not mix TLS cutover into routine maintenance without a rollback plan.</td></tr>
@@ -904,6 +909,7 @@
           <tr><td>Runner executed</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260622T120301Z/evidence.json</code></td><td><span class="status done">Verified</span></td><td>See summary excerpt.</td></tr>
           <tr><td>Report artifact</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/2026-06-22-weekly-aks-maintenance.html</code></td><td><span class="status done">Created</span></td><td>Self-contained HTML. Repo PR <a href="https://github.com/Canepro/rocketchat-k8s/pull/140">#140</a> on branch <code>codex/weekly-aks-maintenance-2026-06-22</code>.</td></tr>
           <tr><td>GitHub queue refreshed</td><td><code>gh pr view</code>, <code>gh issue view</code>, <code>gh run list</code></td><td><span class="status done">Verified</span></td><td>Open PR/issue states captured above.</td></tr>
+          <tr><td>Terraform lock cleared</td><td><code>az storage blob show</code>, <code>az storage blob lease break</code></td><td><span class="status done">Verified</span></td><td>Blob lease moved from <code>leased/locked</code> to <code>broken/unlocked</code>.</td></tr>
           <tr><td>Observability checked</td><td>Grafana MCP datasource, dashboard, Prometheus, and Loki queries.</td><td><span class="status partial">Verified with one limitation</span></td><td>Tempo direct trace query not exposed.</td></tr>
         </tbody></table></div>
         <details open><summary>Runner summary excerpt</summary><div class="details-body"><pre><code>Cluster: rg-canepro-aks/aks-canepro
@@ -917,7 +923,7 @@ Rocket.Chat HTTP check: ok
 AKS Jenkins static agent pods ready: 1/1
 OKE Jenkins public login: 200
 OKE Jenkins Argo health: Healthy
-Open PRs: 2
+Open PRs: 4
 Open issues: 2</code></pre></div></details>
         <details><summary>Key local paths</summary><div class="details-body"><ul>
           <li><code class="path">/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260622T120301Z</code></li>
