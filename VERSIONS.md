@@ -173,7 +173,7 @@ kubectl logs -n monitoring -l app=prometheus-agent --tail=50
 | Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
 |-----------|----------------|----------------|----------------|----------|---------------|
 | **Terraform** | `>= 1.8` | `Check latest` | ⚠️ **Check latest** (test Terraform upgrades carefully) | `terraform/main.tf` | [Terraform Releases](https://github.com/hashicorp/terraform/releases) |
-| **Azure Provider** | `~> 4.77.0` | `Check latest` | ⚠️ **Check latest** (v4 upgrade; run Cloud Shell plan/apply) | `terraform/main.tf`, `terraform/bootstrap/main.tf` | [Azure Provider Releases](https://github.com/hashicorp/terraform-provider-azurerm/releases) |
+| **Azure Provider** | `~> 4.78.0` | `Check latest` | ⚠️ **Check latest** (v4 upgrade; run Cloud Shell plan/apply) | `terraform/main.tf`, `terraform/bootstrap/main.tf` | [Azure Provider Releases](https://github.com/hashicorp/terraform-provider-azurerm/releases) |
 | **Kubernetes Version** | `latest` | `Check latest` | ⚠️ **Check latest** (AKS managed, test upgrades carefully) | `terraform/aks.tf` | [AKS Supported Versions](https://learn.microsoft.com/en-us/azure/aks/supported-kubernetes-versions) |
 
 ---
@@ -186,4 +186,4 @@ kubectl logs -n monitoring -l app=prometheus-agent --tail=50
 - **NATS Server** `2.4-alpine` (can upgrade to 2.10.24) - major version jump, test carefully
 - **Rocket.Chat** `8.2.6` keeps the deployment on the existing 8.2 patch line while applying the June 2026 security hotfix release.
 - **Terraform** `>= 1.8` - latest stable recommended for Azure provider compatibility
-- **Azure Provider** `~> 4.77.0` - review the v4 migration guide ([AzureRM v4 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide)) and validate in Cloud Shell
+- **Azure Provider** `~> 4.78.0` - review the v4 migration guide ([AzureRM v4 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide)) and validate in Cloud Shell
