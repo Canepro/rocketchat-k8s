@@ -2,7 +2,7 @@
 
 This document tracks all software versions used in the AKS Rocket.Chat deployment. Update this file when upgrading any component.
 
-**Last Updated**: 2026-03-26
+**Last Updated**: 2026-06-18
 
 ## Upgrade Status Legend
 
@@ -28,7 +28,7 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 - Prometheus NATS Exporter 0.9.1 → 0.10.0 - Minor version, lower risk
 
 **Production critical - check before upgrading**:
-- Rocket.Chat 8.2.0 - Application version, test thoroughly
+- Rocket.Chat 8.2.6 - Current 8.2 patch-line security release
 - Traefik chart 34.4.1 - Ingress controller, test carefully
 - MongoDB Operator 1.6.1 - Database operator, test carefully
 
@@ -79,7 +79,7 @@ This document tracks all software versions used in the AKS Rocket.Chat deploymen
 
 | Component | Current Version | Latest Version | Upgrade Status | Location | Update Source |
 |-----------|----------------|----------------|----------------|----------|---------------|
-| **Rocket.Chat Application** | `8.2.0` | `8.2.0` | ✅ **Up to date** (2026-03-26) | `values.yaml` | [Rocket.Chat Releases](https://github.com/RocketChat/Rocket.Chat/releases) |
+| **Rocket.Chat Application** | `8.2.6` | `8.2.6` | ✅ **Security patched** (2026-06-18) | `values.yaml` | [Rocket.Chat Releases](https://github.com/RocketChat/Rocket.Chat/releases) |
 | **Rocket.Chat Helm Chart** | `6.29.0` | `Check latest` | ⚠️ **Check latest** (test chart upgrades carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-helm.yaml` | [Rocket.Chat Helm Charts](https://github.com/RocketChat/charts) |
 | **Traefik Helm Chart** | `34.4.1` | `Check latest` | ⚠️ **Check latest** (ingress controller, test carefully) | `GrafanaLocal/argocd/applications/aks-traefik.yaml` | [Traefik Helm Chart](https://github.com/traefik/traefik-helm-chart) |
 | **MongoDB Operator Helm Chart** | `1.6.1` | `Check latest` | ⚠️ **Check latest** (database operator, test carefully) | `GrafanaLocal/argocd/applications/aks-rocketchat-mongodb-operator.yaml` | [MongoDB Operator](https://github.com/mongodb/mongodb-kubernetes-operator) |
@@ -184,5 +184,6 @@ kubectl logs -n monitoring -l app=prometheus-agent --tail=50
 - **OTel Collector** `v0.142.0` (upgraded from v0.88.0) - check compatibility with your observability hub
 - **Promtail** `v3.6.0` (upgraded from v2.9.3) - should be compatible with your Loki version at `observability.canepro.me`
 - **NATS Server** `2.4-alpine` (can upgrade to 2.10.24) - major version jump, test carefully
+- **Rocket.Chat** `8.2.6` keeps the deployment on the existing 8.2 patch line while applying the June 2026 security hotfix release.
 - **Terraform** `>= 1.8` - latest stable recommended for Azure provider compatibility
 - **Azure Provider** `~> 4.77.0` - review the v4 migration guide ([AzureRM v4 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide)) and validate in Cloud Shell
