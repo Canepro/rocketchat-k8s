@@ -8,7 +8,7 @@ This PR includes automated version updates detected by Jenkins.
 
 ## Files Updated
 - **VERSIONS.md**: Version tracking automatically updated
-- **Code files**: Azure Provider constraints updated in terraform/main.tf and terraform/bootstrap/main.tf
+- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)
 
 ## Review Checklist
 - [ ] Review all version changes in VERSIONS.md
@@ -16,4 +16,4 @@ This PR includes automated version updates detected by Jenkins.
 - [ ] Check release notes for breaking changes
 - [ ] Test in staging if applicable
 
-Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/129/
+Build: https://jenkins.canepro.me/job/version-check-rocketchat-k8s/130/
