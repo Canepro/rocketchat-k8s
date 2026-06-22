@@ -8,7 +8,7 @@ This PR includes automated version updates detected by Jenkins.
 
 ## Files Updated
 - **VERSIONS.md**: Version tracking automatically updated
-- **Code files**: Actual version numbers updated (values.yaml, terraform/main.tf, etc.)
+- **Terraform files**: Azure Provider constraints updated in `terraform/main.tf` and `terraform/bootstrap/main.tf`
 
 ## Review Checklist
 - [ ] Review all version changes in VERSIONS.md
