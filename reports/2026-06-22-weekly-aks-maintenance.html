@@ -792,10 +792,10 @@
     </section>
 
     <section class="facts" aria-label="Report summary">
-      <div class="fact"><div class="label">Status</div><div class="value"><span class="status partial">Ready with review follow-up</span></div></div>
+      <div class="fact"><div class="label">Status</div><div class="value"><span class="status done">Complete</span></div></div>
       <div class="fact"><div class="label">Power decision</div><div class="value">Started AKS, left auto-shutdown</div></div>
       <div class="fact"><div class="label">Rocket.Chat</div><div class="value">HTTP 200, pods Ready</div></div>
-      <div class="fact"><div class="label">Next step</div><div class="value">Resolve PR #139 review threads</div></div>
+      <div class="fact"><div class="label">Next step</div><div class="value">Plan MongoDB TLS separately</div></div>
     </section>
 
     <nav aria-label="Report sections">
@@ -804,15 +804,15 @@
 
     <div class="grid">
       <section class="section span-7 reveal" id="outcome">
-        <div class="section-head"><div><span class="eyebrow">Outcome</span><h2>Maintenance completed with review follow-up</h2></div><span class="status partial">Partial</span></div>
+        <div class="section-head"><div><span class="eyebrow">Outcome</span><h2>Maintenance completed and queue cleared</h2></div><span class="status done">Complete</span></div>
         <p>The weekly runner executed with <code>--execute --shutdown-mode leave-auto</code>. AKS was <code>Stopped</code> at the start, had no start/stop activity this local week, and was started by the runner. Final Azure state was <code>Running</code> with provisioning <code>Succeeded</code> and Kubernetes <code>1.34.3</code>.</p>
         <div class="callout success"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/></svg></span><p><span class="co-title">Runtime health recovered after startup.</span>Rocket.Chat <code>/api/info</code> returned <code>503</code>, <code>503</code>, then <code>200</code>; live Kubernetes recheck showed all Rocket.Chat pods, deployments, and StatefulSets Ready.</p></div>
       </section>
 
       <section class="section span-5 reveal" id="next-action">
-        <span class="eyebrow">Recommended next action</span><h2>Finish PR #139 review repair</h2>
-        <p>Jenkins PR logs showed the same stale Terraform backend lock across the open PR queue. The Azure blob lease on <code>tfstate/aks.terraform.tfstate</code> was broken after confirming the old lock holder pod was gone. PRs <code>#136</code>, <code>#137</code>, and <code>#140</code> were merged after green checks; PR <code>#139</code> remains open until its review comments are fixed and resolved.</p>
-        <div class="callout warn"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span><p><span class="co-title">Review threads are gates.</span>Follow-up repair is required for merged review misses and PR <code>#139</code> must not be merged until its Azure provider version comments are addressed.</p></div>
+        <span class="eyebrow">Recommended next action</span><h2>Schedule MongoDB TLS work</h2>
+        <p>Jenkins PR logs showed the same stale Terraform backend lock across the open PR queue. The Azure blob lease on <code>tfstate/aks.terraform.tfstate</code> was broken after confirming the old lock holder pod was gone. PRs <code>#136</code>, <code>#137</code>, <code>#139</code>, <code>#140</code>, and review follow-up PR <code>#141</code> were merged after green checks and review-thread handling.</p>
+        <div class="callout warn"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span><p><span class="co-title">Remaining work is separate from weekly maintenance.</span>Issue <code>#113</code> tracks MongoDB TLS enablement and needs its own maintenance window, connectivity validation, and rollback proof.</p></div>
       </section>
 
       <section class="section reveal" id="metrics">
@@ -821,7 +821,7 @@
           <div class="stat"><div class="k">AKS power before</div><div class="n">Stopped</div><div class="sub flat">Started by runner</div></div>
           <div class="stat"><div class="k">Rocket.Chat HTTP</div><div class="n">200</div><div class="sub up">Attempt 3 of 3</div></div>
           <div class="stat"><div class="k">Static agent</div><div class="n">1<small>/1</small></div><div class="sub up">Ready, 0 restarts</div></div>
-          <div class="stat"><div class="k">GitHub queue</div><div class="n">1<small> PR</small></div><div class="sub flat">1 open issue</div></div>
+          <div class="stat"><div class="k">GitHub queue</div><div class="n">0<small> PRs</small></div><div class="sub flat">1 open issue</div></div>
         </div>
       </section>
 
@@ -855,7 +855,8 @@
         <div class="table-wrap"><table><thead><tr><th>Item</th><th>State</th><th>Action</th></tr></thead><tbody>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/136">PR #136</a> <code>chore: patch Rocket.Chat to 8.2.6</code></td><td><span class="status done">Merged</span></td><td>Jenkins passed after stale lock cleanup; follow-up branch repairs unresolved VEX and test-comment review items.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/137">PR #137</a> <code>Document AKS-hosted Jenkins agent CI timing</code></td><td><span class="status done">Merged</span></td><td>Jenkins passed after stale lock cleanup; no remaining material review item found.</td></tr>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/139">PR #139</a> <code>Version Updates: 0 high, 1 medium</code></td><td><span class="status warn">Open</span></td><td>Checks are green, but Azure provider review comments remain unresolved and block merge until repaired.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/139">PR #139</a> <code>Version Updates: 0 high, 1 medium</code></td><td><span class="status done">Merged</span></td><td>Azure provider comments fixed, threads resolved, Jenkins and CodeRabbit passed, then merged as <code>8d3ca11</code>.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/141">PR #141</a> <code>Fix maintenance review follow-ups</code></td><td><span class="status done">Merged</span></td><td>Follow-up repair for PR <code>#136</code> and <code>#140</code> review comments passed Jenkins and CodeRabbit, then merged as <code>34351fc</code>.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/140">PR #140</a> <code>Add 2026-06-22 AKS maintenance report</code></td><td><span class="status done">Merged</span></td><td>Follow-up branch repairs report nav, source hash, queue count, and lightbox focus handling.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/138">Issue #138</a> PipelineHealer review required</td><td><span class="status done">Closed</span></td><td>Closed after successful Jenkins validation on main build 14.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/113">Issue #113</a> MongoDB TLS</td><td><span class="status neutral">Open</span></td><td>Still valid. TLS enablement remains a separate maintenance window item.</td></tr>
@@ -923,7 +924,7 @@ Rocket.Chat HTTP check: ok
 AKS Jenkins static agent pods ready: 1/1
 OKE Jenkins public login: 200
 OKE Jenkins Argo health: Healthy
-Open PRs after review follow-up: 1
+Open PRs after review follow-up: 0
 Open issues after review follow-up: 1</code></pre></div></details>
         <details><summary>Key local paths</summary><div class="details-body"><ul>
           <li><code class="path">/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260622T120301Z</code></li>
