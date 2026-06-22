@@ -787,32 +787,32 @@
         <span class="dot-sep" aria-hidden="true"></span>
         <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg> Author <strong>Mira automation</strong></span>
         <span class="dot-sep" aria-hidden="true"></span>
-        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M8.4 6.6c5 0 7 .8 7 4.4"/></svg> Source <strong><code class="hash">report branch</code></strong></span>
+        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M8.4 6.6c5 0 7 .8 7 4.4"/></svg> Source <strong><code class="hash">35adaba</code></strong></span>
       </div>
     </section>
 
     <section class="facts" aria-label="Report summary">
-      <div class="fact"><div class="label">Status</div><div class="value"><span class="status partial">Ready with blockers</span></div></div>
+      <div class="fact"><div class="label">Status</div><div class="value"><span class="status partial">Ready with review follow-up</span></div></div>
       <div class="fact"><div class="label">Power decision</div><div class="value">Started AKS, left auto-shutdown</div></div>
       <div class="fact"><div class="label">Rocket.Chat</div><div class="value">HTTP 200, pods Ready</div></div>
-      <div class="fact"><div class="label">Next step</div><div class="value">Wait for refreshed PR checks</div></div>
+      <div class="fact"><div class="label">Next step</div><div class="value">Resolve PR #139 review threads</div></div>
     </section>
 
     <nav aria-label="Report sections">
-      <a href="#outcome">Outcome</a><a href="#next-action">Next</a><a href="#metrics">Metrics</a><a href="#gates">Gates</a><a href="#verification">Verification</a><a href="#github">GitHub</a><a href="#observability">Observability</a><a href="#timeline">Timeline</a><a href="#risks">Risks</a><a href="#evidence">Evidence</a>
+      <a href="#outcome">Outcome</a><a href="#next-action">Next</a><a href="#metrics">Metrics</a><a href="#gates">Gates</a><a href="#verification">Verification</a><a href="#github">GitHub</a><a href="#observability">Observability</a><a href="#timeline">Timeline</a><a href="#postrun">Post-run</a><a href="#risks">Risks</a><a href="#evidence">Evidence</a>
     </nav>
 
     <div class="grid">
       <section class="section span-7 reveal" id="outcome">
-        <div class="section-head"><div><span class="eyebrow">Outcome</span><h2>Maintenance completed with CI follow-up</h2></div><span class="status partial">Partial</span></div>
+        <div class="section-head"><div><span class="eyebrow">Outcome</span><h2>Maintenance completed with review follow-up</h2></div><span class="status partial">Partial</span></div>
         <p>The weekly runner executed with <code>--execute --shutdown-mode leave-auto</code>. AKS was <code>Stopped</code> at the start, had no start/stop activity this local week, and was started by the runner. Final Azure state was <code>Running</code> with provisioning <code>Succeeded</code> and Kubernetes <code>1.34.3</code>.</p>
         <div class="callout success"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/></svg></span><p><span class="co-title">Runtime health recovered after startup.</span>Rocket.Chat <code>/api/info</code> returned <code>503</code>, <code>503</code>, then <code>200</code>; live Kubernetes recheck showed all Rocket.Chat pods, deployments, and StatefulSets Ready.</p></div>
       </section>
 
       <section class="section span-5 reveal" id="next-action">
-        <span class="eyebrow">Recommended next action</span><h2>Watch refreshed Jenkins checks</h2>
-        <p>Jenkins PR logs showed the same stale Terraform backend lock across the open PR queue. The Azure blob lease on <code>tfstate/aks.terraform.tfstate</code> was broken after confirming the old lock holder pod was gone. PRs <code>#136</code>, <code>#137</code>, and <code>#139</code> received scoped rerun commits; PR <code>#140</code> is refreshed by this report update.</p>
-        <div class="callout warn"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span><p><span class="co-title">No merge action taken yet.</span>The queue has been re-triggered after the stale lock cleanup; merge decisions remain gated on the refreshed Jenkins and CodeRabbit checks.</p></div>
+        <span class="eyebrow">Recommended next action</span><h2>Finish PR #139 review repair</h2>
+        <p>Jenkins PR logs showed the same stale Terraform backend lock across the open PR queue. The Azure blob lease on <code>tfstate/aks.terraform.tfstate</code> was broken after confirming the old lock holder pod was gone. PRs <code>#136</code>, <code>#137</code>, and <code>#140</code> were merged after green checks; PR <code>#139</code> remains open until its review comments are fixed and resolved.</p>
+        <div class="callout warn"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span><p><span class="co-title">Review threads are gates.</span>Follow-up repair is required for merged review misses and PR <code>#139</code> must not be merged until its Azure provider version comments are addressed.</p></div>
       </section>
 
       <section class="section reveal" id="metrics">
@@ -821,7 +821,7 @@
           <div class="stat"><div class="k">AKS power before</div><div class="n">Stopped</div><div class="sub flat">Started by runner</div></div>
           <div class="stat"><div class="k">Rocket.Chat HTTP</div><div class="n">200</div><div class="sub up">Attempt 3 of 3</div></div>
           <div class="stat"><div class="k">Static agent</div><div class="n">1<small>/1</small></div><div class="sub up">Ready, 0 restarts</div></div>
-          <div class="stat"><div class="k">GitHub queue</div><div class="n">4<small> PR</small></div><div class="sub flat">2 open issues</div></div>
+          <div class="stat"><div class="k">GitHub queue</div><div class="n">1<small> PR</small></div><div class="sub flat">1 open issue</div></div>
         </div>
       </section>
 
@@ -853,11 +853,11 @@
       <section class="section span-6 reveal" id="github">
         <span class="eyebrow">GitHub</span><h2>Issues and PRs</h2>
         <div class="table-wrap"><table><thead><tr><th>Item</th><th>State</th><th>Action</th></tr></thead><tbody>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/136">PR #136</a> <code>chore: patch Rocket.Chat to 8.2.6</code></td><td><span class="status warn">Jenkins rerun pending</span></td><td>Stale lock cleared; pushed rerun commit <code>7767f51</code>.</td></tr>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/137">PR #137</a> <code>Document AKS-hosted Jenkins agent CI timing</code></td><td><span class="status warn">Jenkins rerun pending</span></td><td>Stale lock cleared; pushed rerun commit <code>9cad925</code>.</td></tr>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/139">PR #139</a> <code>Version Updates: 0 high, 1 medium</code></td><td><span class="status warn">Checks pending</span></td><td>Stale lock cleared; pushed rerun commit <code>7db0775</code>. Diff is docs/version tracking only.</td></tr>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/140">PR #140</a> <code>Add 2026-06-22 AKS maintenance report</code></td><td><span class="status warn">Checks pending</span></td><td>This report update refreshes the branch and records repo queue handling.</td></tr>
-          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/138">Issue #138</a> PipelineHealer review required</td><td><span class="status warn">Open</span></td><td>Left open because confidence is 30% and no deterministic fix is proposed.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/136">PR #136</a> <code>chore: patch Rocket.Chat to 8.2.6</code></td><td><span class="status done">Merged</span></td><td>Jenkins passed after stale lock cleanup; follow-up branch repairs unresolved VEX and test-comment review items.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/137">PR #137</a> <code>Document AKS-hosted Jenkins agent CI timing</code></td><td><span class="status done">Merged</span></td><td>Jenkins passed after stale lock cleanup; no remaining material review item found.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/139">PR #139</a> <code>Version Updates: 0 high, 1 medium</code></td><td><span class="status warn">Open</span></td><td>Checks are green, but Azure provider review comments remain unresolved and block merge until repaired.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/140">PR #140</a> <code>Add 2026-06-22 AKS maintenance report</code></td><td><span class="status done">Merged</span></td><td>Follow-up branch repairs report nav, source hash, queue count, and lightbox focus handling.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/138">Issue #138</a> PipelineHealer review required</td><td><span class="status done">Closed</span></td><td>Closed after successful Jenkins validation on main build 14.</td></tr>
           <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/113">Issue #113</a> MongoDB TLS</td><td><span class="status neutral">Open</span></td><td>Still valid. TLS enablement remains a separate maintenance window item.</td></tr>
         </tbody></table></div>
       </section>
@@ -923,8 +923,8 @@ Rocket.Chat HTTP check: ok
 AKS Jenkins static agent pods ready: 1/1
 OKE Jenkins public login: 200
 OKE Jenkins Argo health: Healthy
-Open PRs: 4
-Open issues: 2</code></pre></div></details>
+Open PRs after review follow-up: 1
+Open issues after review follow-up: 1</code></pre></div></details>
         <details><summary>Key local paths</summary><div class="details-body"><ul>
           <li><code class="path">/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260622T120301Z</code></li>
           <li><code class="path">/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260622T120301Z/evidence.json</code></li>
@@ -941,7 +941,7 @@ Open issues: 2</code></pre></div></details>
       <span class="dot-sep" aria-hidden="true"></span>
       <span>Author: Mira automation</span>
       <span class="dot-sep" aria-hidden="true"></span>
-      <span>Source: <code class="hash">3542f69</code></span>
+      <span>Source: <code class="hash">35adaba</code></span>
     </footer>
   </main>
 
@@ -1076,15 +1076,25 @@ Open issues: 2</code></pre></div></details>
       /* Lightbox: click any .figure .frame to enlarge a clone. */
       var lb = document.getElementById('lightbox');
       var lbClose = document.getElementById('lbClose');
-      function closeLb() { if (!lb) return; lb.classList.remove('open'); var c = lb.querySelector('.lb-content'); if (c) c.remove(); }
+      var lastFocus = null;
+      function closeLb() {
+        if (!lb) return;
+        lb.classList.remove('open');
+        var c = lb.querySelector('.lb-content');
+        if (c) c.remove();
+        if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+        lastFocus = null;
+      }
       if (lb) {
         document.querySelectorAll('.figure .frame').forEach(function (img) {
           img.addEventListener('click', function () {
+            lastFocus = document.activeElement;
             var clone = img.cloneNode(true);
             clone.classList.remove('frame'); clone.classList.add('lb-content');
             clone.removeAttribute('style'); clone.style.cursor = 'zoom-out';
             lb.appendChild(clone);
             lb.classList.add('open');
+            if (lbClose) lbClose.focus();
           });
         });
         lb.addEventListener('click', function (e) { if (e.target === lb || e.target.closest('.lb-close')) closeLb(); });
