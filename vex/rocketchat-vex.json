@@ -2,8 +2,8 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://github.com/Canepro/rocketchat-k8s/blob/main/vex/rocketchat-vex.json",
   "author": "Canepro",
-  "timestamp": "2026-06-18T10:45:00Z",
-  "version": 2,
+  "timestamp": "2026-06-22T13:25:00Z",
+  "version": 3,
   "statements": [
     {
       "vulnerability": {
@@ -34,6 +34,36 @@
       ],
       "status": "fixed",
       "impact_statement": "Rocket.Chat 8.2.6 is the patched 8.2 release for unauthenticated file deletion."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-48616"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.6?repository_url=registry.rocket.chat"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.6"
+        }
+      ],
+      "status": "fixed",
+      "impact_statement": "Rocket.Chat 8.2.6 is the patched 8.2 release for Livechat file access control."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-55759"
+      },
+      "products": [
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.6?repository_url=registry.rocket.chat"
+        },
+        {
+          "@id": "pkg:docker/rocketchat/rocket.chat@8.2.6"
+        }
+      ],
+      "status": "fixed",
+      "impact_statement": "Rocket.Chat 8.2.6 is the patched 8.2 release for GHSA-c75c-5hc7-j4vp / CVE-2026-55759."
     },
     {
       "vulnerability": {
