@@ -1,0 +1,327 @@
+<!doctype html>
+<!-- Codex HTML Report Template v0.7.2: dark-first editorial report. Layered surfaces, gated status, timestamped, evidence-first. Adapted for Rocket.Chat AKS weekly maintenance. -->
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rocket.Chat AKS weekly maintenance - 2026-06-29</title>
+  <meta name="color-scheme" content="dark light">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0c10;
+      --panel: #151922;
+      --panel-2: #1d2330;
+      --panel-3: #252d3b;
+      --ink: #f4efe6;
+      --muted: #aeb7c4;
+      --line: rgba(255,255,255,.12);
+      --line-2: rgba(255,255,255,.2);
+      --accent: #d6aa5c;
+      --good: #83c98c;
+      --warn: #e4b45d;
+      --bad: #e48a7b;
+      --info: #8fb9e8;
+      --shadow: 0 24px 70px -48px rgba(0,0,0,.9);
+      --radius: 12px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: ui-serif, Georgia, "Times New Roman", serif;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f4f1ea;
+      --panel: #ffffff;
+      --panel-2: #f7f3ea;
+      --panel-3: #ece6d8;
+      --ink: #1b1f27;
+      --muted: #4d5665;
+      --line: rgba(20,22,28,.12);
+      --line-2: rgba(20,22,28,.2);
+      --accent: #9a681c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(900px 360px at 20% -120px, rgba(214,170,92,.16), transparent 70%), var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.58;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .shell { width: min(1120px, calc(100% - 36px)); margin: 0 auto; padding: 28px 0 72px; }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; color: var(--muted); margin-bottom: 18px; }
+    .brand { color: var(--ink); font-weight: 750; }
+    .tools { display: flex; gap: 8px; }
+    button { border: 1px solid var(--line-2); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    .hero, section { border: 1px solid var(--line); background: linear-gradient(180deg, var(--panel-2), var(--panel)); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .hero { padding: 42px; margin-bottom: 18px; }
+    .kicker { color: var(--accent); font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 800; }
+    h1 { font-family: var(--serif); font-size: clamp(2rem, 4vw, 3.3rem); line-height: 1.05; margin: 12px 0 16px; max-width: 820px; }
+    .lede { max-width: 850px; color: var(--muted); font-size: 1.08rem; }
+    .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+    .fact { background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-height: 96px; }
+    .fact span { display: block; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+    .fact strong { display: block; margin-top: 8px; font-size: 1.05rem; }
+    nav { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; background: rgba(10,12,16,.88); backdrop-filter: blur(12px); }
+    nav a { border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; background: var(--panel); color: var(--muted); font-size: .9rem; }
+    nav a:hover { color: var(--ink); text-decoration: none; border-color: var(--accent); }
+    section { padding: 26px; margin: 18px 0; }
+    h2 { font-size: 1.35rem; margin: 0 0 14px; }
+    h3 { margin: 20px 0 8px; font-size: 1rem; }
+    p { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .card { border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.035); padding: 16px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 4px 9px; font-weight: 750; font-size: .82rem; }
+    .good { color: var(--good); background: rgba(131,201,140,.12); }
+    .warn { color: var(--warn); background: rgba(228,180,93,.13); }
+    .bad { color: var(--bad); background: rgba(228,138,123,.13); }
+    .info { color: var(--info); background: rgba(143,185,232,.13); }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; overflow: hidden; border-radius: 10px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { color: var(--ink); background: var(--panel-3); font-size: .86rem; }
+    td { color: var(--muted); }
+    code, pre { font-family: var(--mono); }
+    code { color: var(--ink); }
+    pre { white-space: pre-wrap; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #07090d; color: #e8edf4; padding: 14px; }
+    ul { color: var(--muted); padding-left: 20px; }
+    li + li { margin-top: 6px; }
+    .callout { border-left: 4px solid var(--accent); background: rgba(214,170,92,.1); border-radius: 10px; padding: 14px 16px; color: var(--muted); }
+    footer { color: var(--muted); font-size: .9rem; padding: 20px 0 0; }
+    @media (max-width: 780px) {
+      .hero { padding: 28px; }
+      .facts, .grid { grid-template-columns: 1fr; }
+      nav { position: static; }
+      th, td { display: block; width: 100%; }
+      th { border-bottom: 0; }
+    }
+    @media print {
+      body { background: #fff; color: #111; }
+      nav, .tools { display: none; }
+      .hero, section { box-shadow: none; break-inside: avoid; }
+      a::after { content: " (" attr(href) ")"; font-size: .85em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div class="brand">Mira Ops Report</div>
+      <div class="tools">
+        <button type="button" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Toggle theme</button>
+        <button type="button" onclick="window.print()">Print</button>
+      </div>
+    </div>
+
+    <header class="hero">
+      <div class="kicker">Rocket.Chat AKS weekly maintenance</div>
+      <h1>AKS started cleanly, Rocket.Chat recovered, PR #143 is parked.</h1>
+      <p class="lede">The 2026-06-29 maintenance cycle used the approved runner path, started <code>rg-canepro-aks/aks-canepro</code> from Stopped, verified workload and OKE observability health, sent Selene a handoff, and wrote the second-brain note. No Terraform apply, Argo CD sync, or risky live mutation was performed.</p>
+      <div class="facts">
+        <div class="fact"><span>Cluster decision</span><strong>Started, left to auto-shutdown</strong></div>
+        <div class="fact"><span>Rocket.Chat</span><strong>HTTP 200 after 2 attempts</strong></div>
+        <div class="fact"><span>AKS Jenkins agent</span><strong>Ready 1/1, 0 restarts</strong></div>
+        <div class="fact"><span>Queue</span><strong>#113 open, #143 not mergeable</strong></div>
+      </div>
+    </header>
+
+    <nav aria-label="Report sections">
+      <a href="#outcome">Outcome</a>
+      <a href="#health">Health</a>
+      <a href="#observability">Observability</a>
+      <a href="#github">GitHub</a>
+      <a href="#updates">Updates</a>
+      <a href="#handoff">Handoff</a>
+      <a href="#verification">Verification</a>
+      <a href="#risks">Risks</a>
+      <a href="#evidence">Evidence</a>
+    </nav>
+
+    <section id="outcome">
+      <h2>Outcome</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="status good">Completed</span>
+          <h3>Runner path</h3>
+          <p><code>python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto</code> completed and wrote evidence to <code>reports/weekly-aks-maintenance/20260629T120158Z</code>.</p>
+        </div>
+        <div class="card">
+          <span class="status good">Cost control preserved</span>
+          <h3>Shutdown</h3>
+          <p>AKS was left Running for the normal Terraform-managed auto-shutdown path. The run did not disable or change shutdown policy.</p>
+        </div>
+        <div class="card">
+          <span class="status warn">No merge</span>
+          <h3>PR #143</h3>
+          <p>CodeRabbit passed after AKS startup, but GitHub reports the PR as <code>CONFLICTING</code>. The branch also has an internal Azure Provider version mismatch, so it was not merged.</p>
+        </div>
+        <div class="card">
+          <span class="status info">Recorded</span>
+          <h3>Post-run records</h3>
+          <p>Selene handoff <code>handoff-20260629T121620Z-b5d4c689</code> was sent and read back. Second-brain writeback created <code>vault/memory/2026-06-29-2026-06-29-rocket-chat-aks-weekly-maintenance.md</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="health">
+      <h2>Kubernetes And Rocket.Chat Health</h2>
+      <table>
+        <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>Power state</td><td><span class="status good">Running</span></td><td>Before: <code>Stopped</code>. After: <code>Running</code>. Provisioning: <code>Succeeded</code>. Kubernetes: <code>1.34.3</code>.</td></tr>
+          <tr><td>Weekly activity gate</td><td><span class="status good">Clear</span></td><td>Activity event count was <code>0</code>; runner started AKS because it had not run this local week.</td></tr>
+          <tr><td>Cluster API</td><td><span class="status good">Reachable</span></td><td>Runner <code>kubectl cluster-info</code> succeeded with temporary kubeconfig.</td></tr>
+          <tr><td>Rocket.Chat HTTP</td><td><span class="status good">OK</span></td><td><code>https://k8.canepro.me/api/info</code> returned <code>200</code> after 2 attempts inside the startup retry window.</td></tr>
+          <tr><td>Rocket.Chat pods</td><td><span class="status good">Ready on recheck</span></td><td>Runner saw two pods still settling. Live recheck showed all listed <code>rocketchat</code> pods Ready, including <code>rocketchat-rocketchat</code> and <code>rocketchat-ddp-streamer</code>.</td></tr>
+          <tr><td>AKS Jenkins static agent</td><td><span class="status good">Ready</span></td><td><code>jenkins-static-agent</code> deployment Ready 1/1; pod <code>jenkins-static-agent-cf54c8fc4-b6bsm</code> Running, 0 restarts.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="observability">
+      <h2>OKE Observability</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="status good">Healthy</span>
+          <h3>Datasources</h3>
+          <p>Grafana MCP health checks returned OK for <code>prometheus</code>, <code>loki</code>, and <code>tempo</code>.</p>
+        </div>
+        <div class="card">
+          <span class="status good">Present</span>
+          <h3>Dashboards</h3>
+          <p>Required dashboards were found: <code>rocketchat-metrics</code>, <code>microservice-metrics</code>, <code>rocketchat-mongodb-single-node</code>, and <code>aks-maintenance-jobs</code>.</p>
+        </div>
+        <div class="card">
+          <span class="status good">Fresh</span>
+          <h3>Prometheus</h3>
+          <p><code>moleculer_broker_started{namespace="rocketchat"}</code> summed to <code>5</code>; timestamp was fresh at query time. <code>moleculer_broker_local_services_total</code> summed to <code>41</code>. Monitoring metrics were also current.</p>
+        </div>
+        <div class="card">
+          <span class="status good">Fresh</span>
+          <h3>Loki And Tempo</h3>
+          <p>Loki returned fresh Rocket.Chat, MongoDB, Promtail, Loki, OTel, and telemetrygen logs. Tempo datasource health was OK; Prometheus showed trace intake with <code>rate(tempo_distributor_spans_received_total[30m])</code> around <code>0.78</code> and <code>tempo_ingester_live_traces</code> at <code>68</code>.</p>
+        </div>
+      </div>
+      <div class="callout">
+        The in-cluster observability helper exited 1 because it found one OTel Collector export-error signature. Current OTel logs show regular metrics export lines and Tempo-side metrics are fresh, so this is a watch item rather than a failed maintenance cycle.
+      </div>
+    </section>
+
+    <section id="github">
+      <h2>GitHub Queue</h2>
+      <table>
+        <thead><tr><th>Item</th><th>Status</th><th>Decision</th></tr></thead>
+        <tbody>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/issues/113">Issue #113</a></td><td><span class="status warn">Open</span></td><td>MongoDB TLS remains a planned security/enhancement item. It changes database transport behavior and stays outside routine weekly maintenance.</td></tr>
+          <tr><td><a href="https://github.com/Canepro/rocketchat-k8s/pull/143">PR #143</a></td><td><span class="status bad">Conflicting</span></td><td>CodeRabbit passed, but GitHub reports <code>mergeable=CONFLICTING</code>. The branch tracks Azure Provider <code>4.79</code> in one place while Terraform files and another branch line remain <code>4.77</code>. Not merged.</td></tr>
+        </tbody>
+      </table>
+      <p>No labels, comments, closures, PR metadata updates, or merges were performed this run.</p>
+    </section>
+
+    <section id="updates">
+      <h2>Update Candidates, Terraform, And Argo CD</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="status warn">15 candidates</span>
+          <h3><code>VERSIONS.md</code></h3>
+          <p>Runner parsed 15 candidates including Alpine, NATS, Rocket.Chat chart, Traefik, MongoDB Operator, External Secrets, Terraform, Azure Provider, and Kubernetes version checks. No candidate was applied directly.</p>
+        </div>
+        <div class="card">
+          <span class="status good">Fmt passed</span>
+          <h3>Terraform</h3>
+          <p><code>terraform -chdir=terraform fmt -check -recursive</code> passed. No validate, plan, or apply was run because there was no reviewed intended Terraform change in this cycle.</p>
+        </div>
+        <div class="card">
+          <span class="status info">No sync</span>
+          <h3>Argo CD</h3>
+          <p>No refresh, sync, prune, force, delete, or rollback was run. Checked apps were Synced/Healthy except <code>aks-cert-manager</code>, which remains Healthy but OutOfSync.</p>
+        </div>
+        <div class="card">
+          <span class="status warn">Version PR blocked</span>
+          <h3>Prepared update PR</h3>
+          <p>#143 is the prepared Jenkins version-update PR, but its branch needs regeneration or correction before review/merge.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="handoff">
+      <h2>Selene Handoff And Second Brain</h2>
+      <table>
+        <thead><tr><th>Record</th><th>Result</th><th>Proof</th></tr></thead>
+        <tbody>
+          <tr><td>Selene handoff</td><td><span class="status good">Sent and read back</span></td><td><code>handoff-20260629T121620Z-b5d4c689</code>, thread <code>thread-20260629T121620Z-92fbbfa5</code>, host bridge returned <code>ok=true</code> for send and Selene readback.</td></tr>
+          <tr><td>Second-brain note</td><td><span class="status good">Created</span></td><td><code>/Users/canepro/src/second_brain/vault/memory/2026-06-29-2026-06-29-rocket-chat-aks-weekly-maintenance.md</code>.</td></tr>
+          <tr><td>Second-brain doctor</td><td><span class="status warn">Known drift remains</span></td><td>Validation, index, graph, dashboards, and duplicate checks passed. <code>refresh-drift</code> failed with <code>14 expected imported notes missing</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="verification">
+      <h2>Verification Status</h2>
+      <table>
+        <thead><tr><th>Command or check</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto</code></td><td><span class="status good">Passed</span></td><td>Evidence JSON, summary, and generated runner index created.</td></tr>
+          <tr><td>Grafana datasource health</td><td><span class="status good">Passed</span></td><td>Prometheus, Loki, and Tempo OK.</td></tr>
+          <tr><td>Grafana dashboard search</td><td><span class="status good">Passed</span></td><td>Required dashboard UIDs found.</td></tr>
+          <tr><td>Prometheus and Loki freshness</td><td><span class="status good">Passed</span></td><td>Fresh Rocket.Chat, monitoring, CronJob, logs, and telemetry metrics found.</td></tr>
+          <tr><td>AKS static-agent live check</td><td><span class="status good">Passed</span></td><td><code>kubectl --context aks-canepro -n jenkins get deployment,pods</code> showed Ready 1/1.</td></tr>
+          <tr><td>GitHub PR checks</td><td><span class="status warn">Blocked by conflict</span></td><td>CodeRabbit passed; mergeability remains conflicting.</td></tr>
+          <tr><td>Terraform fmt</td><td><span class="status good">Passed</span></td><td>No Terraform plan or apply run.</td></tr>
+          <tr><td>Second-brain doctor</td><td><span class="status warn">Partial</span></td><td>Only refresh-drift failed.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="risks">
+      <h2>Residual Risks</h2>
+      <ul>
+        <li><strong>PR #143 needs branch correction:</strong> regenerate or patch the Jenkins version-update branch so Azure Provider tracking and Terraform constraints agree before any merge.</li>
+        <li><strong>MongoDB TLS remains planned work:</strong> issue #113 is still the active security/enhancement item and needs a dedicated maintenance window.</li>
+        <li><strong>Observability watch item:</strong> OTel helper found one export-error signature. Current telemetry is flowing, but Selene should watch for repeat export errors.</li>
+        <li><strong>Log noise:</strong> node-exporter emitted connection-reset lines during scrape/export traffic. Pods are Ready and metrics are fresh, so this is noise unless it repeats or increases.</li>
+        <li><strong>Second-brain refresh drift:</strong> doctor still reports 14 expected imported notes missing. The weekly note itself was created successfully.</li>
+      </ul>
+    </section>
+
+    <section id="evidence">
+      <h2>Evidence Paths</h2>
+      <pre>Runner evidence directory:
+/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260629T120158Z
+
+Runner summary:
+/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260629T120158Z/summary.md
+
+Runner JSON:
+/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260629T120158Z/evidence.json
+
+Final report:
+/Users/canepro/src/rocketchat-k8s/reports/2026-06-29-weekly-aks-maintenance.html
+
+Second-brain note:
+/Users/canepro/src/second_brain/vault/memory/2026-06-29-2026-06-29-rocket-chat-aks-weekly-maintenance.md
+
+Selene handoff:
+handoff-20260629T121620Z-b5d4c689
+
+Source revision before report commit:
+094637b94b38fb017d824fda31d96491119d5810
+</pre>
+    </section>
+
+    <footer>
+      Generated at 2026-06-29T12:18:06Z by Mira for automation <code>rocket-chat-aks-weekly-maintenance</code>. Report type: ops maintenance closeout. Secrets were not printed, committed, or included.
+    </footer>
+  </div>
+  <script>
+    const saved = localStorage.getItem("mira-report-theme");
+    if (saved) document.documentElement.dataset.theme = saved;
+    document.querySelectorAll("button")[0]?.addEventListener("click", () => {
+      localStorage.setItem("mira-report-theme", document.documentElement.dataset.theme);
+    });
+  </script>
+</body>
+</html>
