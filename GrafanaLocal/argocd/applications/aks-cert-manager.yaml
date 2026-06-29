@@ -27,6 +27,14 @@ spec:
   destination:
     server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443
     namespace: cert-manager
+  # cert-manager injects the serving CA bundle into its webhook configuration at runtime.
+  # The chart leaves this field unset, so Argo CD should ignore only this generated value.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: cert-manager-webhook
+      jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
   syncPolicy:
     automated:
       prune: true
