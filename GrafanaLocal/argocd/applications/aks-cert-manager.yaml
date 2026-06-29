@@ -35,6 +35,8 @@ spec:
       name: cert-manager-webhook
       jsonPointers:
         - /webhooks/0/clientConfig/caBundle
+      managedFieldsManagers:
+        - cert-manager-cainjector
   syncPolicy:
     automated:
       prune: true
