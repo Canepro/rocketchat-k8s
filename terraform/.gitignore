@@ -9,7 +9,9 @@ terraform.tfvars
 
 # Terraform directories
 .terraform/
-.terraform.lock.hcl
+
+# Commit provider lockfiles so all runners use the reviewed provider selections.
+!.terraform.lock.hcl
 
 # Terraform plan files
 *.tfplan
