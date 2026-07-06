@@ -24,6 +24,22 @@ spec:
         crds:
           enabled: true
           keep: true
+        webhook:
+          validatingWebhookConfiguration:
+            namespaceSelector:
+              matchExpressions:
+                - key: cert-manager.io/disable-validation
+                  operator: NotIn
+                  values:
+                    - "true"
+                - key: control-plane
+                  operator: NotIn
+                  values:
+                    - "true"
+                - key: kubernetes.azure.com/managedby
+                  operator: NotIn
+                  values:
+                    - aks
   destination:
     server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443
     namespace: cert-manager
@@ -36,8 +52,6 @@ spec:
       jsonPointers:
         - /webhooks/0/clientConfig/caBundle
         - /webhooks/0/clientConfig/service/port
-        - /webhooks/0/namespaceSelector/matchExpressions/1
-        - /webhooks/0/namespaceSelector/matchExpressions/2
         - /webhooks/0/objectSelector
         - /webhooks/0/rules/0/scope
   syncPolicy:
