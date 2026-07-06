@@ -105,6 +105,8 @@ ul { margin:8px 0 0 1.1rem; padding:0; } li { margin:.35rem 0; } pre { white-spa
 <tr><td>Second-brain note</td><td><code>/Users/canepro/src/second_brain/vault/memory/2026-07-06-2026-07-06-rocket-chat-aks-weekly-maintenance.md</code></td><td><span class="pill good">Created</span></td></tr>
 <tr><td>Second-brain fallback handoff</td><td><code>/Users/canepro/src/second_brain/vault/handoffs/2026-07-06-2026-07-06-rocket-chat-aks-weekly-maintenance-selene-watch.md</code></td><td><span class="pill warn">Created</span></td></tr>
 <tr><td>Repo source revision before report commit</td><td><code>9c2d2e7</code></td><td><span class="pill info">Recorded</span></td></tr>
+<tr><td>Report publication commit</td><td><code>75ef701</code></td><td><span class="pill good">Pushed to origin/main</span></td></tr>
+<tr><td>Second-brain local commit</td><td><code>c367a6e</code></td><td><span class="pill good">Committed locally; no remote configured</span></td></tr>
 </tbody></table>
 <h3>Verification commands</h3>
 <pre>python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
@@ -116,7 +118,7 @@ gh pr checks 143 --repo Canepro/rocketchat-k8s
 terraform fmt -check -recursive
 terraform -chdir=terraform init -backend=false -input=false && terraform -chdir=terraform validate</pre>
 </section>
-<section class="footer"><p>Generated at 2026-07-06T13:17:49+01:00 by Mira for the Rocket.Chat AKS weekly maintenance automation. Source revision before this report commit: <code>9c2d2e7</code>. Raw evidence directories stay local; curated report artifacts are committed when verified and separable.</p></section>
+<section class="footer"><p>Generated at 2026-07-06T13:17:49+01:00 by Mira for the Rocket.Chat AKS weekly maintenance automation. Source revision before report publication: <code>9c2d2e7</code>. Report publication commit: <code>75ef701</code>. Second-brain local commit: <code>c367a6e</code>. Raw evidence directories stay local; curated report artifacts are committed when verified and separable.</p></section>
 </main>
 </body>
 </html>
