@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rocket.Chat AKS Weekly Maintenance - 2026-07-06</title>
+<style>
+:root { color-scheme: dark; --bg:#0d1117; --panel:#151b23; --panel2:#0f1620; --text:#e6edf3; --muted:#9aa7b2; --line:#293241; --good:#3fb950; --warn:#d29922; --bad:#f85149; --info:#58a6ff; --accent:#b7c5d6; }
+* { box-sizing: border-box; } body { margin:0; font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+a { color:var(--info); } code { background:#101722; border:1px solid var(--line); border-radius:5px; padding:.1rem .32rem; font-size:.92em; }
+header { padding:34px 24px 18px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,#111821,#0d1117); }
+main { max-width:1180px; margin:0 auto; padding:24px; } h1 { margin:0 0 10px; font-size:clamp(2rem,4vw,3.2rem); letter-spacing:0; } h2 { margin:0 0 12px; font-size:1.35rem; } h3 { margin:20px 0 8px; font-size:1rem; color:var(--accent); }
+.lede { max-width:980px; color:var(--muted); font-size:1.05rem; } .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+.pill { display:inline-flex; align-items:center; border-radius:999px; padding:.28rem .62rem; font-weight:650; border:1px solid var(--line); } .good { color:var(--good); background:#102618; } .warn { color:var(--warn); background:#241a07; } .bad { color:var(--bad); background:#2b1111; } .info { color:var(--info); background:#0d2036; }
+nav { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; } nav a { color:var(--text); text-decoration:none; border:1px solid var(--line); border-radius:7px; padding:.45rem .7rem; background:#111923; }
+section { margin:18px 0; padding:18px; background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.18); }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; } .fact { background:var(--panel2); border:1px solid var(--line); border-radius:7px; padding:14px; } .fact strong { display:block; margin-bottom:4px; } .fact span { color:var(--muted); }
+table { width:100%; border-collapse:collapse; margin-top:8px; } th,td { border-bottom:1px solid var(--line); padding:10px; vertical-align:top; text-align:left; } th { color:var(--accent); background:#101722; }
+ul { margin:8px 0 0 1.1rem; padding:0; } li { margin:.35rem 0; } pre { white-space:pre-wrap; overflow:auto; background:#090d13; border:1px solid var(--line); border-radius:7px; padding:12px; color:#d8dee9; }
+.footer { color:var(--muted); font-size:.9rem; } @media print { body { background:white; color:#111; } section,header { box-shadow:none; } a { color:#0645ad; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rocket.Chat AKS Weekly Maintenance</h1>
+  <p class="lede">The 2026-07-06 maintenance run used the approved runner path, started <code>rg-canepro-aks/aks-canepro</code> from Stopped, verified Rocket.Chat and AKS Jenkins agent health, checked OKE Grafana evidence, and left AKS to the normal auto-shutdown schedule. No Terraform apply, Argo CD sync, or risky live mutation was performed.</p>
+  <div class="meta">
+    <span class="pill good">AKS started and healthy</span>
+    <span class="pill warn">Terraform validate blocked</span>
+    <span class="pill warn">PR #143 still conflicting</span>
+    <span class="pill bad">Live Selene handoff blocked</span>
+  </div>
+  <nav><a href="#outcome">Outcome</a><a href="#cluster">Cluster</a><a href="#observability">Observability</a><a href="#github">GitHub</a><a href="#updates">Updates</a><a href="#actions">Terraform and Argo CD</a><a href="#handoff">Handoff</a><a href="#evidence">Evidence</a></nav>
+</header>
+<main>
+<section id="outcome"><h2>Outcome</h2>
+<div class="grid">
+<div class="fact"><strong>Cluster power state</strong><span>Before: Stopped. After: Running/Succeeded on Kubernetes 1.34.3.</span></div>
+<div class="fact"><strong>Start decision</strong><span>No local-week start/stop activity was found, so the runner started AKS with leave-auto shutdown mode.</span></div>
+<div class="fact"><strong>Rocket.Chat</strong><span>HTTP <code>GET /api/info</code> returned 200 on attempt 1; Kubernetes workloads and endpoints were present.</span></div>
+<div class="fact"><strong>Closeout state</strong><span>Report and second-brain writeback completed; live Selene handoff delivery is blocked by missing handoff credentials in this Mac lane.</span></div>
+</div></section>
+<section id="cluster"><h2>Kubernetes And Rocket.Chat Health</h2>
+<table><thead><tr><th>Check</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>AKS start path</td><td><span class="pill good">Passed</span></td><td>Runner command <code>python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto</code> completed and wrote <code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260706T120302Z/evidence.json</code>.</td></tr>
+<tr><td>Power state</td><td><span class="pill good">Running</span></td><td>Before Stopped, after Running/Succeeded. Week start UTC was 2026-07-05T23:00:00Z.</td></tr>
+<tr><td>Nodes</td><td><span class="pill good">Ready</span></td><td>Two AKS nodes Ready on v1.34.3 after startup.</td></tr>
+<tr><td>Rocket.Chat HTTP</td><td><span class="pill good">200</span></td><td>Rocket.Chat /api/info returned status 200 on the first runner attempt.</td></tr>
+<tr><td>Workloads</td><td><span class="pill good">Ready</span></td><td>Runner summarized 49 pods, 48 Running and 1 completed tracegen job. All listed Deployments were healthy.</td></tr>
+<tr><td>AKS Jenkins static agent</td><td><span class="pill good">Ready 1/1</span></td><td>Independent kubectl check showed deployment jenkins-static-agent Ready 1/1 and pod jenkins-static-agent-cf54c8fc4-wmjkb Running with 0 restarts.</td></tr>
+</tbody></table></section>
+<section id="observability"><h2>OKE Grafana, Prometheus, Loki, Tempo</h2>
+<table><thead><tr><th>Surface</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>Datasources</td><td><span class="pill good">Healthy</span></td><td>Grafana MCP health checks returned OK for Prometheus uid prometheus, Loki uid loki, and Tempo uid tempo.</td></tr>
+<tr><td>Dashboards</td><td><span class="pill good">Present</span></td><td>Required dashboards exist: rocketchat-metrics, microservice-metrics, rocketchat-mongodb-single-node, and aks-maintenance-jobs.</td></tr>
+<tr><td>Rocket.Chat Prometheus metrics</td><td><span class="pill good">Fresh</span></td><td>PromQL returned rocketchat_users_total=14, rocketchat_metrics_requests rate=0.01055/s, and microservice registry nodes=28 for namespace rocketchat.</td></tr>
+<tr><td>MongoDB metrics</td><td><span class="pill good">Fresh</span></td><td>PromQL returned mongodb_connections_current sum=49.</td></tr>
+<tr><td>Telemetry and Tempo</td><td><span class="pill good">Flowing</span></td><td>PromQL returned otelcol_exporter_sent_spans_total rate=0.251/s and tempo_distributor_spans_received_total rate=1.33/s over 15 minutes.</td></tr>
+<tr><td>Loki rocketchat logs</td><td><span class="pill good">Fresh</span></td><td>Loki returned recent rocketchat logs and count_over_time found 2010 log lines in the last 15 minutes.</td></tr>
+<tr><td>Loki monitoring logs</td><td><span class="pill warn">Noisy</span></td><td>Loki returned fresh monitoring logs. The sample still contains kube-state-metrics connection-reset scrape noise; monitoring count was high at 692526 lines in 15 minutes.</td></tr>
+<tr><td>Runner observability helper</td><td><span class="pill warn">1 failure</span></td><td>ops_verify_observability exited 1: OTel Collector was Running/Ready but had 1 export error; Promtail had 13 errors on one pod. Current MCP metrics still show telemetry flowing.</td></tr>
+</tbody></table></section>
+<section id="github"><h2>GitHub Queue</h2>
+<table><thead><tr><th>Item</th><th>Status</th><th>Decision</th></tr></thead><tbody>
+<tr><td>Issue #113</td><td><span class="pill info">Open</span></td><td>Enable TLS for operator-managed MongoDB on AKS remains open with security and enhancement labels. No new mutation was made.</td></tr>
+<tr><td>PR #143</td><td><span class="pill warn">Not mergeable</span></td><td>Version update PR has CodeRabbit success after AKS startup, but gh reports mergeable=CONFLICTING and mergeStateStatus=DIRTY. It was not merged or mutated.</td></tr>
+<tr><td>Pending aks-agent checks</td><td><span class="pill good">Rechecked</span></td><td>AKS static agent is healthy. Refreshed PR checks show CodeRabbit pass and no pending aks-agent check in gh pr checks output.</td></tr>
+</tbody></table></section>
+<section id="updates"><h2>Update Candidates</h2>
+<p>VERSIONS.md still lists 15 candidates or watch items. Prepared Jenkins PRs remain the source of truth for code updates; the current prepared PR is not mergeable.</p>
+<ul>
+<li>Lower-risk candidates: Alpine image prune 3.19 to 3.20, Alpine pod cleanup 3.19 to 3.20, NATS Box 0.8.1 to 0.16.2, Prometheus NATS Exporter 0.9.1 to 0.10.0.</li>
+<li>Higher-risk or gated candidates: NATS Server 2.4-alpine to 2.10.24, NATS Config Reloader 0.6.3 to 1.1.0, Helm chart checks for Rocket.Chat, Traefik, MongoDB Operator, and External Secrets, Terraform/Azure provider review, and AKS Kubernetes version review.</li>
+<li>Promtail is up to date at v3.6.0 but still marked deprecated in VERSIONS.md.</li>
+</ul></section>
+<section id="actions"><h2>Terraform And Argo CD</h2>
+<table><thead><tr><th>Area</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>Terraform fmt</td><td><span class="pill good">Passed</span></td><td><code>terraform fmt -check -recursive</code> exited 0.</td></tr>
+<tr><td>Terraform validate</td><td><span class="pill bad">Blocked</span></td><td>Backend-disabled init/validate failed because <code>terraform/.terraform.lock.hcl</code> pins azurerm 4.64.0 while <code>terraform/main.tf</code> and <code>terraform/bootstrap/main.tf</code> require <code>~&gt; 4.78.0</code>. No plan or apply was run.</td></tr>
+<tr><td>Terraform apply</td><td><span class="pill info">Skipped</span></td><td>Skipped because there was no intended maintenance diff and validate did not pass.</td></tr>
+<tr><td>Argo CD Jenkins</td><td><span class="pill good">Synced Healthy</span></td><td>OKE jenkins app is Synced and Healthy, reconciled at 2026-07-06T12:11:39Z. Jenkins public login returned HTTP 200.</td></tr>
+<tr><td>Argo CD aks-cert-manager</td><td><span class="pill warn">OutOfSync Healthy</span></td><td>aks-cert-manager remains OutOfSync but Healthy. No refresh, sync, prune, force, delete, or rollback was run.</td></tr>
+</tbody></table></section>
+<section id="handoff"><h2>Selene Handoff And Second Brain</h2>
+<table><thead><tr><th>Channel</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>Live agent-handoff client</td><td><span class="pill bad">Blocked</span></td><td><code>agent-handoff-client.sh status</code> failed: missing <code>/data/.openclaw/credentials/agent-handoff/velora_id_ed25519</code>. Alternate /data runtime client paths were absent.</td></tr>
+<tr><td>Velora bridge wrapper</td><td><span class="pill bad">Blocked</span></td><td>Default bridge failed with missing repo root <code>/opt/velora-infra</code>; local-root retry with VELORA_HANDOFF_CLIENT failed on the same missing handoff key.</td></tr>
+<tr><td>Fallback target-agent note</td><td><span class="pill warn">Written</span></td><td>Created second-brain handoff note for Selene: <code>/Users/canepro/src/second_brain/vault/handoffs/2026-07-06-2026-07-06-rocket-chat-aks-weekly-maintenance-selene-watch.md</code>. This is durable visibility, not live queue delivery proof.</td></tr>
+<tr><td>Second-brain activity note</td><td><span class="pill good">Written</span></td><td>Created <code>/Users/canepro/src/second_brain/vault/memory/2026-07-06-2026-07-06-rocket-chat-aks-weekly-maintenance.md</code> with actor automation.</td></tr>
+</tbody></table></section>
+<section id="risks"><h2>Residual Risks</h2>
+<ul>
+<li>Live Selene notification did not complete from this Mac lane because the handoff credentials and host checkout were unavailable here.</li>
+<li>Terraform validation is blocked until the AzureRM provider lock file is intentionally updated and reviewed. No apply should run before fmt, validate, and a reviewed plan pass.</li>
+<li>PR #143 remains conflicting and dirty. It needs branch refresh or regeneration before another merge decision.</li>
+<li>OTel and Promtail warnings should be watched even though current Prometheus, Tempo, and Loki evidence shows telemetry flowing.</li>
+<li>aks-cert-manager remains Healthy but OutOfSync; no Argo sync was run in this maintenance cycle.</li>
+</ul></section>
+<section id="evidence"><h2>Evidence Paths And Commands</h2>
+<table><thead><tr><th>Artifact</th><th>Path or command</th><th>Status</th></tr></thead><tbody>
+<tr><td>Runner evidence directory</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260706T120302Z</code></td><td><span class="pill good">Present</span></td></tr>
+<tr><td>Runner evidence JSON</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260706T120302Z/evidence.json</code></td><td><span class="pill good">Present</span></td></tr>
+<tr><td>Runner summary</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260706T120302Z/summary.md</code></td><td><span class="pill good">Present</span></td></tr>
+<tr><td>Durable report</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/2026-07-06-weekly-aks-maintenance.html</code></td><td><span class="pill good">Created</span></td></tr>
+<tr><td>Second-brain note</td><td><code>/Users/canepro/src/second_brain/vault/memory/2026-07-06-2026-07-06-rocket-chat-aks-weekly-maintenance.md</code></td><td><span class="pill good">Created</span></td></tr>
+<tr><td>Second-brain fallback handoff</td><td><code>/Users/canepro/src/second_brain/vault/handoffs/2026-07-06-2026-07-06-rocket-chat-aks-weekly-maintenance-selene-watch.md</code></td><td><span class="pill warn">Created</span></td></tr>
+<tr><td>Repo source revision before report commit</td><td><code>9c2d2e7</code></td><td><span class="pill info">Recorded</span></td></tr>
+</tbody></table>
+<h3>Verification commands</h3>
+<pre>python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
+az aks show --resource-group rg-canepro-aks --name aks-canepro --query '{powerState:powerState.code,provisioningState:provisioningState,kubernetesVersion:kubernetesVersion}' --output json
+kubectl --context aks-canepro -n jenkins get deployment jenkins-static-agent -o wide
+kubectl --context aks-canepro -n jenkins get pods -l app=jenkins-static-agent -o wide
+gh pr view 143 --repo Canepro/rocketchat-k8s --json mergeable,mergeStateStatus,statusCheckRollup
+gh pr checks 143 --repo Canepro/rocketchat-k8s
+terraform fmt -check -recursive
+terraform -chdir=terraform init -backend=false -input=false && terraform -chdir=terraform validate</pre>
+</section>
+<section class="footer"><p>Generated at 2026-07-06T13:17:49+01:00 by Mira for the Rocket.Chat AKS weekly maintenance automation. Source revision before this report commit: <code>9c2d2e7</code>. Raw evidence directories stay local; curated report artifacts are committed when verified and separable.</p></section>
+</main>
+</body>
+</html>
