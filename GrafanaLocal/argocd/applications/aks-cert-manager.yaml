@@ -27,16 +27,19 @@ spec:
   destination:
     server: https://aks-canepro-pjvw5eyz.hcp.uksouth.azmk8s.io:443
     namespace: cert-manager
-  # cert-manager injects the serving CA bundle into its webhook configuration at runtime.
-  # The chart leaves this field unset, so Argo CD should ignore only this generated value.
+  # cert-manager and the AKS API server add webhook runtime/default fields that
+  # the upstream Helm chart does not render. Ignore only those generated values.
   ignoreDifferences:
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       name: cert-manager-webhook
       jsonPointers:
         - /webhooks/0/clientConfig/caBundle
-      managedFieldsManagers:
-        - cert-manager-cainjector
+        - /webhooks/0/clientConfig/service/port
+        - /webhooks/0/namespaceSelector/matchExpressions/1
+        - /webhooks/0/namespaceSelector/matchExpressions/2
+        - /webhooks/0/objectSelector
+        - /webhooks/0/rules/0/scope
   syncPolicy:
     automated:
       prune: true
