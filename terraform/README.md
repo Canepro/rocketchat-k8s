@@ -236,7 +236,7 @@ terraform init -reconfigure -backend-config=backend.hcl -migrate-state
 
 The AKS cluster uses **Azure Automation** to keep the test environment off by default without destroying it. Start the cluster manually when Rocket.Chat testing is needed; the scheduled stop remains as a safety net if the cluster is left running.
 
-### Current Recommended Posture (2026-05-20)
+### Current Recommended Posture (2026-07-19)
 
 - **Start Time**: Manual only by default (`enable_auto_start = false`)
 - **Stop Time**: 16:15 (4:15 PM) on weekdays
@@ -244,7 +244,12 @@ The AKS cluster uses **Azure Automation** to keep the test environment off by de
 - **Runtime**: Pay-per-use; bounded by manual starts plus the weekday safety-stop
 - **Reasoning**: This cluster is used mainly for occasional Rocket.Chat work/testing, so daily auto-start is wasteful on a personal PAYG subscription.
 - **Budget source of truth**: `budget.tf` creates the current subscription budget `aks-canepro-monthly-budget`. If an email alert still references `AKS_Budget`, that alert is from the pre-migration subscription-side budget or action group and should be removed there instead of changing the PAYG Terraform budget.
+- **Budget alert response**: The action group keeps the primary email receiver and separately invokes the published read-only `Report-MTD-Cost-Breakdown` runbook. The breakdown is written to the Automation job output, not added to the email.
+- **Cost-query permission**: The Automation account's system-assigned managed identity has subscription-scoped `Cost Management Reader`. This permits the month-to-date subscription query but no cost-management or Azure resource writes.
+- **Stopped-state safety**: `Stop-AKS-Cluster` checks AKS power state before reading the Jenkins token or contacting Jenkins. If AKS is already stopped, it emits schema `canepro.aks.stop.v1` with `result = "noop"` and returns successfully.
 - **Residual spend while stopped**: `az aks stop` removes node compute, but Standard Load Balancer, public IPs, and persistent disks in the managed resource group still incur charges.
+
+The cost-report contract, 2026-07-19 smoke evidence, troubleshooting, and destructive-action boundary are in [`../runbooks/azure-cost-control.md`](../runbooks/azure-cost-control.md).
 
 ### Configuration
 
@@ -260,8 +265,12 @@ startup_time         = "13:30"  # Only used when enable_auto_start = true
 
 **Terraform Resources:**
 - `azurerm_automation_account` - Automation account for AKS control
+- `azurerm_monitor_action_group` - Budget email and Automation receivers
+- `azurerm_consumption_budget_subscription` - Subscription budget thresholds
+- `azurerm_role_assignment.automation_cost_management_reader` - Read-only subscription cost access for the Automation identity
+- `azurerm_automation_webhook` - Budget action-group entry point for the cost report
 - `azurerm_automation_schedule` - Stop schedule by default; optional start schedule only when `enable_auto_start = true`
-- `azurerm_automation_runbook` - PowerShell runbooks to start/stop AKS manually or via schedule
+- `azurerm_automation_runbook` - PowerShell runbooks to report costs and start or stop AKS
 - `azurerm_automation_job_schedule` - Links schedules to runbooks
 
 ### Manual Override
