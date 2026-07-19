@@ -73,6 +73,25 @@ resource "azurerm_automation_runbook" "stop_aks" {
         throw
     }
 
+    # Scheduled stops run every weekday even when this manual-start cluster is
+    # already off. Treat that state as a successful no-op before contacting Jenkins.
+    $Cluster = Get-AzAksCluster -ResourceGroupName $ResourceGroupName -Name $ClusterName -ErrorAction Stop
+    $PowerState = [string]$Cluster.PowerState.Code
+    if ([string]::IsNullOrWhiteSpace($PowerState)) {
+        $PowerState = [string]$Cluster.PowerState
+    }
+
+    if ($PowerState -eq "Stopped") {
+        [ordered]@{
+            schema        = "canepro.aks.stop.v1"
+            result        = "noop"
+            powerState    = "Stopped"
+            resourceGroup = $ResourceGroupName
+            cluster       = $ClusterName
+        } | ConvertTo-Json -Compress | Write-Output
+        return
+    }
+
     # Phase 4: Graceful disconnect — put Jenkins aks-agent offline before stopping AKS
     if ($JenkinsUrl -and $JenkinsApiUser) {
         try {
