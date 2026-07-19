@@ -84,15 +84,20 @@ argocd app get aks-rocketchat-ops
 
 ## 💰 Cost Optimization: AKS Cluster Scheduling
 
-The AKS cluster uses **Azure Automation** to automatically start and stop on a schedule, significantly reducing costs.
+The AKS cluster uses **Azure Automation** to stay off by default and stop on a weekday safety schedule without destroying persistent resources.
 
-### Current Schedule (2026-03-18)
+### Current posture (2026-07-19)
 
-- **Start Time**: 13:30 Europe/London on weekdays
-- **Stop Time**: 16:15 Europe/London on weekdays
-- **Weekends**: Cluster stays off
-- **Runtime**: ~1.75 hours/day × 5 weekdays = ~8.75 hours/week = ~39 hours/month
-- **Goal**: keep the personal PAYG cluster available only during the active work window
+- **Start**: Manual by default (`enable_auto_start = false`)
+- **Stop**: 16:15 Europe/London on weekdays
+- **Weekends**: No scheduled start; the cluster stays off unless manually started
+- **Budget alert**: Email remains enabled and the same action group starts the published read-only `Report-MTD-Cost-Breakdown` runbook
+- **Cost access**: The Automation managed identity has subscription-scoped `Cost Management Reader`
+- **Stopped-state behavior**: `Stop-AKS-Cluster` returns `canepro.aks.stop.v1` with `result = "noop"` before contacting Jenkins when AKS is already stopped
+
+The cost runbook writes schema `canepro.azure.cost.mtd.v1` to the Azure Automation job output. It reports month-to-date actual cost grouped by resource group and service, with rows sorted from highest to lowest cost. The email receiver remains separate, so the breakdown is not included in the budget email.
+
+See [`runbooks/azure-cost-control.md`](runbooks/azure-cost-control.md) for the complete alert path, JSON contracts, 2026-07-19 smoke evidence, troubleshooting, and destructive-action boundary. Stage 1 does not perform automatic deletion, resizing, or other cost-based remediation.
 
 ## 🔔 CI notifications (avoid daily Jenkins logins)
 
@@ -112,6 +117,7 @@ When Jenkins runs in split-agent mode (controller on OKE, static agent on AKS):
 
 - **PR check interpretation:** The OKE controller can be healthy while PR checks are still waiting for AKS capacity. A pending `aks-agent` check during an off cluster window means "agent offline" until proven otherwise; it becomes a blocker only after AKS is running, the static agent is healthy, and Jenkins still cannot schedule or complete the build.
 - **Phase 4 – Automated graceful disconnect:** The Azure Automation **stop runbook** (`Stop-AKS-Cluster`) can disable the Jenkins `aks-agent` node before stopping AKS. Set `jenkins_graceful_disconnect_url` and `jenkins_graceful_disconnect_user` in `terraform.tfvars` (e.g. `https://jenkins.canepro.me` and `admin`; production URL now that domain cutover is complete), then create an Automation Variable **`JenkinsAksAgentDisconnectToken`** in the same Automation Account (see below). The runbook will call the Jenkins API to disable the node, wait 60 seconds, then stop AKS. No token in Terraform/tfvars.
+- **Stopped-state no-op:** Before reading the Jenkins token or calling Jenkins, `Stop-AKS-Cluster` checks the current AKS power state. If the cluster is already stopped, the runbook emits the `canepro.aks.stop.v1` no-op result and exits successfully.
 - **Manual procedure:** If not using Phase 4, follow the **hub-docs** runbook (`JENKINS-SPLIT-AGENT-RUNBOOK.md`): before stopping AKS, check for running builds on `aks-agent`, put the node offline (UI, API, or CLI), wait 30–60 seconds, then run the AKS stop. On startup, the agent reconnects; bring the node back online in Jenkins if it was left offline.
 
 **How to set `JenkinsAksAgentDisconnectToken` in Azure Automation**
@@ -189,11 +195,11 @@ The default cost posture is manual start plus scheduled stop. To re-enable weekd
 
 2. **Apply the change**:
    ```bash
-   terraform plan  # Verify changes
-   terraform apply
+   terraform fmt -check -recursive
+   terraform validate
+   terraform plan  # Review the exact schedule diff before applying
+   terraform apply # Apply only the reviewed plan
    ```
-
-4. **Restore `ignore_changes`** after applying (to prevent future updates)
 
 **Note:** See [`terraform/README.md`](terraform/README.md) for detailed instructions and cost savings breakdown.
 
@@ -201,8 +207,8 @@ The default cost posture is manual start plus scheduled stop. To re-enable weekd
 
 - **Previous schedule** (08:30-23:00): ~72.5 hours/week
 - **Later evening schedule** (16:00-23:00): ~35 hours/week
-- **Current schedule** (13:30-16:15): ~13.75 hours/week
-- **Savings vs 16:00-23:00**: ~61% reduction in runtime hours
+- **Temporary auto-start window** (13:30-16:15): ~13.75 hours/week
+- **Current default**: no scheduled start, so runtime depends on manual starts and the 16:15 weekday safety-stop
 
 ## 🛠️ Troubleshooting
 If pods are not running or healthy:

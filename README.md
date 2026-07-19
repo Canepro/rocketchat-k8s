@@ -249,9 +249,11 @@ The default cost posture is manual start plus a weekday safety-stop:
 
 The current budget source of truth is the Terraform-managed personal PAYG subscription budget in [`terraform/budget.tf`](terraform/budget.tf). If Azure sends an alert for budget name `AKS_Budget`, treat it as legacy pre-migration noise until the old subscription-side budget or action group is removed. The current PAYG budget name is `aks-canepro-monthly-budget`.
 
+Budget alerts keep the email receiver and also start the published read-only `Report-MTD-Cost-Breakdown` Automation runbook. Its subscription-scoped managed identity reads month-to-date costs and writes a cost-sorted JSON breakdown to the Automation job output. The alert does not stop or delete resources.
+
 Stopping AKS removes compute spend, but it does not remove all spend. Standard Load Balancer, public IPs, and persistent disks in the managed resource group can still accrue charges while the cluster is stopped.
 
-Schedule resources live in `terraform/automation.tf`, and operators change the actual start/stop times through `terraform.tfvars` as documented in [`terraform/README.md`](terraform/README.md).
+Schedule resources live in `terraform/automation.tf`, and operators change the actual start/stop times through `terraform.tfvars` as documented in [`terraform/README.md`](terraform/README.md). See [`runbooks/azure-cost-control.md`](runbooks/azure-cost-control.md) for the alert path, output contracts, smoke evidence, troubleshooting, and destructive-action boundary.
 
 ### Maintenance Jobs
 
