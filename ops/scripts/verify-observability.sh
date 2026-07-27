@@ -138,7 +138,7 @@ else
     fi
     
     # Check for export errors in logs (last 100 lines)
-    OTEL_ERRORS=$(kubectl logs -n "$NAMESPACE" "$OTEL_POD" --tail=100 2>/dev/null | grep -iE "(error|fail)" | grep -iE "(export|trace|otlp|http)" | wc -l 2>/dev/null | tr -d '[:space:]' || echo "0")
+    OTEL_ERRORS=$(kubectl logs -n "$NAMESPACE" "$OTEL_POD" --tail=100 2>/dev/null | grep -iE $'\t(error|fatal|panic)\t' | grep -iE "(export|trace|otlp|http)" | wc -l 2>/dev/null | tr -d '[:space:]' || echo "0")
     OTEL_ERRORS=${OTEL_ERRORS:-0}  # Default to 0 if empty
     if [ "$OTEL_ERRORS" -eq 0 ] 2>/dev/null; then
         print_status 0 "No export errors in OTel Collector logs"
