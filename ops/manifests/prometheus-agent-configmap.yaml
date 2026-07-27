@@ -68,9 +68,13 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             action: replace
             target_label: kubernetes_pod_name
-        # Compatibility label for dashboards expecting `namespace` instead of `kubernetes_namespace`
+        # Compatibility label for metrics that do not already expose their workload namespace.
+        # Preserve native `namespace` labels (for example from kube-state-metrics) instead of
+        # replacing them with the namespace of the scrape target.
         metric_relabel_configs:
-          - source_labels: [kubernetes_namespace]
+          - source_labels: [namespace, kubernetes_namespace]
+            regex: ';(.+)'
+            replacement: $1
             target_label: namespace
             action: replace
 
@@ -99,9 +103,11 @@ data:
           - source_labels: [__meta_kubernetes_service_name]
             action: replace
             target_label: kubernetes_service_name
-        # Compatibility label for dashboards expecting `namespace` instead of `kubernetes_namespace`
+        # Compatibility label for metrics that do not already expose their workload namespace.
         metric_relabel_configs:
-          - source_labels: [kubernetes_namespace]
+          - source_labels: [namespace, kubernetes_namespace]
+            regex: ';(.+)'
+            replacement: $1
             target_label: namespace
             action: replace
 
@@ -131,7 +137,9 @@ data:
             action: replace
             target_label: kubernetes_pod_name
         metric_relabel_configs:
-          - source_labels: [kubernetes_namespace]
+          - source_labels: [namespace, kubernetes_namespace]
+            regex: ';(.+)'
+            replacement: $1
             target_label: namespace
             action: replace
 
@@ -159,7 +167,9 @@ data:
             action: replace
             target_label: kubernetes_service_name
         metric_relabel_configs:
-          - source_labels: [kubernetes_namespace]
+          - source_labels: [namespace, kubernetes_namespace]
+            regex: ';(.+)'
+            replacement: $1
             target_label: namespace
             action: replace
 
@@ -190,7 +200,9 @@ data:
             action: replace
             target_label: kubernetes_service_name
         metric_relabel_configs:
-          - source_labels: [kubernetes_namespace]
+          - source_labels: [namespace, kubernetes_namespace]
+            regex: ';(.+)'
+            replacement: $1
             target_label: namespace
             action: replace
 
