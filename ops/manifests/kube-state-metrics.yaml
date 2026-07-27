@@ -128,7 +128,9 @@ spec:
             periodSeconds: 15
           readinessProbe:
             httpGet:
-              path: /metrics
+              # Keep readiness lightweight. Scraping the full metrics payload here can exceed
+              # the kubelet's one-second default timeout and flood logs with broken-pipe errors.
+              path: /healthz
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
