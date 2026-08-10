@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!-- Codex HTML Report Template v0.7.2: adapted ops-incident closeout report. -->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Rocket.Chat AKS Weekly Maintenance - 2026-08-10</title>
+<link rel="icon" href="data:,">
+<style>
+:root{color-scheme:dark;--bg:#0a0c10;--surface:#15171f;--inset:#1c1f29;--ink:#f5f0e6;--muted:#aeb5c2;--soft:#8a93a1;--line:rgba(255,255,255,.1);--accent:#d6aa5c;--good:#87cc8b;--warn:#e2b45e;--bad:#e58b7d;--info:#93b8df;--shadow:0 18px 42px -26px rgba(0,0,0,.82);--mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--serif:ui-serif,"Iowan Old Style",Georgia,serif}
+html[data-theme="light"]{color-scheme:light;--bg:#f4f1ea;--surface:#fff;--inset:#f7f4ec;--ink:#1b1f26;--muted:#4d5563;--soft:#6f7783;--line:rgba(20,22,28,.13);--accent:#a9711f;--good:#2f8a47;--warn:#9a6a12;--bad:#bb4a3a;--info:#2f6aa3}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(900px 360px at 50% -180px,rgba(214,170,92,.14),transparent 70%),var(--bg);color:var(--ink);font:15px/1.62 var(--sans);overflow-x:hidden}a{color:var(--accent)}:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.skip{position:absolute;left:12px;top:-50px;background:var(--accent);color:#111;padding:8px 13px;border-radius:999px;font-weight:700;z-index:20}.skip:focus{top:12px}.shell{width:calc(100% - 36px);max-width:1120px;margin:auto;padding:24px 0 72px}.topbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:18px;color:var(--muted)}.brand{color:var(--ink);font-weight:750}.tools{display:flex;gap:8px}.btn{border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);padding:7px 12px;cursor:pointer}.hero,.panel{border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow)}.hero{border-radius:18px;padding:42px 44px}.kicker{color:var(--accent);font-weight:750;letter-spacing:.16em;text-transform:uppercase;font-size:.76rem}.hero h1{font:600 clamp(2.2rem,5vw,4rem)/1.05 var(--serif);max-width:22ch;margin:14px 0;overflow-wrap:anywhere}.lede{max-width:78ch;color:var(--muted);font-size:1.08rem;overflow-wrap:anywhere}.hero-meta,.facts,.status-strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.hero-meta{color:var(--soft);font-size:.88rem}.fact{flex:1 1 220px;background:var(--inset);border:1px solid var(--line);border-radius:11px;padding:14px;min-width:0;overflow-wrap:anywhere}.fact strong{display:block}.fact span{color:var(--muted)}.pill{display:inline-flex;border:1px solid currentColor;border-radius:999px;padding:.25rem .58rem;font-weight:750;font-size:.82rem;max-width:100%}.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}.info{color:var(--info)}nav{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:8px;margin:16px 0;padding:10px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(10px)}nav a{padding:6px 9px;border-radius:7px;text-decoration:none;color:var(--muted)}nav a:hover{background:var(--inset);color:var(--ink)}main{display:grid;gap:16px}.panel{border-radius:14px;padding:22px;min-width:0}.panel h2{font:600 1.55rem/1.2 var(--serif);margin:0 0 12px}.panel h3{margin:18px 0 6px;color:var(--accent)}.callout{border-left:4px solid var(--warn);background:var(--inset);padding:14px 16px;border-radius:8px;overflow-wrap:anywhere}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:720px}caption{text-align:left;padding:10px;color:var(--soft)}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--inset);color:var(--ink)}td{color:var(--muted)}code,pre{font-family:var(--mono)}code{background:var(--inset);border:1px solid var(--line);border-radius:5px;padding:.08rem .3rem;color:var(--ink);overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow:auto;background:#07080b;color:#e8e3d8;border:1px solid var(--line);border-radius:9px;padding:14px}li{margin:.35rem 0;color:var(--muted)}.timeline{border-left:2px solid var(--line);margin-left:7px;padding-left:19px}.timeline p{margin:0 0 13px;color:var(--muted)}.timeline time{color:var(--accent);font-family:var(--mono);font-size:.86rem}.footer{color:var(--soft);font-size:.88rem;text-align:center;margin-top:22px}details{margin-top:14px}summary{cursor:pointer;color:var(--accent);font-weight:700}@media(max-width:720px){.shell{width:calc(100% - 20px)}.hero{padding:28px 22px}.topbar{align-items:flex-start;flex-wrap:wrap}.facts{display:grid}.fact{width:100%}nav{position:static}.panel{padding:17px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}@media print{body{background:#fff;color:#111}.tools,nav,.skip{display:none}.shell{width:100%;padding:0}.hero,.panel{box-shadow:none;break-inside:avoid}.panel{break-before:auto}pre,.table-wrap{break-inside:avoid}a{color:#111;text-decoration:underline}}
+</style>
+<noscript><style>.tools{display:none}</style></noscript>
+</head>
+<body>
+<a class="skip" href="#main">Skip to report</a>
+<div class="shell">
+<header class="topbar"><span class="brand">Mira / Rocket.Chat operations</span><div class="tools"><button class="btn" id="theme" type="button" aria-label="Toggle color theme">Theme</button><button class="btn" type="button" onclick="window.print()" aria-label="Print or save report as PDF">Save PDF</button></div></header>
+<section class="hero" id="outcome" aria-labelledby="report-title">
+<p class="kicker">Ops closeout / weekly maintenance</p>
+<h1 id="report-title">AKS is intentionally gone. Weekly maintenance is retired.</h1>
+<p class="lede">The August 10 runner found no AKS cluster because Vincent decommissioned the test estate on August 8. A healthy 16 GiB MongoDB snapshot remains for the approved rollback window through August 22. No cluster recreation, Terraform apply, Argo CD action, secret access, or Selene handoff occurred.</p>
+<div class="status-strip"><span class="pill good">Decommission verified</span><span class="pill good">Snapshot healthy</span><span class="pill info">No recreation</span><span class="pill warn">OKE unavailable</span><span class="pill info">Selene not_needed</span></div>
+<div class="facts">
+<div class="fact"><strong>Power decision</strong><span>Not applicable. <code>aks-canepro</code> is absent, not stopped.</span></div>
+<div class="fact"><strong>Rollback artifact</strong><span>16 GiB Standard_LRS snapshot, Succeeded, retained until 2026-08-22 14:03 UTC.</span></div>
+<div class="fact"><strong>Repository queue</strong><span>PR #145 and issues #113 and #146 were closed against the decommissioned target.</span></div>
+<div class="fact"><strong>Next action</strong><span>Keep the snapshot through its approved window. Ask before deletion after expiry.</span></div>
+</div>
+<div class="hero-meta"><span>Generated: 2026-08-10 13:35 Europe/London</span><span>Author: Mira</span><span>Source revision: <code>8900246265a95ed322b5f5a4efce5d52620a62d8</code></span><span>Evidence run: <code>20260810T121516Z</code></span></div>
+</section>
+<nav aria-label="Report sections"><a href="#next-action">Next action</a><a href="#gates">Gates</a><a href="#changes">Actions</a><a href="#verification">Verification</a><a href="#timeline">Timeline</a><a href="#risks">Risks</a><a href="#evidence">Evidence</a></nav>
+<main id="main">
+<section class="panel" id="next-action"><h2>Recommendation</h2><div class="callout"><strong>Do not recreate AKS from this repository or weekly job.</strong> Keep the verified snapshot until the approved retention time ends. After 2026-08-22T14:03:53Z, Vincent must decide whether to delete it. The retention tag records intent but does not delete the Azure snapshot.</div><p>The OKE Jenkins and Grafana endpoints are also unavailable. Their state is separate from the deliberate AKS deletion and remains unverified.</p></section>
+<section class="panel" id="gates"><h2>Authority gates and decisions</h2><div class="table-wrap"><table><caption>Actions considered during this run</caption><thead><tr><th scope="col">Area</th><th scope="col">Decision</th><th scope="col">Reason</th></tr></thead><tbody>
+<tr><td>AKS start or recreation</td><td><span class="pill info">Not performed</span></td><td>The cluster was deliberately deleted on August 8. Weekly maintenance has no authority to reverse the decommission.</td></tr>
+<tr><td>Terraform apply</td><td><span class="pill good">Blocked safely</span></td><td>The read-only plan would create the cluster plus six related resources. No apply ran.</td></tr>
+<tr><td>Argo CD refresh or sync</td><td><span class="pill info">Skipped</span></td><td>The OKE API was unreachable and no verified live application or revision was available.</td></tr>
+<tr><td>Snapshot deletion</td><td><span class="pill info">Not performed</span></td><td>The approved 14-day rollback window is still active. Destructive deletion requires a current owner decision after expiry.</td></tr>
+<tr><td>Selene handoff</td><td><span class="pill info">not_needed</span></td><td>Vincent said Selene is offline. No send, retry, or fallback handoff was attempted.</td></tr>
+<tr><td>Secrets</td><td><span class="pill info">Not touched</span></td><td>No secret retrieval, disclosure, movement, rotation, or new consumer was needed.</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="changes"><h2>Actions taken</h2><ul>
+<li>Ran <code>python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto</code>. It exited 0 and wrote the local evidence bundle.</li>
+<li>Verified Azure returns <code>ResourceNotFound</code> for <code>aks-canepro</code>. The August 8 activity history and completed decommission record identify the deletion as Vincent-initiated.</li>
+<li>Verified snapshot <code>aks-canepro-mongodb-20260808-14d</code> is Succeeded, 16 GiB, Standard_LRS, and tagged through <code>2026-08-22T14:03:53Z</code>.</li>
+<li>Ran Terraform formatting and validation for the root and bootstrap configurations. All checks passed.</li>
+<li>Ran a value-suppressed Terraform plan. It reported seven changes: six creates, including <code>azurerm_kubernetes_cluster.main</code>, and one Automation runbook update. No apply ran and the temporary plan was deleted.</li>
+<li>Closed conflicting version PR <a href="https://github.com/Canepro/rocketchat-k8s/pull/145">#145</a> and AKS-only issues <a href="https://github.com/Canepro/rocketchat-k8s/issues/113">#113</a> and <a href="https://github.com/Canepro/rocketchat-k8s/issues/146">#146</a> with decommission-specific reasons. The final open issue and PR queues are empty.</li>
+<li>Updated <code>runbooks/weekly-aks-maintenance.md</code> so an offline Selene is recorded as <code>not_needed</code> without a send, retry, or fallback artifact.</li>
+<li>Preserved the two unrelated pre-run paths: <code>ops/manifests/prometheus-agent-configmap.yaml</code> and <code>reports/2026-06-15-weekly-aks-maintenance.html</code>.</li>
+</ul></section>
+<section class="panel" id="verification"><h2>Verification</h2><div class="table-wrap"><table><caption>Current proof and limits</caption><thead><tr><th scope="col">Surface</th><th scope="col">Status</th><th scope="col">Evidence</th></tr></thead><tbody>
+<tr><td>AKS resource state</td><td><span class="pill good">Verified absent</span></td><td><code>az aks show</code> exited 3 with <code>ResourceNotFound</code>. Terraform state contains no cluster-owned addresses.</td></tr>
+<tr><td>MongoDB rollback snapshot</td><td><span class="pill good">Verified healthy</span></td><td>Azure readback: Succeeded, 16 GiB, Standard_LRS, created 2026-08-08T14:03:55Z, retention tag ends 2026-08-22T14:03:53Z.</td></tr>
+<tr><td>Kubernetes and Rocket.Chat</td><td><span class="pill info">Not applicable</span></td><td>No cluster exists. Rocket.Chat <code>/api/info</code> returned HTTP 000 after one bounded timeout, which is consistent with the deleted workload.</td></tr>
+<tr><td>AKS Jenkins static agent</td><td><span class="pill info">Not applicable</span></td><td>The AKS-hosted <code>jenkins-static-agent</code> cannot exist after cluster deletion. No pending PR check needed reclassification because PR #145 was closed.</td></tr>
+<tr><td>OKE Jenkins controller</td><td><span class="pill warn">Unavailable</span></td><td>Public login returned HTTP 000, DNS lookup failed, and OKE Kubernetes requests timed out. Pod, route, job, Argo, and log health could not be verified.</td></tr>
+<tr><td>Grafana, Prometheus, Loki, Tempo</td><td><span class="pill warn">Unavailable</span></td><td>Grafana MCP failed at DNS lookup for <code>grafana.canepro.me</code>. Datasources, dashboards, metrics, logs, and traces were not verified.</td></tr>
+<tr><td>GitHub queue</td><td><span class="pill good">Verified empty</span></td><td>Readback after mutation returned no open issues and no open pull requests. PR #145 is Closed/Conflicting; issues #113 and #146 are Closed/Not planned.</td></tr>
+<tr><td>Version candidates</td><td><span class="pill info">No live target</span></td><td>The runner found 14 recorded candidates. None was applied because the AKS target is gone and the prepared PR was stale and conflicting.</td></tr>
+<tr><td>Terraform configuration</td><td><span class="pill warn">Valid but recreates</span></td><td>Root and bootstrap formatting and validation passed. The reviewed plan reported six creates plus one update, including a new AKS cluster.</td></tr>
+<tr><td>Report structure</td><td><span class="pill good">Passed</span></td><td>HTML parsing and anchor checks passed. Playwright rendered 1440 px and 390 px views with no console errors or page overflow, and exported a print PDF.</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="timeline"><h2>Timeline</h2><div class="timeline">
+<p><time datetime="2026-08-08T14:03:55Z">August 8, 14:03 UTC</time><br>Azure created the approved 16 GiB MongoDB rollback snapshot.</p>
+<p><time datetime="2026-08-08T14:09:04Z">August 8, 14:09 UTC</time><br>The Vincent-initiated AKS deletion completed. Terraform state and Azure no longer contained the cluster-owned resources.</p>
+<p><time datetime="2026-08-10T12:15:16Z">August 10, 12:15 UTC</time><br>The weekly runner started and immediately received <code>ResourceNotFound</code> for AKS.</p>
+<p><time datetime="2026-08-10T12:19:39Z">August 10, 12:19 UTC</time><br>The runner completed with no cluster start, HTTP 000 for Rocket.Chat and OKE Jenkins, one stale PR, two stale issues, and 14 recorded update candidates.</p>
+<p><time datetime="2026-08-10T12:25:03Z">August 10, 12:25 UTC</time><br>PR #145 and issues #113 and #146 were closed against the decommissioned target. Readback confirmed an empty open queue.</p>
+<p><time datetime="2026-08-10T12:34:00Z">August 10, 12:34 UTC</time><br>The read-only Terraform plan confirmed that current configuration would recreate AKS. No apply ran.</p>
+</div></section>
+<section class="panel" id="risks"><h2>Residual risks</h2><div class="table-wrap"><table><caption>Open items with owners</caption><thead><tr><th scope="col">Risk</th><th scope="col">Owner and next action</th><th scope="col">State</th></tr></thead><tbody>
+<tr><td>The retention tag does not automatically delete the snapshot. It may continue to incur storage cost after August 22.</td><td>Vincent: decide after 2026-08-22T14:03:53Z whether to delete the snapshot. Any deletion requires current approval and a final resource readback.</td><td><span class="pill warn">Dated owner decision</span></td></tr>
+<tr><td>The committed Terraform configuration still declares AKS. A future apply would rebuild the decommissioned estate.</td><td>Repository owner: do not apply current root Terraform. Treat source cleanup or an intentional rebuild as a separate reviewed change.</td><td><span class="pill bad">Apply gate</span></td></tr>
+<tr><td>OKE Jenkins, Grafana, Prometheus, Loki, Tempo, and Argo CD could not be reached.</td><td>OKE owner: determine whether that control plane was also intentionally retired. Do not infer health or deletion from DNS and timeout evidence alone.</td><td><span class="pill warn">Unverified</span></td></tr>
+<tr><td>The prior weekly scheduler must not start another AKS maintenance cycle.</td><td>Mira attempted both a bounded retention update and deletion through the required Codex app API. Both calls remained pending without readback and were terminated after bounded waits. The local record is still Active on the Monday schedule.</td><td><span class="pill bad" id="scheduler-status">Codex app update blocked</span></td></tr>
+</tbody></table></div></section>
+<section class="panel" id="evidence"><h2>Evidence and closeout</h2><div class="table-wrap"><table><caption>Durable artifacts and proof IDs</caption><thead><tr><th scope="col">Artifact</th><th scope="col">Path or ID</th><th scope="col">Status</th></tr></thead><tbody>
+<tr><td>Runner evidence</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/weekly-aks-maintenance/20260810T121516Z</code></td><td><span class="pill good">Present</span></td></tr>
+<tr><td>Reader-facing report</td><td><code>/Users/canepro/src/rocketchat-k8s/reports/2026-08-10-weekly-aks-maintenance.html</code></td><td><span class="pill good">Created</span></td></tr>
+<tr><td>Run manifest</td><td><code>/Users/canepro/.codex/automations/rocket-chat-aks-weekly-maintenance/runs/rocket-chat-aks-weekly-maintenance-20260810T121410Z.manifest.json</code></td><td><span class="pill info">Finalized after publication</span></td></tr>
+<tr><td>Selene handoff</td><td><code>not_needed</code>: Vincent said Selene is offline.</td><td><span class="pill info">No send or retry</span></td></tr>
+<tr><td>Second-brain activity note</td><td><code id="brain-note">/Users/canepro/src/second_brain/vault/memory/2026-08-10-2026-08-10-rocket-chat-aks-weekly-maintenance.md</code><br><code>b9b2fdb</code></td><td><span class="pill good" id="brain-status">Written and committed locally</span><br>No Git remote is configured. The note validates, but the broader doctor still reports 3 unresolved graph edges and 8 missing expected imports.</td></tr>
+<tr><td>Source revision audited</td><td><code>8900246265a95ed322b5f5a4efce5d52620a62d8</code></td><td><span class="pill good">Verified on main</span></td></tr>
+<tr><td>Report and runbook publication</td><td><code id="report-commit">Recorded in the final manifest after commit and push</code></td><td><span class="pill info">Closeout metadata</span></td></tr>
+</tbody></table></div>
+<details open><summary>Verification commands and results</summary><pre><code>python3 scripts/weekly_aks_maintenance.py --execute --shutdown-mode leave-auto
+exit 0, evidence: reports/weekly-aks-maintenance/20260810T121516Z
+
+az aks show --resource-group rg-canepro-aks --name aks-canepro
+exit 3, ResourceNotFound
+
+az snapshot show --resource-group rg-canepro-aks --name aks-canepro-mongodb-20260808-14d
+Succeeded, 16 GiB, Standard_LRS, retention through 2026-08-22T14:03:53Z
+
+terraform -chdir=terraform fmt -check -recursive
+terraform -chdir=terraform validate
+terraform -chdir=terraform/bootstrap fmt -check
+terraform -chdir=terraform/bootstrap validate
+all exit 0
+
+terraform -chdir=terraform plan -detailed-exitcode
+exit 2, six creates and one update, no apply
+
+Grafana MCP: list datasources and search dashboards
+failed, DNS lookup for grafana.canepro.me
+
+gh issue list / gh pr list after closeout
+open issues: 0, open PRs: 0</code></pre></details>
+<details><summary>Plan action summary</summary><pre><code>create azurerm_automation_job_schedule.stop_weekday[0]
+update azurerm_automation_runbook.start_aks[0]
+create azurerm_federated_identity_credential.eso
+create azurerm_federated_identity_credential.jenkins
+create azurerm_kubernetes_cluster.main
+create azurerm_role_assignment.automation_aks_contributor[0]
+create azurerm_role_assignment.eso_aks_cluster_user</code></pre></details>
+</section>
+</main>
+<p class="footer">This self-contained, dark-first report opens directly from <code>file://</code>. Raw runner evidence stays local. The curated report and runbook repair are repository artifacts.</p>
+</div>
+<script>(function(){var root=document.documentElement,b=document.getElementById('theme');if(b)b.addEventListener('click',function(){var next=root.dataset.theme==='dark'?'light':'dark';root.dataset.theme=next;try{localStorage.setItem('report-theme',next)}catch(e){}});try{var saved=localStorage.getItem('report-theme');if(saved==='light'||saved==='dark')root.dataset.theme=saved}catch(e){}})();</script>
+</body>
+</html>
