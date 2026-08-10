@@ -95,25 +95,27 @@ The Codex automation should do the following:
    - Terraform and Argo CD actions taken, skipped, or blocked.
    - Shutdown decision.
    - Evidence paths.
-   - Selene handoff id or exact delivery blocker.
+   - Selene handoff id, an explicit `not_needed` disposition, or the exact delivery blocker.
    - Second-brain note path or exact writeback blocker.
    - Source commit ids for any repo changes made during the run.
-7. Send Selene a post-run update after the weekly checks and report are complete:
-   - Use the approved Selene handoff or notification lane available to the run.
+7. Decide whether Selene needs a post-run update after the weekly checks and report are complete:
+   - Check the current owner direction and recipient availability before delivery.
+   - If Vincent has said Selene is offline or that no handoff is needed, do not send, retry, or create a fallback handoff. Record `not_needed` and the reason in the report, run manifest, and second-brain activity note.
+   - Otherwise, use the approved Selene handoff or notification lane available to the run.
    - Include report path, evidence directory, cluster power-state decision, actions taken, skipped or gated actions, GitHub issue/PR actions, Terraform and Argo CD actions, OKE observability findings, and any follow-up risk Selene should watch.
    - Record the returned handoff or message id in the report and final response. If delivery fails, record the exact blocker and do not claim Selene received it.
 8. Write a searchable second-brain activity note for the completed run:
    - Use the second-brain MCP or CLI write path with actor `automation` or `mira`.
    - Title the note with the run date and `Rocket.Chat AKS weekly maintenance`.
-   - Include reusable facts, actions taken, gated actions, report path, evidence paths, Selene handoff id, commit ids or PR ids, and next checks.
+   - Include reusable facts, actions taken, gated actions, report path, evidence paths, Selene handoff id or `not_needed` disposition, commit ids or PR ids, and next checks.
    - Do not write raw logs, raw transcripts, secret values, kubeconfig contents, OAuth state, tokens, or private credentials.
    - If second-brain writeback fails, record the blocker in the report and final response.
 9. Run a closeout audit before the final user response:
    - Inspect the final runner `evidence.json`; if AKS is online, `aks_jenkins_agent.deployment.healthy` must be present and the static-agent pod readiness and findings must be reported.
    - If AKS is online, verify the live static agent separately with `kubectl --context aks-canepro -n jenkins get deployment jenkins-static-agent -o wide` and `kubectl --context aks-canepro -n jenkins get pods -l app=jenkins-static-agent -o wide`.
-   - Validate the HTML report parses and includes the final evidence path, Selene handoff id or blocker, second-brain note path or blocker, source commit ids, shutdown decision, and residual risks.
+   - Validate the HTML report parses and includes the final evidence path, Selene handoff id, `not_needed` disposition, or blocker, second-brain note path or blocker, source commit ids, shutdown decision, and residual risks.
    - Check `git status --short --branch` for this repo and any repo touched during the run. Commit and push scoped source/docs/report changes when allowed; leave unrelated dirty or older untracked files untouched and name them in the final response.
-   - Do not close the run while the report says a handoff or second-brain record is required but the artifact lacks the id/path or explicit blocker.
+   - Do not close the run while the report says a handoff or second-brain record is required but the artifact lacks the id, `not_needed` disposition, path, or explicit blocker.
 
 ## Stop Conditions
 
