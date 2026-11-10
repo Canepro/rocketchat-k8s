@@ -4,6 +4,10 @@
 # No secret values. Only the full-history scan reads this file, and only from the
 # default branch; the new-changes scan ignores it. It is not named .gitleaksignore
 # because Gitleaks loads that file from the scanned tree on its own.
+# Fingerprints depend on the full-history scan's git log options; changing them
+# can reopen these findings.
+# Add an entry only after a private review records it as a false positive or a
+# credential whose service is retired or whose credential is revoked or expired.
 45b0b74250e7bb896912ec9d579a80eb2b374781:ops/manifests/observability-verification.md:curl-auth-user:222
 45b0b74250e7bb896912ec9d579a80eb2b374781:ops/manifests/observability-verification.md:curl-auth-user:294
 5e907f1f7d6dbc114c1794e6b62988b7ab34bc36:.jenkins/setup-via-cli.md:generic-api-key:17
