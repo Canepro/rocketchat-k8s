@@ -1,0 +1,25 @@
+# Gitleaks full-history baseline, reviewed privately on 2026-11-10.
+# Each line is a fingerprint (commit:path:rule:line) of a historical finding that is
+# either a false positive or a credential for a service that no longer runs.
+# No secret values. Only the full-history scan reads this file, and only from the
+# default branch; the new-changes scan ignores it. It is not named .gitleaksignore
+# because Gitleaks loads that file from the scanned tree on its own.
+# Fingerprints depend on the full-history scan's git log options; changing them
+# can reopen these findings.
+# Add an entry only after a private review records it as a false positive or a
+# credential whose service is retired or whose credential is revoked or expired.
+45b0b74250e7bb896912ec9d579a80eb2b374781:ops/manifests/observability-verification.md:curl-auth-user:222
+45b0b74250e7bb896912ec9d579a80eb2b374781:ops/manifests/observability-verification.md:curl-auth-user:294
+5e907f1f7d6dbc114c1794e6b62988b7ab34bc36:.jenkins/setup-via-cli.md:generic-api-key:17
+63f7b7d26307ec73df2424e1085837ce380197aa:all-manifests.yaml:generic-api-key:63
+63f7b7d26307ec73df2424e1085837ce380197aa:all-manifests.yaml:generic-api-key:64
+63f7b7d26307ec73df2424e1085837ce380197aa:all-manifests.yaml:generic-api-key:65
+63f7b7d26307ec73df2424e1085837ce380197aa:all-manifests.yaml:generic-api-key:785
+938db6a29b8d57fe9f2ddece117e0e03eb4ce467:docs/OBSERVABILITY-CURRENT-STATE.md:generic-api-key:50
+938db6a29b8d57fe9f2ddece117e0e03eb4ce467:docs/OBSERVABILITY-QUICK-REFERENCE.md:generic-api-key:190
+c80c92433bb27a521d5bfcfa3195eb9aefd343d4:ops/manifests/observability-verification.md:curl-auth-user:222
+c80c92433bb27a521d5bfcfa3195eb9aefd343d4:ops/manifests/observability-verification.md:curl-auth-user:294
+fe6c9fb7c68a832462a8b416c81c0d37916096cf:.jenkins/setup-via-cli.md:curl-auth-user:48
+fe6c9fb7c68a832462a8b416c81c0d37916096cf:.jenkins/setup-via-cli.md:curl-auth-user:59
+fe6c9fb7c68a832462a8b416c81c0d37916096cf:JENKINS_DEPLOYMENT.md:curl-auth-user:685
+fe6c9fb7c68a832462a8b416c81c0d37916096cf:JENKINS_DEPLOYMENT.md:curl-auth-user:692
